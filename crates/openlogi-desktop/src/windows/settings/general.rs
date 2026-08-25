@@ -5,6 +5,7 @@ use super::{
     SettingItem, SettingPage, Slider, SliderState, StateEvent, Styled, ThumbwheelSensitivity,
     VerticalScrollSensitivity, div, h_flex, px, theme, v_flex,
 };
+use openlogi_core::config::BatteryDisplay;
 use crate::ui::theme::Typography as _;
 
 pub(super) fn general_page(
@@ -52,6 +53,29 @@ pub(super) fn general_page(
             .description(tr!(
                 "Scales the thumb wheel's horizontal scroll speed and how readily custom wheel actions trigger."
             )),
+        )
+        .item(
+            SettingItem::new(
+                tr!("Battery display"),
+                SettingField::segmented_enum::<BatteryDisplay, _, _>(
+                    [
+                        (BatteryDisplay::Auto, tr!("Automatic")),
+                        (BatteryDisplay::Percentage, tr!("Percentage")),
+                        (BatteryDisplay::Voltage, tr!("Voltage")),
+                    ],
+                    |cx| {
+                        AppState::try_read(cx)
+                            .map_or(BatteryDisplay::Auto, |s| s.app_settings().battery_display)
+                    },
+                    |mode, cx| {
+                        AppState::update(cx, move |state, cx| {
+                            state.set_battery_display(mode);
+                            cx.emit(StateEvent::SettingsChanged);
+                        });
+                    },
+                ),
+            )
+            .description(tr!("Preferred mode for displaying battery status.")),
         )
         .item(
             SettingItem::new(

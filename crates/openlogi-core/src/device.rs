@@ -221,8 +221,12 @@ pub enum BatteryStatus {
 /// Battery snapshot for one paired device, as last polled over HID++.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BatteryInfo {
-    /// Reported charge percentage (`0..=100`).
-    pub percentage: u8,
+    /// Reported charge percentage (`0..=100`), if available.
+    #[serde(default)]
+    pub percentage: Option<u8>,
+    /// Measured battery voltage in millivolts, if available.
+    #[serde(default)]
+    pub voltage_mv: Option<u16>,
     /// Coarse bucket for UI that doesn't want the raw percentage.
     pub level: BatteryLevel,
     /// Charging state at poll time.
@@ -452,7 +456,8 @@ mod tests {
                 kind: DeviceKind::Mouse,
                 online: true,
                 battery: Some(BatteryInfo {
-                    percentage: battery_percentage,
+                    percentage: Some(battery_percentage),
+                    voltage_mv: Some(1420),
                     level: BatteryLevel::Good,
                     status: BatteryStatus::Discharging,
                 }),
@@ -503,6 +508,45 @@ mod tests {
             inventory(1, Some(0xb023), 87),
             "nested battery changes must affect inventory equality"
         );
+    }
+
+    #[test]
+    fn battery_info_supports_percentage_only_voltage_only_and_both() {
+        let pct_only = BatteryInfo {
+            percentage: Some(85),
+            voltage_mv: None,
+            level: BatteryLevel::Good,
+            status: BatteryStatus::Discharging,
+        };
+        assert_eq!(pct_only.percentage, Some(85));
+        assert_eq!(pct_only.voltage_mv, None);
+
+        let voltage_only = BatteryInfo {
+            percentage: None,
+            voltage_mv: Some(1420),
+            level: BatteryLevel::Good,
+            status: BatteryStatus::Discharging,
+        };
+        assert_eq!(voltage_only.percentage, None);
+        assert_eq!(voltage_only.voltage_mv, Some(1420));
+
+        let both = BatteryInfo {
+            percentage: Some(90),
+            voltage_mv: Some(1420),
+            level: BatteryLevel::Good,
+            status: BatteryStatus::Discharging,
+        };
+        assert_eq!(both.percentage, Some(90));
+        assert_eq!(both.voltage_mv, Some(1420));
+
+        let neither = BatteryInfo {
+            percentage: None,
+            voltage_mv: None,
+            level: BatteryLevel::Unknown,
+            status: BatteryStatus::Unknown,
+        };
+        assert_eq!(neither.percentage, None);
+        assert_eq!(neither.voltage_mv, None);
     }
 
     #[test]

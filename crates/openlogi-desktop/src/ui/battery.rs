@@ -9,8 +9,10 @@ use gpui::{
     RenderOnce, Styled, Window, canvas, point, prelude::FluentBuilder as _, px, quad, rgb, size,
 };
 use gpui_component::h_flex;
+use openlogi_core::config::BatteryDisplay;
 use openlogi_core::device::{BatteryInfo, BatteryLevel, BatteryStatus};
 
+use crate::state::AppState;
 use super::theme::{self, Palette, Typography as _};
 
 /// True when a charging device has not supplied a usable percentage yet.
@@ -19,12 +21,12 @@ use super::theme::{self, Palette, Typography as _};
 /// report 0% until a later poll, which must not be presented as an empty or
 /// critically depleted battery.
 pub(crate) fn battery_charging_no_reading(battery: &BatteryInfo) -> bool {
-    is_charging(battery.status) && battery.percentage == 0
+    is_charging(battery.status) && (battery.percentage == Some(0) || (battery.percentage.is_none() && battery.voltage_mv.is_none()))
 }
 
 /// Whether a discharging battery should draw the user's attention.
 pub(crate) fn battery_needs_attention(battery: &BatteryInfo) -> bool {
-    battery.percentage <= 20
+    battery.percentage.is_some_and(|p| p <= 20)
         && !matches!(
             battery.status,
             BatteryStatus::Charging | BatteryStatus::ChargingSlow | BatteryStatus::Full
@@ -84,18 +86,20 @@ impl BatteryIndicator {
 impl RenderOnce for BatteryIndicator {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let pal = theme::palette(cx);
+        let mode = AppState::try_read(cx)
+            .map_or(BatteryDisplay::Auto, |s| s.app_settings().battery_display);
         match self.presentation {
-            Presentation::Inline => inline_readout(&self.battery, pal).into_any_element(),
+            Presentation::Inline => inline_readout(&self.battery, mode, pal).into_any_element(),
             Presentation::Glance => glance_readout(&self.battery, pal).into_any_element(),
             Presentation::Status { online } => {
-                status_readout(&self.battery, online, pal).into_any_element()
+                status_readout(&self.battery, online, mode, pal).into_any_element()
             }
-            Presentation::Summary => summary_readout(&self.battery, pal).into_any_element(),
+            Presentation::Summary => summary_readout(&self.battery, mode, pal).into_any_element(),
         }
     }
 }
 
-fn inline_readout(battery: &BatteryInfo, pal: Palette) -> impl IntoElement {
+fn inline_readout(battery: &BatteryInfo, mode: BatteryDisplay, pal: Palette) -> impl IntoElement {
     h_flex()
         .items_center()
         .gap_2()
@@ -105,7 +109,7 @@ fn inline_readout(battery: &BatteryInfo, pal: Palette) -> impl IntoElement {
             gpui::div()
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(pal.text_primary)
-                .child(value_label(battery)),
+                .child(value_label(battery, mode)),
         )
 }
 
@@ -115,18 +119,9 @@ fn glance_readout(battery: &BatteryInfo, pal: Palette) -> impl IntoElement {
         .gap_2()
         .text_caption()
         .child(battery_glyph(battery, pal, GlyphSize::Compact, pal.panel))
-    // The number is hidden for now — the glyph's fill carries it, and
-    // [`glance_hint`] repeats it on hover. Re-enable if the glyph alone
-    // proves too coarse.
-    // .child(
-    //     gpui::div()
-    //         .font_weight(FontWeight::MEDIUM)
-    //         .text_color(pal.text_primary)
-    //         .child(value_label(battery)),
-    // )
 }
 
-fn status_readout(battery: &BatteryInfo, online: bool, pal: Palette) -> impl IntoElement {
+fn status_readout(battery: &BatteryInfo, online: bool, mode: BatteryDisplay, pal: Palette) -> impl IntoElement {
     h_flex()
         .w_full()
         .items_center()
@@ -137,14 +132,14 @@ fn status_readout(battery: &BatteryInfo, online: bool, pal: Palette) -> impl Int
             gpui::div()
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(pal.text_primary)
-                .child(value_label(battery)),
+                .child(value_label(battery, mode)),
         )
-        .when_some(context_label(battery, online), |row, label| {
+        .when_some(context_label(battery, online, mode), |row, label| {
             row.child(gpui::div().text_color(pal.text_muted).child(label))
         })
 }
 
-fn summary_readout(battery: &BatteryInfo, pal: Palette) -> impl IntoElement {
+fn summary_readout(battery: &BatteryInfo, mode: BatteryDisplay, pal: Palette) -> impl IntoElement {
     h_flex()
         .w_full()
         .items_center()
@@ -154,7 +149,7 @@ fn summary_readout(battery: &BatteryInfo, pal: Palette) -> impl IntoElement {
             gpui::div()
                 .text_heading()
                 .text_color(pal.text_primary)
-                .child(value_label(battery)),
+                .child(value_label(battery, mode)),
         )
         .child(
             gpui::div()
@@ -164,11 +159,34 @@ fn summary_readout(battery: &BatteryInfo, pal: Palette) -> impl IntoElement {
         )
 }
 
-fn value_label(battery: &BatteryInfo) -> String {
+pub(crate) fn value_label(battery: &BatteryInfo, mode: BatteryDisplay) -> String {
     if battery_charging_no_reading(battery) {
-        tr!("Charging").to_string()
-    } else {
-        format!("{}%", battery.percentage)
+        return tr!("Charging").to_string();
+    }
+    match mode {
+        BatteryDisplay::Auto => {
+            if let Some(pct) = battery.percentage {
+                format!("{pct}%")
+            } else if let Some(mv) = battery.voltage_mv {
+                format!("{:.2} V", f64::from(mv) / 1000.0)
+            } else {
+                "—".to_string()
+            }
+        }
+        BatteryDisplay::Percentage => {
+            if let Some(pct) = battery.percentage {
+                format!("{pct}%")
+            } else {
+                "—".to_string()
+            }
+        }
+        BatteryDisplay::Voltage => {
+            if let Some(mv) = battery.voltage_mv {
+                format!("{:.2} V", f64::from(mv) / 1000.0)
+            } else {
+                tr!("Voltage unavailable").to_string()
+            }
+        }
     }
 }
 
@@ -189,14 +207,14 @@ fn secondary_label(battery: &BatteryInfo) -> Option<gpui::SharedString> {
 
 /// Everything a [`BatteryIndicator::glance`] does not show — the value plus
 /// the status and last-known words — for its caller's hover tip.
-pub(crate) fn glance_hint(battery: &BatteryInfo, online: bool) -> String {
-    match context_label(battery, online) {
-        Some(context) => format!("{} · {context}", value_label(battery)),
-        None => value_label(battery),
+pub(crate) fn glance_hint(battery: &BatteryInfo, online: bool, mode: BatteryDisplay) -> String {
+    match context_label(battery, online, mode) {
+        Some(context) => format!("{} · {context}", value_label(battery, mode)),
+        None => value_label(battery, mode),
     }
 }
 
-fn context_label(battery: &BatteryInfo, online: bool) -> Option<String> {
+fn context_label(battery: &BatteryInfo, online: bool, _mode: BatteryDisplay) -> Option<String> {
     match (!online, secondary_label(battery)) {
         (true, Some(status)) => Some(format!("{} · {status}", tr!("Last known battery"))),
         (true, None) => Some(tr!("Last known battery").to_string()),
@@ -308,7 +326,7 @@ fn battery_glyph(
         }
     };
     let paint = GlyphPaint {
-        percentage: (!battery_charging_no_reading(battery)).then_some(battery.percentage),
+        percentage: (!battery_charging_no_reading(battery)).then_some(battery.percentage).flatten(),
         track: pal.muted,
         fill: color,
         outline: pal.text_muted.opacity(0.78),
@@ -535,11 +553,45 @@ mod tests {
         ];
         for (percentage, level, status, expected) in cases {
             let battery = BatteryInfo {
-                percentage,
+                percentage: Some(percentage),
+                voltage_mv: None,
                 level,
                 status,
             };
             assert_eq!(battery_tone(&battery), expected);
         }
+    }
+
+    #[test]
+    fn value_label_respects_battery_display_preference() {
+        let both = BatteryInfo {
+            percentage: Some(90),
+            voltage_mv: Some(1420),
+            level: BatteryLevel::Good,
+            status: BatteryStatus::Discharging,
+        };
+        assert_eq!(value_label(&both, BatteryDisplay::Auto), "90%");
+        assert_eq!(value_label(&both, BatteryDisplay::Percentage), "90%");
+        assert_eq!(value_label(&both, BatteryDisplay::Voltage), "1.42 V");
+
+        let voltage_only = BatteryInfo {
+            percentage: None,
+            voltage_mv: Some(1420),
+            level: BatteryLevel::Good,
+            status: BatteryStatus::Discharging,
+        };
+        assert_eq!(value_label(&voltage_only, BatteryDisplay::Auto), "1.42 V");
+        assert_eq!(value_label(&voltage_only, BatteryDisplay::Percentage), "—");
+        assert_eq!(value_label(&voltage_only, BatteryDisplay::Voltage), "1.42 V");
+
+        let pct_only = BatteryInfo {
+            percentage: Some(90),
+            voltage_mv: None,
+            level: BatteryLevel::Good,
+            status: BatteryStatus::Discharging,
+        };
+        assert_eq!(value_label(&pct_only, BatteryDisplay::Auto), "90%");
+        assert_eq!(value_label(&pct_only, BatteryDisplay::Percentage), "90%");
+        assert_eq!(value_label(&pct_only, BatteryDisplay::Voltage), "Voltage unavailable");
     }
 }

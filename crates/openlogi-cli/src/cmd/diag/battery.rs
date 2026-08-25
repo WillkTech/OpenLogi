@@ -20,8 +20,8 @@ pub struct BatteryArgs {
 }
 
 pub async fn run(args: BatteryArgs) -> Result<()> {
-    // 0x1004 UnifiedBattery / 0x1000 BatteryStatus — pick a device with either.
-    let (route, name) = select_device(args.device.as_deref(), &[0x1000, 0x1004]).await?;
+    // 0x1004 UnifiedBattery / 0x1000 BatteryStatus / 0x1001 BatteryVoltage — pick a device with any.
+    let (route, name) = select_device(args.device.as_deref(), &[0x1000, 0x1001, 0x1004]).await?;
     println!("device: {name} ({route})");
 
     let line = openlogi_hid::read_battery_raw(&route)

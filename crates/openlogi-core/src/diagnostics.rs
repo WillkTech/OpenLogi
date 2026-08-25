@@ -429,12 +429,26 @@ fn connection_label(connection: ConnectionKind) -> &'static str {
 
 fn battery_label(battery: Option<&BatteryInfo>) -> String {
     match battery {
-        Some(b) => format!(
-            "{}% ({}, {})",
-            b.percentage,
-            battery_status_label(b.status),
-            battery_level_label(b.level),
-        ),
+        Some(b) => {
+            let mut parts = Vec::new();
+            if let Some(pct) = b.percentage {
+                parts.push(format!("{pct}%"));
+            }
+            if let Some(mv) = b.voltage_mv {
+                parts.push(format!("{} mV ({:.2} V)", mv, f64::from(mv) / 1000.0));
+            }
+            let values = if parts.is_empty() {
+                "—".to_string()
+            } else {
+                parts.join(" / ")
+            };
+            format!(
+                "{} ({}, {})",
+                values,
+                battery_status_label(b.status),
+                battery_level_label(b.level),
+            )
+        }
         None => "n/a".to_string(),
     }
 }
@@ -565,7 +579,8 @@ mod tests {
                     connection: ConnectionKind::BoltReceiver,
                     online: true,
                     battery: Some(BatteryInfo {
-                        percentage: 80,
+                        percentage: Some(80),
+                        voltage_mv: None,
                         level: BatteryLevel::Good,
                         status: BatteryStatus::Discharging,
                     }),

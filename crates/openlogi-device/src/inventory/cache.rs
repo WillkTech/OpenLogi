@@ -69,7 +69,11 @@ fn hold_percentage_while_charging(
 ) -> BatteryInfo {
     // Scoped to the legacy 0x1000 quirk: a 0x1004 device that legitimately
     // reports 0% while charging must surface that, not a stale prior reading.
-    if !matches!(probe, BatteryProbe::Legacy(_)) {
+    let is_legacy = matches!(
+        probe.percentage,
+        Some(super::features::PercentageProbe::Legacy(_))
+    );
+    if !is_legacy {
         return fresh;
     }
     let charging = matches!(
@@ -77,11 +81,12 @@ fn hold_percentage_while_charging(
         BatteryStatus::Charging | BatteryStatus::ChargingSlow
     );
     if charging
-        && fresh.percentage == 0
-        && let Some(p) = prev.filter(|p| p.percentage > 0)
+        && fresh.percentage == Some(0)
+        && let Some(p) = prev.filter(|p| p.percentage > Some(0))
     {
         return BatteryInfo {
             percentage: p.percentage,
+            voltage_mv: fresh.voltage_mv,
             level: p.level,
             status: fresh.status,
         };
@@ -250,7 +255,8 @@ mod hold_tests {
 
     fn battery(percentage: u8, status: BatteryStatus) -> BatteryInfo {
         BatteryInfo {
-            percentage,
+            percentage: Some(percentage),
+            voltage_mv: None,
             level: BatteryLevel::Good,
             status,
         }
@@ -258,13 +264,16 @@ mod hold_tests {
 
     #[test]
     fn charging_zero_holds_last_known_percentage() {
-        let legacy = BatteryProbe::Legacy(0);
+        let legacy = BatteryProbe {
+            percentage: Some(crate::inventory::features::PercentageProbe::Legacy(0)),
+            voltage_index: None,
+        };
         let held = hold_percentage_while_charging(
             battery(0, BatteryStatus::Charging),
             Some(&battery(85, BatteryStatus::Discharging)),
             legacy,
         );
-        assert_eq!(held.percentage, 85);
+        assert_eq!(held.percentage, Some(85));
         assert_eq!(held.status, BatteryStatus::Charging);
 
         let discharging = hold_percentage_while_charging(
@@ -272,18 +281,18 @@ mod hold_tests {
             Some(&battery(85, BatteryStatus::Discharging)),
             legacy,
         );
-        assert_eq!(discharging.percentage, 0);
+        assert_eq!(discharging.percentage, Some(0));
 
         let live = hold_percentage_while_charging(
             battery(40, BatteryStatus::Charging),
             Some(&battery(85, BatteryStatus::Discharging)),
             legacy,
         );
-        assert_eq!(live.percentage, 40);
+        assert_eq!(live.percentage, Some(40));
 
         let cold =
             hold_percentage_while_charging(battery(0, BatteryStatus::Charging), None, legacy);
-        assert_eq!(cold.percentage, 0);
+        assert_eq!(cold.percentage, Some(0));
     }
 
     #[test]
@@ -291,8 +300,11 @@ mod hold_tests {
         let live = hold_percentage_while_charging(
             battery(0, BatteryStatus::Charging),
             Some(&battery(85, BatteryStatus::Discharging)),
-            BatteryProbe::Unified(0),
+            BatteryProbe {
+                percentage: Some(crate::inventory::features::PercentageProbe::Unified(0)),
+                voltage_index: None,
+            },
         );
-        assert_eq!(live.percentage, 0);
+        assert_eq!(live.percentage, Some(0));
     }
 }

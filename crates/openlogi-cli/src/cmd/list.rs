@@ -219,13 +219,24 @@ struct BatteryDisplay<'a>(&'a BatteryInfo);
 impl fmt::Display for BatteryDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let battery = self.0;
-        write!(
-            f,
-            "battery={}% {} ({})",
-            battery.percentage,
-            LowercaseDebug(battery.level),
-            LowercaseDebug(battery.status)
-        )
+        if let Some(mv) = battery.voltage_mv {
+            write!(
+                f,
+                "battery={}% ({:.2} V) {} ({})",
+                battery.percentage,
+                f64::from(mv) / 1000.0,
+                LowercaseDebug(battery.level),
+                LowercaseDebug(battery.status)
+            )
+        } else {
+            write!(
+                f,
+                "battery={}% {} ({})",
+                battery.percentage,
+                LowercaseDebug(battery.level),
+                LowercaseDebug(battery.status)
+            )
+        }
     }
 }
 

@@ -956,6 +956,21 @@ fn asset_source_preference_roundtrips() {
 }
 
 #[test]
+fn battery_display_preference_defaults_to_auto_and_roundtrips() {
+    let default: Config = toml::from_str("schema_version = 6").expect("parse defaults");
+    assert_eq!(default.app_settings.battery_display, BatteryDisplay::Auto);
+
+    let mut cfg = Config::default();
+    cfg.app_settings.battery_display = BatteryDisplay::Voltage;
+
+    let body = toml::to_string_pretty(&cfg).expect("serialize");
+    let parsed = write_and_read(&cfg);
+
+    assert!(body.contains("battery_display = \"voltage\""));
+    assert_eq!(parsed.app_settings.battery_display, BatteryDisplay::Voltage);
+}
+
+#[test]
 fn config_without_asset_source_keeps_automatic_selection() {
     let parsed: Config = toml::from_str(
         r"

@@ -429,7 +429,8 @@ impl State {
             kind: DeviceKind::Keyboard,
             online: true,
             battery: Some(BatteryInfo {
-                percentage: 90,
+                percentage: Some(90),
+                voltage_mv: None,
                 level: BatteryLevel::Full,
                 status: BatteryStatus::Discharging,
             }),
@@ -499,7 +500,8 @@ fn draining_battery(elapsed: Duration) -> BatteryInfo {
     let drained = u8::try_from(elapsed.as_secs() / 60 % 61).unwrap_or(0);
     let percentage = 80 - drained;
     BatteryInfo {
-        percentage,
+        percentage: Some(percentage),
+        voltage_mv: Some(1350),
         level: match percentage {
             0..=10 => BatteryLevel::Critical,
             11..=25 => BatteryLevel::Low,
@@ -526,7 +528,10 @@ fn bolt_inventory(mouse_battery: BatteryInfo) -> DeviceInventory {
                 wpid: Some(0xb034),
                 kind: DeviceKind::Mouse,
                 online: true,
-                battery: Some(mouse_battery),
+                battery: Some(BatteryInfo {
+                    voltage_mv: Some(1420),
+                    ..mouse_battery
+                }),
                 model_info: Some(DeviceModelInfo {
                     entity_count: 3,
                     serial_number: Some("2140LZ00MOCK".to_string()),
@@ -570,7 +575,8 @@ fn bolt_inventory(mouse_battery: BatteryInfo) -> DeviceInventory {
                 kind: DeviceKind::Keyboard,
                 online: true,
                 battery: Some(BatteryInfo {
-                    percentage: 100,
+                    percentage: Some(100),
+                    voltage_mv: None,
                     level: BatteryLevel::Full,
                     status: BatteryStatus::Full,
                 }),
@@ -619,7 +625,8 @@ fn direct_inventory() -> DeviceInventory {
             kind: DeviceKind::Mouse,
             online: true,
             battery: Some(BatteryInfo {
-                percentage: 55,
+                percentage: Some(55),
+                voltage_mv: Some(3850),
                 level: BatteryLevel::Good,
                 status: BatteryStatus::Discharging,
             }),

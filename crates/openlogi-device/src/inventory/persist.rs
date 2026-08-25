@@ -196,7 +196,7 @@ mod tests {
     };
 
     use super::super::cache::{CacheKey, Cached};
-    use super::super::features::{BatteryProbe, ProbedFeatures};
+    use super::super::features::{BatteryProbe, PercentageProbe, ProbedFeatures};
     use super::{ProbeCacheSnapshot, SCHEMA_VERSION};
 
     /// A device fully probed once keeps its identity across restarts — that is
@@ -222,13 +222,17 @@ mod tests {
                     model_info: Some(model.clone()),
                     // A live reading at snapshot time.
                     battery: Some(BatteryInfo {
-                        percentage: 55,
+                        percentage: Some(55),
+                        voltage_mv: None,
                         level: BatteryLevel::Good,
                         status: BatteryStatus::Discharging,
                     }),
                     ..Default::default()
                 },
-                battery: Some(BatteryProbe::Unified(9)),
+                battery: Some(BatteryProbe {
+                    percentage: Some(PercentageProbe::Unified(9)),
+                    voltage_index: None,
+                }),
                 probed_tick: 7,
             },
         );
@@ -254,7 +258,10 @@ mod tests {
         assert_eq!(bolt.probe.model_info.as_ref(), Some(&model));
         assert_eq!(
             bolt.battery,
-            Some(BatteryProbe::Unified(9)),
+            Some(BatteryProbe {
+                percentage: Some(PercentageProbe::Unified(9)),
+                voltage_index: None,
+            }),
             "the battery *feature index* is immutable and kept"
         );
         assert!(

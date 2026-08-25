@@ -3,8 +3,8 @@
 use super::AppState;
 use gpui::App;
 use openlogi_core::config::{
-    AppIcon, AppSettings, Appearance, AssetSourcePreference, DeviceViewMode, ThumbwheelSensitivity,
-    UiScale, VerticalScrollSensitivity,
+    AppIcon, AppSettings, Appearance, AssetSourcePreference, BatteryDisplay, DeviceViewMode,
+    ThumbwheelSensitivity, UiScale, VerticalScrollSensitivity,
 };
 
 impl AppState {
@@ -149,6 +149,15 @@ impl AppState {
         self.config
             .edit(|config| config.app_settings.device_view_mode = mode);
         self.persist_config("device view mode");
+    }
+    /// Persist the battery display mode (auto, percentage, voltage). No-op when unchanged.
+    pub fn set_battery_display(&mut self, mode: BatteryDisplay) {
+        if self.config.app_settings.battery_display == mode {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.battery_display = mode);
+        self.persist_config("battery display setting");
     }
     /// Whether OpenLogi manages `key` (capture + volatile re-apply).
     #[must_use]

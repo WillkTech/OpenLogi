@@ -79,6 +79,19 @@ pub enum DeviceViewMode {
     Carousel,
 }
 
+/// Preferred mode for displaying battery state.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BatteryDisplay {
+    /// Use percentage when available; fall back to voltage if percentage is unavailable but voltage is.
+    #[default]
+    Auto,
+    /// Prefer percentage display.
+    Percentage,
+    /// Prefer measured raw voltage display when available.
+    Voltage,
+}
+
 /// Which icon the app wears.
 ///
 /// Variant names are one string doing three jobs, and all three are part of a
@@ -270,6 +283,9 @@ pub struct AppSettings {
     /// Layout used for the Home device gallery. Defaults to the responsive grid.
     #[serde(default)]
     pub device_view_mode: DeviceViewMode,
+    /// Preferred mode for displaying battery state (auto, percentage, voltage).
+    #[serde(default)]
+    pub battery_display: BatteryDisplay,
     /// Name of the theme used in light mode (a [`crate`]-agnostic string
     /// matching a gpui-component theme, e.g. `"OpenLogi Light"`). `None` uses
     /// the OpenLogi brand light theme.
@@ -486,6 +502,7 @@ impl Default for AppSettings {
             appearance: Appearance::System,
             ui_scale: UiScale::Normal,
             device_view_mode: DeviceViewMode::Grid,
+            battery_display: BatteryDisplay::Auto,
             app_icon: AppIcon::Openlogi,
             theme_light: None,
             theme_dark: None,

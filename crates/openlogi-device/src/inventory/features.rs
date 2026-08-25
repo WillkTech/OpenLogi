@@ -16,7 +16,8 @@ use hidpp::{
     },
 };
 use openlogi_core::device::{
-    BatteryInfo, BatteryLevel, Capabilities, DeviceKind, DeviceModelInfo, DeviceTransports,
+    BatteryInfo, BatteryLevel, BatteryStatus, Capabilities, DeviceKind, DeviceModelInfo,
+    DeviceTransports,
 };
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -24,7 +25,6 @@ use tracing::debug;
 use super::mappings::{
     legacy_battery_level_from_percentage, map_battery_level, map_battery_status, map_device_type,
     map_legacy_battery_status, map_voltage_battery_status, normalize_serial_number,
-    voltage_battery_percentage,
 };
 
 /// Everything a single device probe yields. Any field is `None` when the
@@ -49,16 +49,19 @@ pub(super) struct ProbedFeatures {
     pub(super) capabilities_incomplete: bool,
 }
 
-/// Which battery feature a device exposes plus its runtime feature index. Newer
-/// devices answer the unified `0x1004`; MX2S-era ones only the legacy `0x1000`
-/// — the same enhanced-then-legacy split SmartShift has with `0x2111`/`0x2110`.
-/// G-series wireless gaming devices (G915, G903 LS) expose neither and report
-/// battery only as a voltage via `0x1001`.
+/// Battery features exposed by a device plus their runtime feature indices.
+/// A device may expose a percentage feature (`0x1004` or `0x1000`) as well as
+/// `0x1001` BatteryVoltage independently.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub(super) struct BatteryProbe {
+    pub(super) percentage: Option<PercentageProbe>,
+    pub(super) voltage_index: Option<u8>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(super) enum BatteryProbe {
+pub(super) enum PercentageProbe {
     Unified(u8),
     Legacy(u8),
-    Voltage(u8),
 }
 
 /// Read just the battery by addressing its feature at the known runtime index —
@@ -71,48 +74,60 @@ pub(super) async fn read_battery(
     slot: u8,
     probe: BatteryProbe,
 ) -> Option<BatteryInfo> {
-    match probe {
-        BatteryProbe::Unified(feature_index) => {
-            let feature = UnifiedBatteryFeature::new(Arc::clone(channel), slot, feature_index);
-            feature
-                .get_battery_info()
-                .await
-                .ok()
-                .map(|info| BatteryInfo {
-                    percentage: info.charging_percentage,
-                    level: map_battery_level(info.level),
-                    status: map_battery_status(info.status),
-                })
-        }
-        BatteryProbe::Legacy(feature_index) => {
-            let feature = BatteryStatusFeature::new(Arc::clone(channel), slot, feature_index);
-            feature
-                .get_battery_level_status()
-                .await
-                .ok()
-                .map(|info| BatteryInfo {
-                    percentage: info.discharge_level,
-                    level: legacy_battery_level_from_percentage(info.discharge_level),
-                    status: map_legacy_battery_status(info.status),
-                })
-        }
-        BatteryProbe::Voltage(feature_index) => {
-            let feature = BatteryVoltageFeature::new(Arc::clone(channel), slot, feature_index);
-            feature.get_battery_info().await.ok().map(|info| {
-                let percentage = voltage_battery_percentage(info.voltage_mv);
-                BatteryInfo {
-                    percentage,
-                    // The firmware's own critical marker outranks our
-                    // estimated bucket.
-                    level: if info.critical {
-                        BatteryLevel::Critical
-                    } else {
-                        legacy_battery_level_from_percentage(percentage)
-                    },
-                    status: map_voltage_battery_status(info.status),
+    let mut percentage_val = None;
+    let mut level_val = None;
+    let mut status_val = None;
+    let mut voltage_mv_val = None;
+
+    if let Some(pct_probe) = probe.percentage {
+        match pct_probe {
+            PercentageProbe::Unified(feature_index) => {
+                let feature = UnifiedBatteryFeature::new(Arc::clone(channel), slot, feature_index);
+                if let Ok(info) = feature.get_battery_info().await {
+                    percentage_val = Some(info.charging_percentage);
+                    level_val = Some(map_battery_level(info.level));
+                    status_val = Some(map_battery_status(info.status));
                 }
-            })
+            }
+            PercentageProbe::Legacy(feature_index) => {
+                let feature = BatteryStatusFeature::new(Arc::clone(channel), slot, feature_index);
+                if let Ok(info) = feature.get_battery_level_status().await {
+                    percentage_val = Some(info.discharge_level);
+                    level_val = Some(legacy_battery_level_from_percentage(info.discharge_level));
+                    status_val = Some(map_legacy_battery_status(info.status));
+                }
+            }
         }
+    }
+
+    if let Some(v_index) = probe.voltage_index {
+        let feature = BatteryVoltageFeature::new(Arc::clone(channel), slot, v_index);
+        if let Ok(info) = feature.get_battery_info().await {
+            voltage_mv_val = Some(info.voltage_mv);
+            if status_val.is_none() {
+                status_val = Some(map_voltage_battery_status(info.status));
+            }
+            if level_val.is_none() {
+                level_val = Some(if info.critical {
+                    BatteryLevel::Critical
+                } else {
+                    BatteryLevel::Good
+                });
+            }
+        }
+    }
+
+    if percentage_val.is_some() || voltage_mv_val.is_some() {
+        let status = status_val.unwrap_or(BatteryStatus::Discharging);
+        let level = level_val.unwrap_or(BatteryLevel::Good);
+        Some(BatteryInfo {
+            percentage: percentage_val,
+            voltage_mv: voltage_mv_val,
+            level,
+            status,
+        })
+    } else {
+        None
     }
 }
 
@@ -122,27 +137,25 @@ pub(super) async fn read_battery(
 /// always outranks it). The table is 1-based (index 0 is the implicit root
 /// feature, which enumeration omits).
 pub(super) fn battery_feature_index(ids: impl IntoIterator<Item = u16>) -> Option<BatteryProbe> {
-    // A feature table holds at most `u8::MAX` entries (its count is a u8), so a
-    // 1-based index always fits.
-    let mut legacy = None;
-    let mut voltage = None;
+    let mut probe = BatteryProbe::default();
     for (pos, id) in ids.into_iter().enumerate() {
-        // Stop gracefully past u8::MAX instead of `?`-returning None, which would
-        // discard a `legacy` already found. (The table caps at 255, so unreachable.)
         let Ok(index) = u8::try_from(pos + 1) else {
             break;
         };
         if id == UnifiedBatteryFeature::ID {
-            return Some(BatteryProbe::Unified(index));
+            probe.percentage = Some(PercentageProbe::Unified(index));
+        } else if id == BatteryStatusFeature::ID && probe.percentage.is_none() {
+            probe.percentage = Some(PercentageProbe::Legacy(index));
         }
-        if id == BatteryStatusFeature::ID && legacy.is_none() {
-            legacy = Some(BatteryProbe::Legacy(index));
-        }
-        if id == BatteryVoltageFeature::ID && voltage.is_none() {
-            voltage = Some(BatteryProbe::Voltage(index));
+        if id == BatteryVoltageFeature::ID && probe.voltage_index.is_none() {
+            probe.voltage_index = Some(index);
         }
     }
-    legacy.or(voltage)
+    if probe.percentage.is_some() || probe.voltage_index.is_some() {
+        Some(probe)
+    } else {
+        None
+    }
 }
 
 /// Read the marketing identity from HID++ `0x0005` when the device exposes it.
@@ -347,10 +360,19 @@ mod tests {
         // `enumerate_features` omits the root feature (index 0), so the first
         // enumerated entry sits at runtime index 1.
         let table = [0x0001, UnifiedBatteryFeature::ID, 0x2201];
-        assert_eq!(battery_feature_index(table), Some(BatteryProbe::Unified(2)));
+        assert_eq!(
+            battery_feature_index(table),
+            Some(BatteryProbe {
+                percentage: Some(super::PercentageProbe::Unified(2)),
+                voltage_index: None,
+            })
+        );
         assert_eq!(
             battery_feature_index([UnifiedBatteryFeature::ID]),
-            Some(BatteryProbe::Unified(1)),
+            Some(BatteryProbe {
+                percentage: Some(super::PercentageProbe::Unified(1)),
+                voltage_index: None,
+            }),
             "first entry maps to index 1, not 0"
         );
     }
@@ -358,28 +380,50 @@ mod tests {
     #[test]
     fn legacy_battery_is_found_when_unified_is_absent() {
         let table = [0x0001, BatteryStatusFeature::ID, 0x2201];
-        assert_eq!(battery_feature_index(table), Some(BatteryProbe::Legacy(2)));
+        assert_eq!(
+            battery_feature_index(table),
+            Some(BatteryProbe {
+                percentage: Some(super::PercentageProbe::Legacy(2)),
+                voltage_index: None,
+            })
+        );
     }
 
     #[test]
     fn unified_battery_is_preferred_over_legacy() {
         let table = [BatteryStatusFeature::ID, 0x0001, UnifiedBatteryFeature::ID];
-        assert_eq!(battery_feature_index(table), Some(BatteryProbe::Unified(3)));
+        assert_eq!(
+            battery_feature_index(table),
+            Some(BatteryProbe {
+                percentage: Some(super::PercentageProbe::Unified(3)),
+                voltage_index: None,
+            })
+        );
     }
 
     #[test]
     fn voltage_battery_is_found_when_it_is_the_only_source() {
         // The G915 / G903 LS case: 0x1001 with neither 0x1000 nor 0x1004.
         let table = [0x0001, BatteryVoltageFeature::ID, 0x2201];
-        assert_eq!(battery_feature_index(table), Some(BatteryProbe::Voltage(2)));
+        assert_eq!(
+            battery_feature_index(table),
+            Some(BatteryProbe {
+                percentage: None,
+                voltage_index: Some(2),
+            })
+        );
     }
 
     #[test]
-    fn direct_percentage_sources_outrank_the_voltage_estimate() {
+    fn percentage_and_voltage_both_detected() {
         let table = [BatteryVoltageFeature::ID, BatteryStatusFeature::ID];
-        assert_eq!(battery_feature_index(table), Some(BatteryProbe::Legacy(2)));
-        let table = [BatteryVoltageFeature::ID, UnifiedBatteryFeature::ID];
-        assert_eq!(battery_feature_index(table), Some(BatteryProbe::Unified(2)));
+        assert_eq!(
+            battery_feature_index(table),
+            Some(BatteryProbe {
+                percentage: Some(super::PercentageProbe::Legacy(2)),
+                voltage_index: Some(1),
+            })
+        );
     }
 
     #[test]
