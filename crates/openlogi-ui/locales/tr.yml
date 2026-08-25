@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "%{chord} basılı tut"
 "Gesture %{name}": "%{name} hareketi"
 "Left Click": "Sol Tık"
+"Double Left Click": "Çift Sol Tık"
 "Right Click": "Sağ Tık"
 "Middle Click": "Orta Tık"
 "Tilt Left": "Sola Yatır"

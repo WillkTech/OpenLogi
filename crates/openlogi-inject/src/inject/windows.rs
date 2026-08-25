@@ -204,8 +204,16 @@ fn run_shell_command(cmd: &str) {
 }
 
 fn post_click(button: MouseButton) {
+    if button == MouseButton::DoubleLeft {
+        post_click(MouseButton::Left);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        post_click(MouseButton::Left);
+        return;
+    }
     let (down, up, data) = match button {
-        MouseButton::Left => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, 0),
+        MouseButton::Left | MouseButton::DoubleLeft => {
+            (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, 0)
+        }
         MouseButton::Right => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, 0),
         MouseButton::Middle => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, 0),
         // Extra buttons share the X flag pair; mouseData carries which one.

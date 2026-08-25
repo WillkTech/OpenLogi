@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Утримувати %{chord}"
 "Gesture %{name}": "Жест %{name}"
 "Left Click": "Клацання лівою"
+"Double Left Click": "Подвійне клацання лівою"
 "Right Click": "Клацання правою"
 "Middle Click": "Клацання середньою"
 "Tilt Left": "Нахил ліворуч"

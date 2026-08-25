@@ -29,6 +29,8 @@ pub enum Action {
     // ── Mouse ────────────────────────────────────────────────────────────────
     /// Primary mouse button.
     LeftClick,
+    /// Double primary mouse button click.
+    DoubleLeftClick,
     /// Secondary mouse button.
     RightClick,
     /// Middle mouse button (wheel click).
@@ -234,6 +236,7 @@ macro_rules! for_each_unit_action {
         $callback! {
             // Mouse
             LeftClick "Left Click" Mouse Pointer,
+            DoubleLeftClick "Double Left Click" Mouse Pointer,
             RightClick "Right Click" Mouse Pointer,
             MiddleClick "Middle Click" Mouse Mouse,
             MouseBack "Back (Button 4)" Mouse MouseBack,

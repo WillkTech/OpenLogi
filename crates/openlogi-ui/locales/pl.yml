@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Przytrzymaj %{chord}"
 "Gesture %{name}": "Gest %{name}"
 "Left Click": "Lewy przycisk"
+"Double Left Click": "Podwójny lewy przycisk"
 "Right Click": "Prawy przycisk"
 "Middle Click": "Środkowy przycisk"
 "Tilt Left": "Przechył w lewo"

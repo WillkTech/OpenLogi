@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Tieni premuto %{chord}"
 "Gesture %{name}": "Gesture %{name}"
 "Left Click": "Click sinistro"
+"Double Left Click": "Doppio click sinistro"
 "Right Click": "Click destro"
 "Middle Click": "Click centrale"
 "Tilt Left": "Inclinazione sinistra"

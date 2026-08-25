@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Κράτημα %{chord}"
 "Gesture %{name}": "Χειρονομία %{name}"
 "Left Click": "Αριστερό κλικ"
+"Double Left Click": "Διπλό αριστερό κλικ"
 "Right Click": "Δεξί κλικ"
 "Middle Click": "Μεσαίο κλικ"
 "Tilt Left": "Κλίση αριστερά"

@@ -73,6 +73,11 @@ pub(super) fn execute(action: &Action) {
 fn dispatch_click(button: MouseButton) {
     match button {
         MouseButton::Left => post_click(CGMouseButton::Left),
+        MouseButton::DoubleLeft => {
+            post_click(CGMouseButton::Left);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            post_click(CGMouseButton::Left);
+        }
         MouseButton::Right => post_click(CGMouseButton::Right),
         MouseButton::Middle => post_click(CGMouseButton::Center),
         // Button numbers are 0-indexed (3 = back / "button 4", 4 = forward /

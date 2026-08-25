@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Pidä %{chord}"
 "Gesture %{name}": "Ele %{name}"
 "Left Click": "Vasen napsautus"
+"Double Left Click": "Kaksoisnapsautus vasemmalla"
 "Right Click": "Oikea napsautus"
 "Middle Click": "Keskinapsautus"
 "Tilt Left": "Kallista vasemmalle"

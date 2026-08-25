@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "%{chord} ingedrukt houden"
 "Gesture %{name}": "Gebaar %{name}"
 "Left Click": "Linkerklik"
+"Double Left Click": "Dubbele linkerklik"
 "Right Click": "Rechterklik"
 "Middle Click": "Middenklik"
 "Tilt Left": "Kantelen links"

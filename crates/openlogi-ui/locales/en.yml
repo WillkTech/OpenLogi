@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Hold %{chord}"
 "Gesture %{name}": "Gesture %{name}"
 "Left Click": "Left Click"
+"Double Left Click": "Double Left Click"
 "Right Click": "Right Click"
 "Middle Click": "Middle Click"
 "Tilt Left": "Tilt Left"

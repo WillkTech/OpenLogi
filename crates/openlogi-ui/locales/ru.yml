@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Удерживать %{chord}"
 "Gesture %{name}": "Жест %{name}"
 "Left Click": "Левый щелчок"
+"Double Left Click": "Двойной левый щелчок"
 "Right Click": "Правый щелчок"
 "Middle Click": "Средний щелчок"
 "Tilt Left": "Наклон влево"
