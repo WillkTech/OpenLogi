@@ -45,7 +45,9 @@ pub(crate) const GESTURE_BUTTON_ICON: &str = "action-icons/move.svg";
 pub(crate) fn action_icon_path(action: &Action) -> &'static str {
     match action {
         Action::None => "action-icons/ban.svg",
-        Action::LeftClick | Action::RightClick => "action-icons/mouse-pointer-click.svg",
+        Action::LeftClick | Action::DoubleLeftClick | Action::RightClick => {
+            "action-icons/mouse-pointer-click.svg"
+        }
         Action::MiddleClick => "action-icons/mouse.svg",
         Action::MouseBack => "action-icons/circle-arrow-left.svg",
         Action::MouseForward => "action-icons/circle-arrow-right.svg",

@@ -37,7 +37,14 @@ pub(super) fn execute(action: &Action) {
         Effect::None => {}
         // Extra mouse buttons: BTN_SIDE/BTN_EXTRA are the evdev side
         // buttons ("back"/"forward") browsers handle natively.
-        Effect::Click(button) => click(mouse_button_code(button)),
+        Effect::Click(button) => match button {
+            MouseButton::DoubleLeft => {
+                click(KeyCode::BTN_LEFT);
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                click(KeyCode::BTN_LEFT);
+            }
+            _ => click(mouse_button_code(button)),
+        },
         Effect::Shortcut(shortcut) => press_combo(&combo(shortcut)),
         Effect::Key(combo) | Effect::HeldKey(combo) => press_combo(combo),
         Effect::Scroll { dx, dy } => dispatch_scroll(dx, dy),
@@ -61,7 +68,7 @@ pub(super) fn execute(action: &Action) {
 
 fn mouse_button_code(button: MouseButton) -> KeyCode {
     match button {
-        MouseButton::Left => KeyCode::BTN_LEFT,
+        MouseButton::Left | MouseButton::DoubleLeft => KeyCode::BTN_LEFT,
         MouseButton::Right => KeyCode::BTN_RIGHT,
         MouseButton::Middle => KeyCode::BTN_MIDDLE,
         MouseButton::Back => KeyCode::BTN_SIDE,

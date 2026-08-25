@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Hold %{chord}"
 "Gesture %{name}": "Bevegelse %{name}"
 "Left Click": "Venstreklikk"
+"Double Left Click": "Dobbelt venstreklikk"
 "Right Click": "Høyreklikk"
 "Middle Click": "Midtklikk"
 "Tilt Left": "Vipp til venstre"

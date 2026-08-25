@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "Håll %{chord}"
 "Gesture %{name}": "Gest %{name}"
 "Left Click": "Vänsterklick"
+"Double Left Click": "Dubbelklick vänster"
 "Right Click": "Högerklick"
 "Middle Click": "Mittenklick"
 "Tilt Left": "Luta vänster"

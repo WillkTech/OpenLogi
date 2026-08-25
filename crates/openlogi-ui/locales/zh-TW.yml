@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "按住 %{chord}"
 "Gesture %{name}": "手勢 %{name}"
 "Left Click": "左鍵按一下"
+"Double Left Click": "左鍵連按兩下"
 "Right Click": "右鍵按一下"
 "Middle Click": "中鍵按一下"
 "Tilt Left": "向左傾斜"

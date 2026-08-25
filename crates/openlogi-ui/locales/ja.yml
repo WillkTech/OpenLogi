@@ -173,6 +173,7 @@ _version: 1
 "Hold %{chord}": "%{chord} を長押し"
 "Gesture %{name}": "ジェスチャー %{name}"
 "Left Click": "左クリック"
+"Double Left Click": "ダブル左クリック"
 "Right Click": "右クリック"
 "Middle Click": "中クリック"
 "Tilt Left": "左チルト"

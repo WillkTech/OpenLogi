@@ -79,6 +79,8 @@ pub enum Effect<'a> {
 pub enum MouseButton {
     /// Primary button.
     Left,
+    /// Double primary button click.
+    DoubleLeft,
     /// Secondary button.
     Right,
     /// Wheel-click button.
@@ -218,6 +220,7 @@ impl Action {
             Action::None => Effect::None,
 
             Action::LeftClick => Effect::Click(MouseButton::Left),
+            Action::DoubleLeftClick => Effect::Click(MouseButton::DoubleLeft),
             Action::RightClick => Effect::Click(MouseButton::Right),
             Action::MiddleClick => Effect::Click(MouseButton::Middle),
             Action::MouseBack => Effect::Click(MouseButton::Back),

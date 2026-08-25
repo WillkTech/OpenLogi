@@ -333,6 +333,7 @@ fn persisted_action_variant_names_are_stable() {
         "CustomShortcut",
         "Cut",
         "CycleDpiPresets",
+        "DoubleLeftClick",
         "Find",
         "HorizontalScrollLeft",
         "HorizontalScrollRight",
@@ -439,8 +440,18 @@ fn category_media_variants() {
 #[test]
 fn category_mouse_variants() {
     assert_eq!(Action::LeftClick.category(), Category::Mouse);
+    assert_eq!(Action::DoubleLeftClick.category(), Category::Mouse);
     assert_eq!(Action::RightClick.category(), Category::Mouse);
     assert_eq!(Action::MiddleClick.category(), Category::Mouse);
+}
+
+#[test]
+fn double_left_click_properties_and_effect() {
+    let action = Action::DoubleLeftClick;
+    assert_eq!(action.label(), "Double Left Click");
+    assert_eq!(action.category(), Category::Mouse);
+    assert_matches!(action.effect(), Effect::Click(MouseButton::DoubleLeft));
+    assert_eq!(roundtrip(&action), action);
 }
 
 #[test]
