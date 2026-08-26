@@ -275,6 +275,38 @@ impl AppState {
             .edit(|config| config.app_settings.vertical_acceleration_enabled = enabled);
         self.persist_and_reload("vertical acceleration enabled");
     }
+    /// Set vertical mouse-wheel acceleration strength multiplier and persist it.
+    pub fn set_vertical_acceleration(&mut self, acceleration: f64) {
+        if (self.config.app_settings.vertical_acceleration - acceleration).abs() < f64::EPSILON {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.vertical_acceleration = acceleration);
+        self.persist_and_reload("vertical acceleration factor");
+    }
+    /// Set vertical mouse-wheel acceleration max gain limit and persist it.
+    pub fn set_vertical_max_gain(&mut self, max_gain: f64) {
+        if (self.config.app_settings.vertical_max_gain - max_gain).abs() < f64::EPSILON {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.vertical_max_gain = max_gain);
+        self.persist_and_reload("vertical acceleration max gain");
+    }
+    /// Reset vertical scroll acceleration parameters to defaults and persist.
+    pub fn reset_vertical_acceleration(&mut self) {
+        let default_settings = AppSettings::default();
+        if (self.config.app_settings.vertical_acceleration - default_settings.vertical_acceleration).abs() < f64::EPSILON
+            && (self.config.app_settings.vertical_max_gain - default_settings.vertical_max_gain).abs() < f64::EPSILON
+        {
+            return;
+        }
+        self.config.edit(|config| {
+            config.app_settings.vertical_acceleration = default_settings.vertical_acceleration;
+            config.app_settings.vertical_max_gain = default_settings.vertical_max_gain;
+        });
+        self.persist_and_reload("reset vertical acceleration");
+    }
     /// Toggle horizontal mouse-wheel acceleration and persist it.
     pub fn set_horizontal_acceleration_enabled(&mut self, enabled: bool) {
         if self.config.app_settings.horizontal_acceleration_enabled == enabled {
@@ -283,6 +315,38 @@ impl AppState {
         self.config
             .edit(|config| config.app_settings.horizontal_acceleration_enabled = enabled);
         self.persist_and_reload("horizontal acceleration enabled");
+    }
+    /// Set horizontal mouse-wheel acceleration strength multiplier and persist it.
+    pub fn set_horizontal_acceleration(&mut self, acceleration: f64) {
+        if (self.config.app_settings.horizontal_acceleration - acceleration).abs() < f64::EPSILON {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.horizontal_acceleration = acceleration);
+        self.persist_and_reload("horizontal acceleration factor");
+    }
+    /// Set horizontal mouse-wheel acceleration max gain limit and persist it.
+    pub fn set_horizontal_max_gain(&mut self, max_gain: f64) {
+        if (self.config.app_settings.horizontal_max_gain - max_gain).abs() < f64::EPSILON {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.horizontal_max_gain = max_gain);
+        self.persist_and_reload("horizontal acceleration max gain");
+    }
+    /// Reset horizontal scroll acceleration parameters to defaults and persist.
+    pub fn reset_horizontal_acceleration(&mut self) {
+        let default_settings = AppSettings::default();
+        if (self.config.app_settings.horizontal_acceleration - default_settings.horizontal_acceleration).abs() < f64::EPSILON
+            && (self.config.app_settings.horizontal_max_gain - default_settings.horizontal_max_gain).abs() < f64::EPSILON
+        {
+            return;
+        }
+        self.config.edit(|config| {
+            config.app_settings.horizontal_acceleration = default_settings.horizontal_acceleration;
+            config.app_settings.horizontal_max_gain = default_settings.horizontal_max_gain;
+        });
+        self.persist_and_reload("reset horizontal acceleration");
     }
     pub fn set_auto_download_assets(&mut self, enabled: bool) {
         if self.config.app_settings.auto_download_assets == enabled {
