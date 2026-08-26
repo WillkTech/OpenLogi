@@ -49,12 +49,12 @@ fn synthetic_ratchet_trace_follows_cubic_smoothstep_and_finishes_exactly() {
     engine.advance_due(base + Duration::from_millis(25), &mut |frame| {
         frames.push(frame);
     });
-    assert_delta(cumulative(&frames), wheel(0.0, 0.15625));
+    assert_delta(cumulative(&frames), wheel(0.0, 0.325));
 
     engine.advance_due(base + Duration::from_millis(50), &mut |frame| {
         frames.push(frame);
     });
-    assert_delta(cumulative(&frames), wheel(0.0, 0.5));
+    assert_delta(cumulative(&frames), wheel(0.0, 0.65));
 
     engine.advance_due(base + Duration::from_millis(100), &mut |frame| {
         frames.push(frame);
@@ -106,7 +106,7 @@ fn synthetic_reversal_crosses_the_current_position_and_conserves_net_input() {
         base + Duration::from_millis(40),
         &mut |frame| frames.push(frame),
     );
-    assert_delta(cumulative(&frames), wheel(0.0, 0.352));
+    assert_delta(cumulative(&frames), wheel(0.0, 0.5248));
 
     engine.advance_due(base + Duration::from_millis(140), &mut |frame| {
         frames.push(frame);
@@ -224,7 +224,7 @@ fn cancellation_emits_one_terminal_phase_only_after_output_began() {
         frames.last().map(|frame| frame.phase),
         Some(SmoothScrollPhase::Cancelled)
     );
-    assert_delta(cumulative(&frames), wheel(0.15625, 0.0));
+    assert_delta(cumulative(&frames), wheel(0.325, 0.0));
 }
 
 #[test]

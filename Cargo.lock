@@ -5631,6 +5631,7 @@ name = "openlogi-hid"
 version = "0.8.1"
 dependencies = [
  "atomic-write-file",
+ "cfg-if",
  "futures-concurrency",
  "futures-lite",
  "objc2-io-kit",
@@ -5681,6 +5682,7 @@ dependencies = [
 name = "openlogi-hook"
 version = "0.8.1"
 dependencies = [
+ "cfg-if",
  "core-foundation 0.10.0",
  "core-graphics 0.25.0",
  "ctrlc",
@@ -5706,6 +5708,7 @@ dependencies = [
 name = "openlogi-inject"
 version = "0.8.1"
 dependencies = [
+ "cfg-if",
  "core-foundation 0.10.0",
  "core-graphics 0.25.0",
  "evdev",

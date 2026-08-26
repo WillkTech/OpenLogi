@@ -352,8 +352,6 @@ fn spawn_inner(
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
-
     use openlogi_core::device::{DeviceKind, RawDeviceAddress, StandaloneDevice};
     use openlogi_hid::{BackendError, InventoryError};
 
@@ -370,10 +368,10 @@ mod tests {
         let mut state = WatchState::default();
         // A genuine "checked, nothing there" still propagates as a disconnect —
         // the resilience must not swallow a real empty.
-        assert_matches!(
+        assert!(matches!(
             state.classify(Ok((vec![], vec![]))),
             Some(InventoryEvent::Snapshot { inventories, standalone, .. }) if inventories.is_empty() && standalone.is_empty()
-        );
+        ));
         assert!(state.succeeded);
     }
 
@@ -381,10 +379,10 @@ mod tests {
     fn failure_after_a_success_keeps_the_last_snapshot() {
         let mut state = WatchState::default();
         // A good tick first, so there is a last-known-good set to preserve.
-        assert_matches!(
+        assert!(matches!(
             state.classify(Ok((vec![], vec![]))),
             Some(InventoryEvent::Snapshot { .. })
-        );
+        ));
         // Then transient enumerate failures emit nothing — the agent keeps the
         // last snapshot instead of flapping to "No devices" (#218).
         assert!(state.classify(Err(enumerate_failed())).is_none());
@@ -396,13 +394,13 @@ mod tests {
         let mut state = WatchState::default();
         let _ = state.classify(Ok((vec![], vec![raw_light("serial:glow-1")])));
 
-        assert_matches!(
+        assert!(matches!(
             state.classify_parts(vec![], Err(enumerate_failed()), false),
             InventoryEvent::Snapshot { inventories, standalone, .. }
                 if inventories.is_empty()
                     && standalone.len() == 1
                     && standalone[0].online
-        );
+        ));
     }
 
     #[test]
@@ -413,17 +411,17 @@ mod tests {
         for _ in 0..INITIAL_FAILURE_LIMIT - 1 {
             assert!(state.classify(Err(enumerate_failed())).is_none());
         }
-        assert_matches!(
+        assert!(matches!(
             state.classify(Err(enumerate_failed())),
             Some(InventoryEvent::Unavailable)
-        );
+        ));
         // Reported once, not on every later failure.
         assert!(state.classify(Err(enumerate_failed())).is_none());
         // …and a later success recovers with a live snapshot.
-        assert_matches!(
+        assert!(matches!(
             state.classify(Ok((vec![], vec![]))),
             Some(InventoryEvent::Snapshot { .. })
-        );
+        ));
     }
 
     fn raw_light(identity: &str) -> StandaloneDevice {
@@ -451,18 +449,18 @@ mod tests {
     #[test]
     fn raw_node_omission_is_graced_and_recovers() {
         let mut state = WatchState::default();
-        assert_matches!(
+        assert!(matches!(
             state.classify(Ok((vec![], vec![raw_light("id:node")]))) ,
             Some(InventoryEvent::Snapshot { standalone, .. }) if standalone.len() == 1 && standalone[0].online
-        );
-        assert_matches!(
+        ));
+        assert!(matches!(
             state.classify(Ok((vec![], vec![]))),
             Some(InventoryEvent::Snapshot { standalone, .. }) if standalone.len() == 1 && !standalone[0].online
-        );
-        assert_matches!(
+        ));
+        assert!(matches!(
             state.classify(Ok((vec![], vec![raw_light("id:node")]))) ,
             Some(InventoryEvent::Snapshot { standalone, .. }) if standalone.len() == 1 && standalone[0].online
-        );
+        ));
     }
 
     #[test]
@@ -471,9 +469,9 @@ mod tests {
         let _ = state.classify(Ok((vec![], vec![raw_light("id:node")])));
         let _ = state.classify(Ok((vec![], vec![])));
         let _ = state.classify(Ok((vec![], vec![])));
-        assert_matches!(
+        assert!(matches!(
             state.classify(Ok((vec![], vec![]))),
             Some(InventoryEvent::Snapshot { standalone, .. }) if standalone.is_empty()
-        );
+        ));
     }
 }

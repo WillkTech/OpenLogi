@@ -10,8 +10,6 @@
 //! to the code-signing identity that asks for it, and the agent (not the GUI)
 //! is the one that actually opens HID devices.
 
-use std::cfg_select;
-
 #[cfg(target_os = "macos")]
 mod macos {
     use objc2_io_kit::{IOHIDAccessType, IOHIDCheckAccess, IOHIDRequestAccess, IOHIDRequestType};
@@ -37,9 +35,12 @@ mod macos {
 /// Always `true` off macOS, where HID access has no privacy gate.
 #[must_use]
 pub fn has_access() -> bool {
-    cfg_select! {
-        target_os = "macos" => { macos::has_access() }
-        _ => { true }
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
+            macos::has_access()
+        } else {
+            true
+        }
     }
 }
 
@@ -50,8 +51,9 @@ pub fn has_access() -> bool {
 /// Blocks the calling thread until the user responds — run it off the async
 /// runtime (e.g. `tokio::task::spawn_blocking`). No-op off macOS.
 pub fn request_access() {
-    cfg_select! {
-        target_os = "macos" => { macos::request_access(); }
-        _ => {}
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
+            macos::request_access();
+        } else {}
     }
 }
