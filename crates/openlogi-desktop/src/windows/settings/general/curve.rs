@@ -29,12 +29,38 @@ impl AccelerationCurveGraph {
     }
 }
 
+const SAMPLE_COUNT: usize = 30;
+
+fn compute_curve_samples(
+    enabled: bool,
+    factor: f64,
+    max_gain: f64,
+) -> [(f32, f32); SAMPLE_COUNT + 1] {
+    let min_y_val = 1.0f64;
+    let max_y_val = max_gain.max(3.0);
+    let range = max_y_val - min_y_val;
+
+    let mut samples = [(0.0f32, 0.0f32); SAMPLE_COUNT + 1];
+
+    for (i, sample) in samples.iter_mut().enumerate() {
+        let t = f64::from(i) / f64::from(SAMPLE_COUNT);
+        let rate = t * 40.0;
+        let gain = openlogi_core::math::gain_at_rate(rate, enabled, factor, max_gain);
+        let norm_x = norm_f32(t);
+        let norm_y = norm_f32((gain - min_y_val) / range);
+        *sample = (norm_x, norm_y);
+    }
+
+    samples
+}
+
 impl RenderOnce for AccelerationCurveGraph {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let pal = theme::palette(cx);
         let enabled = self.enabled;
         let factor = self.acceleration_factor;
         let max_gain = self.max_gain;
+        let samples = compute_curve_samples(enabled, factor, max_gain);
 
         gpui::div()
             .flex_none()
@@ -50,9 +76,9 @@ impl RenderOnce for AccelerationCurveGraph {
             .p_2()
             .child(
                 canvas(
-                    move |_, _, _| (enabled, factor, max_gain, pal),
-                    move |bounds, (enabled, factor, max_gain, pal), window, _| {
-                        paint_graph(bounds, enabled, factor, max_gain, pal, window);
+                    move |_, _, _| (enabled, max_gain, samples, pal),
+                    move |bounds, (enabled, max_gain, samples, pal), window, _| {
+                        paint_graph(bounds, enabled, max_gain, samples, pal, window);
                     },
                 )
                 .size_full(),
@@ -63,8 +89,8 @@ impl RenderOnce for AccelerationCurveGraph {
 fn paint_graph(
     bounds: Bounds<gpui::Pixels>,
     enabled: bool,
-    factor: f64,
     max_gain: f64,
+    samples: [(f32, f32); SAMPLE_COUNT + 1],
     pal: Palette,
     window: &mut Window,
 ) {
@@ -125,28 +151,10 @@ fn paint_graph(
     }
 
     // 3. Draw the Acceleration Curve
-    // Reference rate = 4.0, Curve scale = 8.0, Max rate sampled = 40.0 ticks/sec
-    let sample_count = 30;
     let mut curve_path = PathBuilder::stroke(px(2.));
 
-    for i in 0..=sample_count {
-        let t = f64::from(i) / f64::from(sample_count);
-        let rate = t * 40.0; // wheel input speed from 0 to 40 ticks/sec
-
-        let gain = if enabled {
-            let excess_speed = (rate - 4.0).max(0.0);
-            if excess_speed == 0.0 {
-                1.0
-            } else {
-                let curve = excess_speed / (excess_speed + 8.0);
-                (1.0 + (max_gain - 1.0) * curve * factor).clamp(1.0, max_gain)
-            }
-        } else {
-            1.0
-        };
-
-        let norm_y = norm_f32((gain - min_y_val) / (max_y_val - min_y_val));
-        let pt_x = graph_left + norm_f32(t) * plot_w;
+    for (i, &(norm_x, norm_y)) in samples.iter().enumerate() {
+        let pt_x = graph_left + norm_x * plot_w;
         let pt_y = graph_bottom - norm_y * plot_h;
 
         let pt = point(px(pt_x), px(pt_y));

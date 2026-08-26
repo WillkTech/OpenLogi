@@ -13,7 +13,6 @@
 
 use std::{fmt, num::NonZeroU8};
 
-use az::SaturatingAs;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use nutype::nutype;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -100,8 +99,7 @@ impl SmartShiftThreshold {
     /// Round and clamp a floating-point control value into the firmware range.
     #[must_use]
     pub fn from_rounded(value: f32) -> Self {
-        let value = if value.is_nan() { 1.0 } else { value };
-        let raw = value.clamp(1.0, 254.0).round().saturating_as::<u8>();
+        let raw = crate::math::quantize(value, 1.0, 254.0, 1.0);
         let Ok(value) = Self::try_new(raw) else {
             unreachable!("clamped SmartShift threshold is always valid");
         };

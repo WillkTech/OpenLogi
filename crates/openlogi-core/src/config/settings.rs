@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 
-use az::SaturatingAs;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
@@ -442,15 +441,12 @@ impl From<ThumbwheelSensitivity> for i32 {
 }
 
 fn rounded_sensitivity(value: f32) -> u8 {
-    let value = if value.is_nan() {
-        f32::from(SENSITIVITY_MIN)
-    } else {
-        value
-    };
-    value
-        .clamp(f32::from(SENSITIVITY_MIN), f32::from(SENSITIVITY_MAX))
-        .round()
-        .saturating_as::<u8>()
+    crate::math::quantize(
+        value,
+        f32::from(SENSITIVITY_MIN),
+        f32::from(SENSITIVITY_MAX),
+        f32::from(SENSITIVITY_MIN),
+    )
 }
 
 impl AppSettings {

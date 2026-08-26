@@ -318,13 +318,26 @@ impl ScrollEngine {
     }
 
     fn advance_due(&mut self, at: Instant, emit: &mut impl FnMut(ScrollFrame)) {
-        let due: Vec<ScrollSource> = self
-            .active
-            .iter()
-            .filter(|(_, motion)| motion.next_frame <= at)
-            .map(|(source, _)| source.clone())
-            .collect();
-        for source in due {
+        if self.active.is_empty() {
+            return;
+        }
+
+        let mut inline_due = [const { None }; 4];
+        let mut count = 0;
+        let mut overflow_due = Vec::new();
+
+        for (source, motion) in &self.active {
+            if motion.next_frame <= at {
+                if count < 4 {
+                    inline_due[count] = Some(source.clone());
+                    count += 1;
+                } else {
+                    overflow_due.push(source.clone());
+                }
+            }
+        }
+
+        for source in inline_due.into_iter().flatten().chain(overflow_due) {
             let Some(update) = self
                 .active
                 .get_mut(&source)

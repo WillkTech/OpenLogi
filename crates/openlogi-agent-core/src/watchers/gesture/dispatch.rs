@@ -131,13 +131,23 @@ impl InputDispatcher {
     /// re-synthesised scroll output.
     pub(super) fn dispatch(&mut self, session: &HidppSessionId, input: CapturedInput) {
         let key = session.device_key();
-        let Ok(plans) = self.capture_plans.read() else {
-            return;
+        let (plan, configuration) = {
+            let Ok(plans) = self.capture_plans.read() else {
+                return;
+            };
+            let Some(plan) = plans.iter().find(|plan| plan.config_key == key) else {
+                debug!(key, "input from a device with no capture plan — ignored");
+                return;
+            };
+
+            let config = if matches!(input, CapturedInput::Scroll { .. }) {
+                Some(WheelConfiguration::for_plan(plan))
+            } else {
+                None
+            };
+            (plan.clone(), config)
         };
-        let Some(plan) = plans.iter().find(|plan| plan.config_key == key) else {
-            debug!(key, "input from a device with no capture plan — ignored");
-            return;
-        };
+
         match input {
             CapturedInput::Gesture(button, direction) => {
                 let Some(press) = self.gesture_presses.get(session, button) else {
@@ -207,7 +217,9 @@ impl InputDispatcher {
                     return;
                 };
                 let button = rotation.button();
-                let configuration = WheelConfiguration::for_plan(plan);
+                let Some(configuration) = configuration else {
+                    return;
+                };
                 let action = configuration.action(rotation);
                 let wheels = self.wheels.for_session(session);
                 match wheels.advance(

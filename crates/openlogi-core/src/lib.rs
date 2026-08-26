@@ -22,6 +22,7 @@ pub mod device;
 pub mod device_order;
 pub mod diagnostics;
 pub mod hid;
+pub mod math;
 #[cfg(feature = "fs")]
 pub mod paths;
 pub mod scroll;

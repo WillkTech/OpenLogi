@@ -20,6 +20,38 @@ use gpui_component::{
 };
 
 use super::theme::{self, ACCENT_BLUE, SelectableStyle as _, Typography as _};
+use gpui_component::tooltip::Tooltip;
+
+/// A subtle info icon revealing `hint` on hover.
+pub(crate) fn hint_icon(
+    id: &'static str,
+    hint: SharedString,
+    muted: gpui::Hsla,
+) -> Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .text_color(muted)
+        .child(Icon::new(IconName::Info).small())
+        .tooltip(move |window, cx| Tooltip::new(hint.clone()).build(window, cx))
+}
+
+/// A labeled row for settings panels: a fixed-width caption, an optional
+/// inline hint icon, then the control itself built by `control`.
+pub(crate) fn labeled_row(
+    label: SharedString,
+    hint: Option<(&'static str, SharedString, gpui::Hsla)>,
+    control: impl FnOnce(gpui::Div) -> gpui::Div,
+) -> gpui::Div {
+    let row = h_flex()
+        .items_center()
+        .gap_2()
+        .child(div().w(px(120.)).text_caption().child(label));
+    let row = match hint {
+        Some((id, hint, muted)) => row.child(hint_icon(id, hint, muted)),
+        None => row,
+    };
+    control(row)
+}
 
 /// A gpui-component button at the house control height.
 ///
