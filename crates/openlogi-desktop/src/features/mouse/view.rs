@@ -219,11 +219,14 @@ fn set_control_hovered(
 ) {
     view.update(cx, |this, cx| {
         if hovered {
-            this.hovered = Some(control);
+            if this.hovered != Some(control) {
+                this.hovered = Some(control);
+                cx.notify();
+            }
         } else if this.hovered == Some(control) {
             this.hovered = None;
+            cx.notify();
         }
-        cx.notify();
     });
 }
 

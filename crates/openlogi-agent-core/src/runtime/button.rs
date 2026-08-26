@@ -597,6 +597,7 @@ impl ButtonRuntimeOwner {
             let _ = worker.join();
             return false;
         }
+        self.input.try_command(ButtonCommand::Wake);
         if wait.recv_timeout(timeout).is_err() {
             warn!("button lifecycle worker did not shut down before the deadline");
             // Dropping a JoinHandle detaches the worker; the queued request
@@ -629,7 +630,17 @@ fn run_worker(
         if finish_shutdown_if_requested(shutdown, &mut state, emit) {
             return;
         }
-        let command = match events.recv_timeout(SHUTDOWN_POLL_INTERVAL) {
+        let next_deadline = state
+            .active
+            .values()
+            .filter_map(|press| press.behavior.deadline())
+            .min();
+
+        let timeout = next_deadline
+            .map(|deadline| deadline.saturating_duration_since(Instant::now()))
+            .unwrap_or(SHUTDOWN_POLL_INTERVAL);
+
+        let command = match events.recv_timeout(timeout) {
             Ok(command) => command,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if settle_due_long_presses(

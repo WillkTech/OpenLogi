@@ -3,20 +3,19 @@
 mod curve;
 
 use curve::AccelerationCurveGraph;
-use gpui::{InteractiveElement as _, SharedString, Stateful, StatefulInteractiveElement as _};
+use gpui::{InteractiveElement as _, SharedString, StatefulInteractiveElement as _};
 use gpui_component::{
-    Icon, Selectable as _, Sizable as _,
+    Selectable as _, Sizable as _,
     button::{Button, ButtonVariants as _},
-    tooltip::Tooltip,
 };
 
 use super::{
-    App, AppState, Entity, FluentBuilder, Hsla, IconName, IndexPath, ParentElement, SelectItem,
+    App, AppState, Entity, FluentBuilder, IconName, IndexPath, ParentElement, SelectItem,
     SelectState, SettingField, SettingGroup, SettingItem, SettingPage, Slider, SliderState,
     StateEvent, Styled, ThumbwheelSensitivity, VerticalScrollSensitivity, div, h_flex, px, theme,
     v_flex,
 };
-use crate::ui::components::{Toggle, control_select};
+use crate::ui::components::{Toggle, control_select, hint_icon, labeled_row};
 use crate::ui::theme::Typography as _;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -284,33 +283,6 @@ pub(super) fn general_page(
         .group(group)
 }
 
-/// A subtle info icon revealing `hint` on hover — the page carries no static
-/// description paragraphs, so these are the only copy besides the labels.
-fn hint_icon(id: &'static str, hint: SharedString, muted: Hsla) -> Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .text_color(muted)
-        .child(Icon::new(IconName::Info).small())
-        .tooltip(move |window, cx| Tooltip::new(hint.clone()).build(window, cx))
-}
-
-/// One labelled acceleration-control row: a fixed-width caption, an optional
-/// inline hint icon, then the control itself built by `control`.
-fn labeled_row(
-    label: SharedString,
-    hint: Option<(&'static str, SharedString, Hsla)>,
-    control: impl FnOnce(gpui::Div) -> gpui::Div,
-) -> gpui::Div {
-    let row = h_flex()
-        .items_center()
-        .gap_2()
-        .child(div().w(px(120.)).text_caption().child(label));
-    let row = match hint {
-        Some((id, hint, muted)) => row.child(hint_icon(id, hint, muted)),
-        None => row,
-    };
-    control(row)
-}
 
 fn acceleration_controls_block(
     is_vertical: bool,

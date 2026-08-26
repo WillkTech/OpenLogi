@@ -27,3 +27,8 @@ workspace = true
 # Only to advance virtual time in the DeviceOp/timed timeout test without a
 # real multi-second sleep.
 tokio = { workspace = true, features = ["test-util"] }
+criterion = "0.5"
+
+[[bench]]
+name = "scroll_engine"
+harness = false

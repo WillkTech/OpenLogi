@@ -5,7 +5,6 @@
 
 use std::num::TryFromIntError;
 
-use az::SaturatingAs;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +34,7 @@ impl Dpi {
     /// Round a floating-point control value into the DPI domain.
     #[must_use]
     pub fn from_rounded(value: f32) -> Self {
-        Self::new(value.max(0.).round().saturating_as::<u16>())
+        Self::new(crate::math::quantize(value, 0.0, f32::from(u16::MAX), 0.0))
     }
 }
 
@@ -105,17 +104,25 @@ impl DpiCapabilities {
     /// The supported DPI nearest to `dpi`.
     #[must_use]
     pub fn nearest(&self, dpi: Dpi) -> Dpi {
-        let mut nearest = self.values[0];
-        let raw_dpi = dpi.into_inner();
-        let mut best_delta = nearest.into_inner().abs_diff(raw_dpi);
-        for &candidate in &self.values[1..] {
-            let delta = candidate.into_inner().abs_diff(raw_dpi);
-            if delta < best_delta {
-                nearest = candidate;
-                best_delta = delta;
+        match self.values.binary_search(&dpi) {
+            Ok(idx) => self.values[idx],
+            Err(idx) => {
+                if idx == 0 {
+                    self.values[0]
+                } else if idx >= self.values.len() {
+                    self.values[self.values.len() - 1]
+                } else {
+                    let left = self.values[idx - 1];
+                    let right = self.values[idx];
+                    let raw = dpi.into_inner();
+                    if raw.abs_diff(left.into_inner()) <= right.into_inner().abs_diff(raw) {
+                        left
+                    } else {
+                        right
+                    }
+                }
             }
         }
-        nearest
     }
 
     /// Best-effort step size for UI widgets that need a single increment.
