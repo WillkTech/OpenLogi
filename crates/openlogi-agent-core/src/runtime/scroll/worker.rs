@@ -171,8 +171,7 @@ impl ScrollInputHandle {
         let vertical_scaled = impulse.y != 0.0
             && (preferences.vertical_sensitivity.scroll_multiplier() != 1.0
                 || preferences.vertical_acceleration_enabled);
-        let horizontal_scaled =
-            impulse.x != 0.0 && preferences.horizontal_acceleration_enabled;
+        let horizontal_scaled = impulse.x != 0.0 && preferences.horizontal_acceleration_enabled;
 
         let output = if preferences.smooth_scroll {
             ScrollOutputMode::Smooth { at: Instant::now() }

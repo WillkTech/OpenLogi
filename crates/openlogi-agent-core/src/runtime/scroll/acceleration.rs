@@ -179,8 +179,7 @@ mod tests {
         // Slow scrolling: 1 tick every 500ms (2 ticks/sec <= REFERENCE_RATE 4.0)
         for i in 0..10 {
             let t = start + Duration::from_millis(i * 500);
-            let (_gx, gy) =
-                engine.compute_gains(0.0, 1.0, t, true, 1.0, 2.5, false, 1.0, 2.0);
+            let (_gx, gy) = engine.compute_gains(0.0, 1.0, t, true, 1.0, 2.5, false, 1.0, 2.0);
             assert_eq!(gy, 1.0, "slow deliberate tick {i} must have gain 1.0");
         }
     }
@@ -193,8 +192,7 @@ mod tests {
         let mut last_gain = 1.0;
         for i in 0..20 {
             let t = start + Duration::from_millis(i * 20);
-            let (_gx, gy) =
-                engine.compute_gains(0.0, 1.0, t, true, 1.0, 2.5, false, 1.0, 2.0);
+            let (_gx, gy) = engine.compute_gains(0.0, 1.0, t, true, 1.0, 2.5, false, 1.0, 2.0);
             assert!(gy <= 2.5, "gain must never exceed max_gain 2.5");
             if i > 1 {
                 assert!(
@@ -287,8 +285,7 @@ mod tests {
 
         // Reverse vertical direction -> vertical resets, but horizontal remains un-reset
         let t_v_rev = start + Duration::from_millis(10 * 20);
-        let (gx_h, gy_v) =
-            engine.compute_gains(1.0, -1.0, t_v_rev, true, 1.0, 2.5, true, 1.0, 2.0);
+        let (gx_h, gy_v) = engine.compute_gains(1.0, -1.0, t_v_rev, true, 1.0, 2.5, true, 1.0, 2.0);
         assert_eq!(
             gy_v, 1.0,
             "vertical reversal must reset vertical acceleration"
