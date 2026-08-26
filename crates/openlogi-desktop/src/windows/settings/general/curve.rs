@@ -10,7 +10,8 @@ use crate::ui::theme::{self, Palette};
 /// Lightweight curve preview component for mouse-wheel acceleration.
 ///
 /// X axis: Wheel speed (Slow → Fast, 0 to 40 ticks/sec).
-/// Y axis: Effective scroll gain multiplier (1.0× to Max Speed, capped at 3.0×).
+/// Y axis: Effective scroll gain multiplier (1.0× to the multiplier, with 3.0×
+/// as the floor so low-multiplier curves keep a readable scale).
 #[derive(IntoElement)]
 pub(crate) struct AccelerationCurveGraph {
     enabled: bool,
@@ -87,9 +88,10 @@ fn paint_graph(
     let plot_w = (graph_right - graph_left).max(1.);
     let plot_h = (graph_bottom - graph_top).max(1.);
 
-    // Fixed graph vertical scale: 1.0× at bottom, 3.0× at top
+    // Dynamic vertical scale: 1.0× at bottom, the multiplier at top (never
+    // below 3.0×, so small-multiplier curves don't fill the whole plot).
     let min_y_val = 1.0f64;
-    let max_y_val = 3.0f64;
+    let max_y_val = max_gain.max(3.0);
 
     let line_color = if enabled {
         theme::accent()
@@ -108,9 +110,8 @@ fn paint_graph(
         window.paint_path(p, grid_color);
     }
 
-    // 2. Draw Max Gain reference line (dashed/faded top threshold line)
-    let max_gain_clamped = max_gain.clamp(1.0, 3.0);
-    let norm_max = norm_f32((max_gain_clamped - min_y_val) / (max_y_val - min_y_val));
+    // 2. Draw Max Gain reference line (faded top threshold line)
+    let norm_max = norm_f32((max_gain - min_y_val) / (max_y_val - min_y_val));
     let y_max = graph_bottom - norm_max * plot_h;
 
     let mut max_line_path = PathBuilder::stroke(px(1.));

@@ -3,20 +3,27 @@
 mod curve;
 
 use curve::AccelerationCurveGraph;
-use gpui_component::Disableable as _;
-use gpui_component::button::{Button, ButtonVariants as _};
+use gpui::{InteractiveElement as _, SharedString, Stateful, StatefulInteractiveElement as _};
+use gpui_component::{
+    Icon, Selectable as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    tooltip::Tooltip,
+};
 
 use super::{
-    App, AppState, Entity, FluentBuilder, IconName, IndexPath, ParentElement, SelectItem,
+    App, AppState, Entity, FluentBuilder, Hsla, IconName, IndexPath, ParentElement, SelectItem,
     SelectState, SettingField, SettingGroup, SettingItem, SettingPage, Slider, SliderState,
     StateEvent, Styled, ThumbwheelSensitivity, VerticalScrollSensitivity, div, h_flex, px, theme,
     v_flex,
 };
-use crate::ui::components::control_select;
+use crate::ui::components::{Toggle, control_select};
 use crate::ui::theme::Typography as _;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AccelerationPreset {
+    /// Acceleration off — maps onto `*_acceleration_enabled = false`, so no
+    /// config/wire type is needed.
+    None,
     Precise,
     Balanced,
     Fast,
@@ -26,6 +33,7 @@ pub(super) enum AccelerationPreset {
 impl AccelerationPreset {
     pub(super) fn label(self) -> &'static str {
         match self {
+            Self::None => "None",
             Self::Precise => "Precise",
             Self::Balanced => "Balanced",
             Self::Fast => "Fast",
@@ -33,8 +41,12 @@ impl AccelerationPreset {
         }
     }
 
+    /// The `(strength, multiplier)` pair a preset writes; `None` carries none
+    /// (it only flips the axis' enabled flag) and `Custom` keeps whatever the
+    /// sliders hold.
     pub(super) fn values(self, is_vertical: bool) -> Option<(f64, f64)> {
         match self {
+            Self::None | Self::Custom => None,
             Self::Precise => Some((0.5, 1.5)),
             Self::Balanced => {
                 if is_vertical {
@@ -44,11 +56,21 @@ impl AccelerationPreset {
                 }
             }
             Self::Fast => Some((1.5, 3.0)),
-            Self::Custom => None,
         }
     }
 
-    pub(super) fn from_values(factor: f64, max_gain: f64, is_vertical: bool) -> Self {
+    /// Which preset a stored configuration corresponds to. A disabled axis is
+    /// `None` regardless of its stored pair, so re-enabling via any preset
+    /// hydrates that preset's values instead of reviving stale ones.
+    pub(super) fn from_values(
+        enabled: bool,
+        factor: f64,
+        max_gain: f64,
+        is_vertical: bool,
+    ) -> Self {
+        if !enabled {
+            return Self::None;
+        }
         if is_vertical {
             if (factor - 0.5).abs() < 0.01 && (max_gain - 1.5).abs() < 0.01 {
                 Self::Precise
@@ -91,6 +113,9 @@ impl SelectItem for PresetOption {
 pub(super) fn preset_options() -> Vec<PresetOption> {
     vec![
         PresetOption {
+            preset: AccelerationPreset::None,
+        },
+        PresetOption {
             preset: AccelerationPreset::Precise,
         },
         PresetOption {
@@ -107,10 +132,11 @@ pub(super) fn preset_options() -> Vec<PresetOption> {
 
 pub(super) fn selected_preset_index(preset: AccelerationPreset) -> IndexPath {
     let row = match preset {
-        AccelerationPreset::Precise => 0,
-        AccelerationPreset::Balanced => 1,
-        AccelerationPreset::Fast => 2,
-        AccelerationPreset::Custom => 3,
+        AccelerationPreset::None => 0,
+        AccelerationPreset::Precise => 1,
+        AccelerationPreset::Balanced => 2,
+        AccelerationPreset::Fast => 3,
+        AccelerationPreset::Custom => 4,
     };
     IndexPath::default().row(row)
 }
@@ -140,19 +166,30 @@ pub(super) fn general_page(
         .item(
             SettingItem::new(
                 tr!("Smooth scrolling"),
-                SettingField::switch(
-                    |cx| AppState::try_read(cx).is_some_and(|s| s.app_settings().smooth_scroll),
-                    |enabled, cx| {
-                        AppState::update(cx, move |state, cx| {
-                            state.set_smooth_scroll(enabled);
-                            cx.emit(StateEvent::SettingsChanged);
-                        });
-                    },
-                ),
-            )
-            .description(tr!(
-                "Animate traditional mouse-wheel input while leaving trackpad scrolling unchanged."
-            )),
+                SettingField::render(move |_, _, cx| {
+                    let enabled =
+                        AppState::try_read(cx).is_some_and(|s| s.app_settings().smooth_scroll);
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Toggle::new("general-smooth-scroll")
+                                .selected(enabled)
+                                .on_change(|enabled, _, cx| {
+                                    AppState::update(cx, move |state, cx| {
+                                        state.set_smooth_scroll(*enabled);
+                                        cx.emit(StateEvent::SettingsChanged);
+                                    });
+                                }),
+                        )
+                        .child(hint_icon(
+                            "smooth-scroll-hint",
+                            tr!(
+                                "Animate traditional mouse-wheel input while leaving trackpad scrolling unchanged."
+                            ),
+                            theme::palette(cx).text_muted,
+                        ))
+                }),
+            ),
         )
         .item(
             SettingItem::new(
@@ -160,34 +197,11 @@ pub(super) fn general_page(
                 SettingField::render(move |_, _, cx| {
                     vertical_scroll_sensitivity_field(&vertical_scroll_sensitivity_slider, cx)
                 }),
-            )
-            .description(tr!(
-                "Controls baseline scrolling distance per wheel notch. (Distinct from Acceleration, which responds to wheel turn speed)."
-            )),
+            ),
         )
         .item(
             SettingItem::new(
                 tr!("Vertical Scroll Acceleration"),
-                SettingField::switch(
-                    |cx| {
-                        AppState::try_read(cx)
-                            .is_some_and(|s| s.app_settings().vertical_acceleration_enabled)
-                    },
-                    |enabled, cx| {
-                        AppState::update(cx, move |state, cx| {
-                            state.set_vertical_acceleration_enabled(enabled);
-                            cx.emit(StateEvent::SettingsChanged);
-                        });
-                    },
-                ),
-            )
-            .description(tr!(
-                "Progressively increases vertical scroll distance during fast wheel movement."
-            )),
-        )
-        .item(
-            SettingItem::new(
-                tr!("Vertical Acceleration Controls"),
                 SettingField::render({
                     let v_accel_slider = v_accel_slider.clone();
                     let v_max_gain_slider = v_max_gain_slider.clone();
@@ -202,34 +216,11 @@ pub(super) fn general_page(
                         )
                     }
                 }),
-            )
-            .description(tr!(
-                "Strength controls how aggressively speed increases. Maximum Speed limits the top multiplier."
-            )),
+            ),
         )
         .item(
             SettingItem::new(
                 tr!("Horizontal Scroll Acceleration"),
-                SettingField::switch(
-                    |cx| {
-                        AppState::try_read(cx)
-                            .is_some_and(|s| s.app_settings().horizontal_acceleration_enabled)
-                    },
-                    |enabled, cx| {
-                        AppState::update(cx, move |state, cx| {
-                            state.set_horizontal_acceleration_enabled(enabled);
-                            cx.emit(StateEvent::SettingsChanged);
-                        });
-                    },
-                ),
-            )
-            .description(tr!(
-                "Progressively increases horizontal scroll distance during fast wheel movement."
-            )),
-        )
-        .item(
-            SettingItem::new(
-                tr!("Horizontal Acceleration Controls"),
                 SettingField::render({
                     let h_accel_slider = h_accel_slider.clone();
                     let h_max_gain_slider = h_max_gain_slider.clone();
@@ -244,10 +235,7 @@ pub(super) fn general_page(
                         )
                     }
                 }),
-            )
-            .description(tr!(
-                "Strength controls how aggressively speed increases. Maximum Speed limits the top multiplier."
-            )),
+            ),
         )
         .item(
             SettingItem::new(
@@ -255,10 +243,7 @@ pub(super) fn general_page(
                 SettingField::render(move |_, _, cx| {
                     thumbwheel_sensitivity_field(&thumbwheel_sensitivity_slider, cx)
                 }),
-            )
-            .description(tr!(
-                "Scales the thumb wheel's horizontal scroll speed and how readily custom wheel actions trigger."
-            )),
+            ),
         )
         .item(
             SettingItem::new(
@@ -272,40 +257,26 @@ pub(super) fn general_page(
                         });
                     },
                 ),
-            )
-            .description(if cfg!(target_os = "macos") {
-                tr!("Automatically start OpenLogi when you log in to macOS.")
-            } else {
-                tr!("Automatically start OpenLogi when you log in.")
-            }),
+            ),
         );
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
-    let group = group.item(
-        SettingItem::new(
-            if cfg!(target_os = "macos") {
-                tr!("Show in menu bar")
-            } else {
-                tr!("Show in the notification area")
-            },
-            SettingField::switch(
-                |cx| AppState::try_read(cx).is_some_and(|s| s.app_settings().show_in_menu_bar),
-                |enabled, cx| {
-                    AppState::update(cx, move |state, cx| {
-                        state.set_show_in_menu_bar(enabled);
-                        cx.emit(StateEvent::SettingsChanged);
-                    });
-                },
-            ),
-        )
-        .description(if cfg!(target_os = "macos") {
-            tr!("Keep OpenLogi's icon in the menu bar. When off, it stays in the Dock instead.")
+    let group = group.item(SettingItem::new(
+        if cfg!(target_os = "macos") {
+            tr!("Show in menu bar")
         } else {
-            tr!(
-                "Keep OpenLogi's icon in the taskbar notification area. Takes effect the next time the background agent starts."
-            )
-        }),
-    );
+            tr!("Show in the notification area")
+        },
+        SettingField::switch(
+            |cx| AppState::try_read(cx).is_some_and(|s| s.app_settings().show_in_menu_bar),
+            |enabled, cx| {
+                AppState::update(cx, move |state, cx| {
+                    state.set_show_in_menu_bar(enabled);
+                    cx.emit(StateEvent::SettingsChanged);
+                });
+            },
+        ),
+    ));
 
     SettingPage::new(tr!("General"))
         .icon(IconName::Settings)
@@ -313,10 +284,34 @@ pub(super) fn general_page(
         .group(group)
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "one labelled row per control keeps the block flat and scannable"
-)]
+/// A subtle info icon revealing `hint` on hover — the page carries no static
+/// description paragraphs, so these are the only copy besides the labels.
+fn hint_icon(id: &'static str, hint: SharedString, muted: Hsla) -> Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .text_color(muted)
+        .child(Icon::new(IconName::Info).small())
+        .tooltip(move |window, cx| Tooltip::new(hint.clone()).build(window, cx))
+}
+
+/// One labelled acceleration-control row: a fixed-width caption, an optional
+/// inline hint icon, then the control itself built by `control`.
+fn labeled_row(
+    label: SharedString,
+    hint: Option<(&'static str, SharedString, Hsla)>,
+    control: impl FnOnce(gpui::Div) -> gpui::Div,
+) -> gpui::Div {
+    let row = h_flex()
+        .items_center()
+        .gap_2()
+        .child(div().w(px(120.)).text_caption().child(label));
+    let row = match hint {
+        Some((id, hint, muted)) => row.child(hint_icon(id, hint, muted)),
+        None => row,
+    };
+    control(row)
+}
+
 fn acceleration_controls_block(
     is_vertical: bool,
     accel_slider: &Entity<SliderState>,
@@ -324,7 +319,9 @@ fn acceleration_controls_block(
     preset_select: &Entity<SelectState<Vec<PresetOption>>>,
     cx: &mut App,
 ) -> gpui::Div {
-    let pal = theme::palette(cx);
+    // The "None" preset collapses the whole block: acceleration processing is
+    // off (`*_acceleration_enabled = false`), so there is nothing to tune or
+    // preview.
     let (enabled, factor, max_gain) = AppState::try_read(cx).map_or((false, 1.0, 2.5), |s| {
         let app = s.app_settings();
         if is_vertical {
@@ -341,99 +338,68 @@ fn acceleration_controls_block(
             )
         }
     });
+    if !enabled {
+        return v_flex();
+    }
 
+    let pal = theme::palette(cx);
     let factor_percent = percent_of(factor);
     let graph = AccelerationCurveGraph::new(enabled, factor, max_gain);
 
-    v_flex().gap_3().p_1().child(
+    v_flex().gap_3().p_1().pr_4().child(
         h_flex()
             .items_center()
             .gap_4()
             .child(
                 v_flex()
                     .gap_2()
-                    .child(
-                        h_flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .w(px(120.))
-                                    .text_caption()
-                                    .text_color(if enabled {
-                                        pal.text_primary
-                                    } else {
-                                        pal.text_muted
-                                    })
-                                    .child(tr!("Preset")),
-                            )
-                            .child(
-                                div().w(px(160.)).h_6().child(
-                                    control_select(preset_select)
-                                        .w(px(160.))
-                                        .menu_width(px(160.))
-                                        .disabled(!enabled),
-                                ),
-                            ),
-                    )
-                    .child(
-                        h_flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .w(px(120.))
-                                    .text_caption()
-                                    .text_color(if enabled {
-                                        pal.text_primary
-                                    } else {
-                                        pal.text_muted
-                                    })
-                                    .child(tr!("Strength")),
-                            )
-                            .child(
-                                div()
+                    .child(labeled_row(tr!("Preset"), None, |row| {
+                        row.child(
+                            div().w(px(160.)).h_6().child(
+                                control_select(preset_select)
                                     .w(px(160.))
-                                    .child(Slider::new(accel_slider).disabled(!enabled)),
-                            )
-                            .child(
-                                div()
-                                    .w(px(50.))
-                                    .text_caption()
-                                    .text_color(pal.text_muted)
-                                    .child(format!("{factor_percent}%")),
+                                    .menu_width(px(160.)),
                             ),
-                    )
+                        )
+                    }))
+                    .child(labeled_row(
+                        tr!("Acceleration"),
+                        Some((
+                            "accel-hint",
+                            tr!("Acceleration controls how aggressively speed increases."),
+                            pal.text_muted,
+                        )),
+                        |row| {
+                            row.child(div().w(px(160.)).child(Slider::new(accel_slider)))
+                                .child(
+                                    div()
+                                        .w(px(50.))
+                                        .text_caption()
+                                        .text_color(pal.text_muted)
+                                        .child(format!("{factor_percent}%")),
+                                )
+                        },
+                    ))
+                    .child(labeled_row(
+                        tr!("Multiplier"),
+                        Some((
+                            "multiplier-hint",
+                            tr!("Acceleration multiplier limits the top speed factor."),
+                            pal.text_muted,
+                        )),
+                        |row| {
+                            row.child(div().w(px(160.)).child(Slider::new(max_gain_slider)))
+                                .child(
+                                    div()
+                                        .w(px(50.))
+                                        .text_caption()
+                                        .text_color(pal.text_muted)
+                                        .child(format!("{max_gain:.1}×")),
+                                )
+                        },
+                    ))
                     .child(
-                        h_flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .w(px(120.))
-                                    .text_caption()
-                                    .text_color(if enabled {
-                                        pal.text_primary
-                                    } else {
-                                        pal.text_muted
-                                    })
-                                    .child(tr!("Maximum Speed")),
-                            )
-                            .child(
-                                div()
-                                    .w(px(160.))
-                                    .child(Slider::new(max_gain_slider).disabled(!enabled)),
-                            )
-                            .child(
-                                div()
-                                    .w(px(50.))
-                                    .text_caption()
-                                    .text_color(pal.text_muted)
-                                    .child(format!("{max_gain:.1}×")),
-                            ),
-                    )
-                    .child(
-                        h_flex().justify_end().child(
+                        h_flex().justify_end().pr_2().child(
                             Button::new(if is_vertical {
                                 "reset_v_accel"
                             } else {
@@ -441,7 +407,6 @@ fn acceleration_controls_block(
                             })
                             .ghost()
                             .label(tr!("Reset to default"))
-                            .disabled(!enabled)
                             .on_click(move |_, _window, cx| {
                                 AppState::update(cx, |state, cx| {
                                     if is_vertical {
@@ -470,13 +435,19 @@ fn thumbwheel_sensitivity_field(slider: &Entity<SliderState>, cx: &mut App) -> g
 }
 
 fn vertical_scroll_sensitivity_field(slider: &Entity<SliderState>, cx: &mut App) -> gpui::Div {
+    let pal = theme::palette(cx);
     let value = VerticalScrollSensitivity::from_rounded(slider.read(cx).value().start());
-    sensitivity_field(
+    let field = sensitivity_field(
         slider,
         value.to_string(),
         value == VerticalScrollSensitivity::DEFAULT,
         cx,
-    )
+    );
+    field.child(hint_icon(
+        "sensitivity-hint",
+        tr!("Controls baseline scrolling distance per wheel notch."),
+        pal.text_muted,
+    ))
 }
 
 fn sensitivity_field(
@@ -513,12 +484,12 @@ fn sensitivity_field(
         })
 }
 
-/// Render the strength multiplier (0.2-2.0, snapped onto the 5% grid) as a
+/// Render the acceleration strength (0.2-4.0, snapped onto the 5% grid) as a
 /// whole percent.
 #[expect(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    reason = "factor is snapped into 0.2..=2.0 before rounding, so the cast is exact"
+    reason = "factor is snapped into 0.2..=4.0 before rounding, so the cast is exact"
 )]
 fn percent_of(factor: f64) -> u32 {
     (factor * 100.0).round() as u32

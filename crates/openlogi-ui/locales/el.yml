@@ -1,5 +1,10 @@
 # OpenLogi GUI translations. Managed by Crowdin; edit source text there when possible.
 _version: 1
+"Acceleration": "Acceleration"
+"Acceleration controls how aggressively speed increases.": "Acceleration controls how aggressively speed increases."
+"Acceleration multiplier limits the top speed factor.": "Acceleration multiplier limits the top speed factor."
+"Controls baseline scrolling distance per wheel notch.": "Controls baseline scrolling distance per wheel notch."
+"Multiplier": "Multiplier"
 "No devices connected": "Καμία συσκευή δεν είναι συνδεδεμένη"
 "Devices": "Συσκευές"
 "%{count} devices": "%{count} συσκευές"
@@ -9,6 +14,7 @@ _version: 1
 "Carousel": "Καρουζέλ"
 "Buttons": "Κουμπιά"
 "Keys": "Keys"
+"None": "None"
 "Pointer": "Δείκτης"
 "Lighting": "Φωτισμός"
 "Colour temperature": "Θερμοκρασία χρώματος"

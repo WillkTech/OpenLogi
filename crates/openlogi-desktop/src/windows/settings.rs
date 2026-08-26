@@ -206,42 +206,49 @@ impl SettingsView {
         let vertical_scroll_sensitivity_slider =
             Self::vertical_scroll_sensitivity_slider(window, cx);
 
-        // Per acceleration axis: a strength slider, a maximum-speed slider,
-        // and a preset select seeded on the preset matching the stored pair
-        // (Custom when it matches none).
-        let (v_factor, v_gain, h_factor, h_gain) = if let Some(state) = AppState::try_read(cx) {
-            let app = state.app_settings();
-            (
-                app.vertical_acceleration,
-                app.vertical_max_gain,
-                app.horizontal_acceleration,
-                app.horizontal_max_gain,
-            )
-        } else {
-            let defaults = AppSettings::default();
-            (
-                defaults.vertical_acceleration,
-                defaults.vertical_max_gain,
-                defaults.horizontal_acceleration,
-                defaults.horizontal_max_gain,
-            )
-        };
-        let v_accel_slider = Self::acceleration_slider(cx, 0.2, 2.0, 0.05, v_factor);
+        // Per acceleration axis: an Acceleration slider, a Multiplier slider,
+        // and a preset select seeded on the preset matching the stored state
+        // (None when the axis is disabled, Custom when it matches no preset).
+        let (v_enabled, v_factor, v_gain, h_enabled, h_factor, h_gain) =
+            if let Some(state) = AppState::try_read(cx) {
+                let app = state.app_settings();
+                (
+                    app.vertical_acceleration_enabled,
+                    app.vertical_acceleration,
+                    app.vertical_max_gain,
+                    app.horizontal_acceleration_enabled,
+                    app.horizontal_acceleration,
+                    app.horizontal_max_gain,
+                )
+            } else {
+                let defaults = AppSettings::default();
+                (
+                    defaults.vertical_acceleration_enabled,
+                    defaults.vertical_acceleration,
+                    defaults.vertical_max_gain,
+                    defaults.horizontal_acceleration_enabled,
+                    defaults.horizontal_acceleration,
+                    defaults.horizontal_max_gain,
+                )
+            };
+        let v_accel_slider = Self::acceleration_slider(cx, 0.2, 4.0, 0.05, v_factor);
         cx.subscribe_in(&v_accel_slider, window, Self::on_v_accel_slider)
             .detach();
-        let v_max_gain_slider = Self::acceleration_slider(cx, 1.0, 3.0, 0.1, v_gain);
+        let v_max_gain_slider = Self::acceleration_slider(cx, 1.0, 5.0, 0.1, v_gain);
         cx.subscribe_in(&v_max_gain_slider, window, Self::on_v_max_gain_slider)
             .detach();
-        let h_accel_slider = Self::acceleration_slider(cx, 0.2, 2.0, 0.05, h_factor);
+        let h_accel_slider = Self::acceleration_slider(cx, 0.2, 4.0, 0.05, h_factor);
         cx.subscribe_in(&h_accel_slider, window, Self::on_h_accel_slider)
             .detach();
-        let h_max_gain_slider = Self::acceleration_slider(cx, 1.0, 3.0, 0.1, h_gain);
+        let h_max_gain_slider = Self::acceleration_slider(cx, 1.0, 5.0, 0.1, h_gain);
         cx.subscribe_in(&h_max_gain_slider, window, Self::on_h_max_gain_slider)
             .detach();
-        let v_preset_select = Self::acceleration_preset_select(window, cx, v_factor, v_gain, true);
+        let v_preset_select =
+            Self::acceleration_preset_select(window, cx, v_enabled, v_factor, v_gain, true);
         cx.subscribe_in(&v_preset_select, window, Self::on_v_preset_select)
             .detach();
-        let h_preset_select = Self::acceleration_preset_select(window, cx, h_factor, h_gain, false);
+        let h_preset_select =
+            Self::acceleration_preset_select(window, cx, h_enabled, h_factor, h_gain, false);
         cx.subscribe_in(&h_preset_select, window, Self::on_h_preset_select)
             .detach();
 
@@ -396,8 +403,8 @@ impl SettingsView {
     }
 
     /// Create an acceleration slider over `min..=max` in `step` increments,
-    /// seeded from the stored value. Strength runs 0.2–2.0 in 0.05 steps
-    /// (20%–200%, 5% step); maximum speed runs 1.0–3.0 in 0.1 steps.
+    /// seeded from the stored value. Acceleration runs 0.2–4.0 in 0.05 steps
+    /// (20%–400%, 5% step); Multiplier runs 1.0–5.0 in 0.1 steps.
     fn acceleration_slider(
         cx: &mut Context<Self>,
         min: f32,
@@ -415,16 +422,18 @@ impl SettingsView {
     }
 
     /// Create the preset select for one acceleration axis, pre-seeded on the
-    /// preset matching the stored (strength, maximum speed) pair — Custom when
-    /// it matches none.
+    /// preset matching the stored state — None when the axis is disabled,
+    /// Custom when it matches no preset.
     fn acceleration_preset_select(
         window: &mut Window,
         cx: &mut Context<Self>,
+        enabled: bool,
         factor: f64,
         max_gain: f64,
         is_vertical: bool,
     ) -> Entity<SelectState<Vec<general::PresetOption>>> {
-        let preset = general::AccelerationPreset::from_values(factor, max_gain, is_vertical);
+        let preset =
+            general::AccelerationPreset::from_values(enabled, factor, max_gain, is_vertical);
         let options = general::preset_options();
         let selected = general::selected_preset_index(preset);
         cx.new(|cx| SelectState::new(options, Some(selected), window, cx))
@@ -547,9 +556,10 @@ impl SettingsView {
         self.apply_acceleration_preset(event, window, cx, false);
     }
 
-    /// Persist a preset's (strength, maximum speed) pair and re-seat the
-    /// axis' sliders on it. Custom carries no values — the sliders are the
-    /// source of truth and stay put.
+    /// Apply the preset chosen for an acceleration axis. None disables the
+    /// axis (the worker's hook gate then stops accelerating it); every other
+    /// preset enables it, and all but Custom hydrate their own values so a
+    /// disabled axis never revives stale slider state.
     fn apply_acceleration_preset(
         &mut self,
         event: &SelectEvent<Vec<general::PresetOption>>,
@@ -561,17 +571,37 @@ impl SettingsView {
             cx.notify();
             return;
         };
-        if let Some((factor, max_gain)) = preset.values(is_vertical) {
-            AppState::update(cx, |state, cx| {
+        AppState::update(cx, |state, cx| {
+            if *preset == general::AccelerationPreset::None {
                 if is_vertical {
+                    state.set_vertical_acceleration_enabled(false);
+                } else {
+                    state.set_horizontal_acceleration_enabled(false);
+                }
+            } else if is_vertical {
+                state.set_vertical_acceleration_enabled(true);
+                if let Some((factor, max_gain)) = preset.values(is_vertical) {
                     state.set_vertical_acceleration(factor);
                     state.set_vertical_max_gain(max_gain);
-                } else {
+                }
+            } else {
+                state.set_horizontal_acceleration_enabled(true);
+                if let Some((factor, max_gain)) = preset.values(is_vertical) {
                     state.set_horizontal_acceleration(factor);
                     state.set_horizontal_max_gain(max_gain);
                 }
-                cx.emit(StateEvent::SettingsChanged);
-            });
+            }
+            cx.emit(StateEvent::SettingsChanged);
+        });
+        // Re-seat the sliders on whatever is now stored. For None the block
+        // collapses anyway; for Custom nothing changed and this is a no-op.
+        let app = AppState::try_read(cx).map(|s| s.app_settings().clone());
+        if let Some(app) = app {
+            let (factor, max_gain) = if is_vertical {
+                (app.vertical_acceleration, app.vertical_max_gain)
+            } else {
+                (app.horizontal_acceleration, app.horizontal_max_gain)
+            };
             let (accel_slider, max_gain_slider) = if is_vertical {
                 (&self.v_accel_slider, &self.v_max_gain_slider)
             } else {
@@ -587,9 +617,9 @@ impl SettingsView {
         cx.notify();
     }
 
-    /// Re-seat an axis' preset select after its stored values changed: the
-    /// select mirrors the (strength, maximum speed) pair, so a slider move
-    /// away from a preset flips it to Custom.
+    /// Re-seat an axis' preset select after its stored state changed: the
+    /// select mirrors the (enabled, strength, multiplier) triple, so a slider
+    /// move away from a preset flips it to Custom.
     fn sync_preset_select(
         &mut self,
         is_vertical: bool,
@@ -598,7 +628,7 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let preset = general::AccelerationPreset::from_values(factor, max_gain, is_vertical);
+        let preset = general::AccelerationPreset::from_values(true, factor, max_gain, is_vertical);
         let select = if is_vertical {
             &self.v_preset_select
         } else {
@@ -773,13 +803,14 @@ impl Render for SettingsView {
     }
 }
 
-/// Seat a bounded acceleration value (the 0.2-3.0 slider range) on an f32
-/// slider. Every caller's value is snapped or clamped into that range, which
-/// sits far inside f32's precision - the conversion is total.
+/// Seat a bounded acceleration value (Acceleration 0.2-4.0, Multiplier
+/// 1.0-5.0) on an f32 slider. Stored values are clamped into the current
+/// slider range, which sits far inside f32's precision - the conversion is
+/// total.
 #[expect(
     clippy::cast_possible_truncation,
-    reason = "inputs are restricted to the 0.2-3.0 acceleration range"
+    reason = "inputs are clamped into the 0.2-5.0 slider range first"
 )]
 fn slider_f32(value: f64) -> f32 {
-    value as f32
+    value.clamp(0.2, 5.0) as f32
 }
