@@ -308,9 +308,40 @@ mod tests {
     }
 
     #[test]
+    fn multiplatform_gesture_button_0x00d0_is_recognized_in_capture_plan() {
+        // Multiplatform gesture button (CID 0x00d0) should be recognized in capture plans
+        // as ButtonId::GestureButton.
+        use openlogi_hid::reprog_controls::MULTIPLATFORM_GESTURE_BUTTON_CID;
+
+        let mut cfg = Config::default();
+        cfg.set_gesture_mode("2b042", ButtonId::GestureButton, true);
+
+        let plan = plan_for_device(&cfg, "2b042", route(), None, 0);
+        assert!(
+            plan.gesture_bindings.contains_key(&ButtonId::GestureButton),
+            "0x00d0 must map to GestureButton in gesture mode"
+        );
+
+        // When gestures are off and a single action is bound, 0x00d0 should be plain diverted
+        let mut cfg_plain = Config::default();
+        cfg_plain.set_binding(
+            "2b042",
+            ButtonId::GestureButton,
+            Binding::Single(Action::CycleDpiPresets),
+        );
+        let plan_plain = plan_for_device(&cfg_plain, "2b042", route(), None, 0);
+        assert!(
+            plan_plain
+                .divert_buttons
+                .contains(&(MULTIPLATFORM_GESTURE_BUTTON_CID, ButtonId::GestureButton)),
+            "0x00d0 must be plain-diverted when single bound without gesture mode"
+        );
+    }
+
+    #[test]
     fn gesture_mode_button_is_never_plain_diverted() {
         // While the gesture button is in gesture mode, the raw-XY gesture
-        // divert owns CID 0x00c3 — a plain divert on top would strip raw-XY.
+        // divert owns CID 0x00c3 / 0x00d0 — a plain divert on top would strip raw-XY.
         // (Its default Click projects to a non-default single action, so only
         // the gesture-mode rule keeps it out of the plain list.)
         let mut cfg = Config::default();

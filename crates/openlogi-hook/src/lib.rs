@@ -25,7 +25,6 @@
 //! hook.stop();
 //! ```
 
-
 pub use openlogi_core::app::ForegroundApp;
 pub use openlogi_core::binding::ButtonId;
 pub use openlogi_core::scroll::ScrollDelta;
