@@ -38,7 +38,10 @@ impl RenderOnce for AccelerationCurveGraph {
 
         gpui::div()
             .flex_none()
-            .w(px(220.))
+            // Full width of its container: the block stacks the graph below
+            // the control rows, and the paint closure scales to whatever
+            // bounds it receives.
+            .w_full()
             .h(px(90.))
             .rounded_md()
             .bg(pal.panel)

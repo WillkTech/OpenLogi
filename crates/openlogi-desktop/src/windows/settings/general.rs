@@ -200,42 +200,38 @@ pub(super) fn general_page(
             ),
         )
         .item(
-            SettingItem::new(
-                tr!("Vertical Scroll Acceleration"),
-                SettingField::render({
-                    let v_accel_slider = v_accel_slider.clone();
-                    let v_max_gain_slider = v_max_gain_slider.clone();
-                    let v_preset_select = v_preset_select.clone();
-                    move |_, _, cx| {
-                        acceleration_controls_block(
-                            true,
-                            &v_accel_slider,
-                            &v_max_gain_slider,
-                            &v_preset_select,
-                            cx,
-                        )
-                    }
-                }),
-            ),
+            SettingItem::render({
+                let v_accel_slider = v_accel_slider.clone();
+                let v_max_gain_slider = v_max_gain_slider.clone();
+                let v_preset_select = v_preset_select.clone();
+                move |_, _, cx| {
+                    acceleration_controls_block(
+                        tr!("Vertical Scroll Acceleration"),
+                        true,
+                        &v_accel_slider,
+                        &v_max_gain_slider,
+                        &v_preset_select,
+                        cx,
+                    )
+                }
+            }),
         )
         .item(
-            SettingItem::new(
-                tr!("Horizontal Scroll Acceleration"),
-                SettingField::render({
-                    let h_accel_slider = h_accel_slider.clone();
-                    let h_max_gain_slider = h_max_gain_slider.clone();
-                    let h_preset_select = h_preset_select.clone();
-                    move |_, _, cx| {
-                        acceleration_controls_block(
-                            false,
-                            &h_accel_slider,
-                            &h_max_gain_slider,
-                            &h_preset_select,
-                            cx,
-                        )
-                    }
-                }),
-            ),
+            SettingItem::render({
+                let h_accel_slider = h_accel_slider.clone();
+                let h_max_gain_slider = h_max_gain_slider.clone();
+                let h_preset_select = h_preset_select.clone();
+                move |_, _, cx| {
+                    acceleration_controls_block(
+                        tr!("Horizontal Scroll Acceleration"),
+                        false,
+                        &h_accel_slider,
+                        &h_max_gain_slider,
+                        &h_preset_select,
+                        cx,
+                    )
+                }
+            }),
         )
         .item(
             SettingItem::new(
@@ -312,16 +308,23 @@ fn labeled_row(
     control(row)
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one labelled row per control keeps the block flat and scannable"
+)]
 fn acceleration_controls_block(
+    heading: SharedString,
     is_vertical: bool,
     accel_slider: &Entity<SliderState>,
     max_gain_slider: &Entity<SliderState>,
     preset_select: &Entity<SelectState<Vec<PresetOption>>>,
     cx: &mut App,
 ) -> gpui::Div {
-    // The "None" preset collapses the whole block: acceleration processing is
-    // off (`*_acceleration_enabled = false`), so there is nothing to tune or
-    // preview.
+    // Two-column layout: the first column carries the section heading with the
+    // curve graph beneath it (the heading row otherwise wastes its full width),
+    // the second holds the controls. The Preset select is always rendered — it
+    // is the only way back from "None" — while the sliders, graph, and Reset
+    // button collapse when acceleration is off.
     let (enabled, factor, max_gain) = AppState::try_read(cx).map_or((false, 1.0, 2.5), |s| {
         let app = s.app_settings();
         if is_vertical {
@@ -338,31 +341,43 @@ fn acceleration_controls_block(
             )
         }
     });
-    if !enabled {
-        return v_flex();
-    }
 
     let pal = theme::palette(cx);
     let factor_percent = percent_of(factor);
     let graph = AccelerationCurveGraph::new(enabled, factor, max_gain);
 
-    v_flex().gap_3().p_1().pr_4().child(
-        h_flex()
-            .items_center()
-            .gap_4()
-            .child(
-                v_flex()
-                    .gap_2()
-                    .child(labeled_row(tr!("Preset"), None, |row| {
-                        row.child(
-                            div().w(px(160.)).h_6().child(
-                                control_select(preset_select)
-                                    .w(px(160.))
-                                    .menu_width(px(160.)),
-                            ),
-                        )
-                    }))
-                    .child(labeled_row(
+    h_flex()
+        .w_full()
+        .items_start()
+        .gap_4()
+        .p_1()
+        .pr_4()
+        // First column: heading + curve below it, bounded so it shrinks with
+        // the window instead of clipping against its right border.
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w(px(220.))
+                .max_w(px(360.))
+                .gap_2()
+                .child(div().text_body().child(heading))
+                .when(enabled, |col| col.child(graph)),
+        )
+        // Second column: the control rows.
+        .child(
+            v_flex()
+                .gap_2()
+                .child(labeled_row(tr!("Preset"), None, |row| {
+                    row.child(
+                        div().w(px(160.)).h_6().child(
+                            control_select(preset_select)
+                                .w(px(160.))
+                                .menu_width(px(160.)),
+                        ),
+                    )
+                }))
+                .when(enabled, |col| {
+                    col.child(labeled_row(
                         tr!("Acceleration"),
                         Some((
                             "accel-hint",
@@ -418,10 +433,9 @@ fn acceleration_controls_block(
                                 });
                             }),
                         ),
-                    ),
-            )
-            .child(graph),
-    )
+                    )
+                }),
+        )
 }
 
 fn thumbwheel_sensitivity_field(slider: &Entity<SliderState>, cx: &mut App) -> gpui::Div {
