@@ -3,9 +3,9 @@
 mod curve;
 
 use curve::AccelerationCurveGraph;
-use gpui::{InteractiveElement as _, SharedString, StatefulInteractiveElement as _};
+use gpui::SharedString;
 use gpui_component::{
-    Selectable as _, Sizable as _,
+    Selectable as _,
     button::{Button, ButtonVariants as _},
 };
 

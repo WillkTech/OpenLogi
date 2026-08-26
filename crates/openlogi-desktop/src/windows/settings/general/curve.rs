@@ -43,7 +43,11 @@ fn compute_curve_samples(
     let mut samples = [(0.0f32, 0.0f32); SAMPLE_COUNT + 1];
 
     for (i, sample) in samples.iter_mut().enumerate() {
-        let t = f64::from(i) / f64::from(SAMPLE_COUNT);
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "sample index and count are small bounded constants"
+        )]
+        let t = i as f64 / SAMPLE_COUNT as f64;
         let rate = t * 40.0;
         let gain = openlogi_core::math::gain_at_rate(rate, enabled, factor, max_gain);
         let norm_x = norm_f32(t);
