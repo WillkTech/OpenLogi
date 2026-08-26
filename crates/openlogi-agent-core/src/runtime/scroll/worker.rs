@@ -12,7 +12,7 @@ use openlogi_core::config::VerticalScrollSensitivity;
 use openlogi_core::scroll::ScrollDelta;
 use tracing::warn;
 
-use super::{ScrollEngine, ScrollFrame, ScrollSource, WheelDelta};
+use super::{AxisAccelerationParams, ScrollEngine, ScrollFrame, ScrollSource, WheelDelta};
 use crate::runtime::HidppSessionId;
 
 /// OS-hook callbacks must fail open rather than wait for the worker.
@@ -88,13 +88,14 @@ impl ScrollPreferences {
         }
     }
 
-    /// Load a snapshot of current scroll settings.
+    /// Load a snapshot of current scroll settings. A poisoned lock still
+    /// yields its last written value, mirroring `publish`'s fail-open policy.
     #[must_use]
     pub fn load(&self) -> ScrollPreferenceSnapshot {
-        *self
-            .snapshot
-            .read()
-            .expect("scroll preferences lock poisoned")
+        match self.snapshot.read() {
+            Ok(lock) => *lock,
+            Err(poisoned) => *poisoned.into_inner(),
+        }
     }
 
     /// Whether finite smooth scrolling is currently enabled.
@@ -169,7 +170,7 @@ impl ScrollInputHandle {
         };
         let preferences = self.preferences.load();
         let vertical_scaled = impulse.y != 0.0
-            && (preferences.vertical_sensitivity.scroll_multiplier() != 1.0
+            && (preferences.vertical_sensitivity != VerticalScrollSensitivity::DEFAULT
                 || preferences.vertical_acceleration_enabled);
         let horizontal_scaled = impulse.x != 0.0 && preferences.horizontal_acceleration_enabled;
 
@@ -417,12 +418,16 @@ fn run_worker(
                     input.impulse.x,
                     input.impulse.y,
                     at,
-                    prefs.vertical_acceleration_enabled,
-                    prefs.vertical_acceleration,
-                    prefs.vertical_max_gain,
-                    prefs.horizontal_acceleration_enabled,
-                    prefs.horizontal_acceleration,
-                    prefs.horizontal_max_gain,
+                    AxisAccelerationParams {
+                        enabled: prefs.vertical_acceleration_enabled,
+                        factor: prefs.vertical_acceleration,
+                        max_gain: prefs.vertical_max_gain,
+                    },
+                    AxisAccelerationParams {
+                        enabled: prefs.horizontal_acceleration_enabled,
+                        factor: prefs.horizontal_acceleration,
+                        max_gain: prefs.horizontal_max_gain,
+                    },
                 );
                 let scaled_impulse = WheelDelta {
                     x: input.impulse.x * gain_x,

@@ -9,7 +9,7 @@
 pub(crate) mod acceleration;
 mod worker;
 
-pub use acceleration::{AxisAcceleration, ScrollAccelerationEngine};
+pub use acceleration::{AxisAcceleration, AxisAccelerationParams, ScrollAccelerationEngine};
 pub use worker::{ScrollInputHandle, ScrollPreferences, ScrollRuntime};
 
 use std::collections::HashMap;

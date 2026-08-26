@@ -12,12 +12,7 @@ pub const CURVE_SCALE: f64 = 8.0;
 #[must_use]
 #[inline]
 pub fn gain_at_rate(rate: f64, enabled: bool, factor: f64, max_gain: f64) -> f64 {
-    if !enabled
-        || max_gain <= 1.0
-        || !rate.is_finite()
-        || !factor.is_finite()
-        || factor <= 0.0
-    {
+    if !enabled || max_gain <= 1.0 || !rate.is_finite() || !factor.is_finite() || factor <= 0.0 {
         return 1.0;
     }
 
@@ -51,11 +46,19 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(
+        clippy::float_cmp,
+        reason = "the disabled path returns the literal 1.0 exactly"
+    )]
     fn gain_at_rate_disabled_returns_unity() {
         assert_eq!(gain_at_rate(10.0, false, 1.0, 2.5), 1.0);
     }
 
     #[test]
+    #[expect(
+        clippy::float_cmp,
+        reason = "the below-reference path returns the literal 1.0 exactly"
+    )]
     fn gain_at_rate_below_reference_returns_unity() {
         assert_eq!(gain_at_rate(3.0, true, 1.0, 2.5), 1.0);
     }

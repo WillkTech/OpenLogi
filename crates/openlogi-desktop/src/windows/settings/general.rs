@@ -279,7 +279,6 @@ pub(super) fn general_page(
         .group(group)
 }
 
-
 #[expect(
     clippy::too_many_lines,
     reason = "one labelled row per control keeps the block flat and scannable"

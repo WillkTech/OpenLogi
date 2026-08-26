@@ -5,9 +5,9 @@ mod wheel;
 use std::collections::HashMap;
 use std::time::Instant;
 
-use openlogi_core::binding::{Action, Binding, ButtonId, default_binding};
+use openlogi_core::binding::{Action, Binding, ButtonId, GestureDirection, default_binding};
 use openlogi_core::config::ThumbwheelSensitivity;
-use openlogi_hid::CapturedInput;
+use openlogi_hid::{CapturedInput, thumbwheel::WheelResolution};
 use tracing::debug;
 
 use self::wheel::{ScrollScale, WheelAccumulators, WheelOutput, WheelRotation};
@@ -150,49 +150,10 @@ impl InputDispatcher {
 
         match input {
             CapturedInput::Gesture(button, direction) => {
-                let Some(press) = self.gesture_presses.get(session, button) else {
-                    debug!(key, %button, ?direction, "gesture from a canceled button lifecycle — ignored");
-                    return;
-                };
-                if let Some(action) = plan
-                    .gesture_bindings
-                    .get(&button)
-                    .and_then(|map| map.get(&direction))
-                {
-                    debug!(key, %button, ?direction, action = %action.label(), "gesture → action");
-                    if !self
-                        .outputs
-                        .actions
-                        .try_dispatch_while_pressed(press, action)
-                    {
-                        debug!(key, %button, ?direction, "gesture press no longer active — ignored");
-                    }
-                } else {
-                    debug!(key, %button, ?direction, "gesture with no binding — ignored");
-                }
+                self.dispatch_gesture(session, &plan, button, direction);
             }
             CapturedInput::ButtonDown(button) => {
-                // A raw-XY gesture source owns its click/swipe map; its physical
-                // lifecycle is still tracked, but it must not also fire the
-                // single-action projection on down.
-                let is_gesture = plan.gesture_bindings.contains_key(&button);
-                let binding = (!is_gesture).then(|| plan.bindings.get(&button)).flatten();
-                if let Some(binding) = binding {
-                    debug!(key, ?button, action = %binding.click_action().label(), "HID++ button → binding");
-                } else {
-                    debug!(key, ?button, "HID++ button with no binding — ignored");
-                }
-                let press = self
-                    .outputs
-                    .actions
-                    .try_hidpp_button_down(session, button, binding);
-                if is_gesture {
-                    if let Some(press) = press {
-                        self.gesture_presses.start(session, button, press);
-                    } else {
-                        self.gesture_presses.end(session, button);
-                    }
-                }
+                self.dispatch_button_down(session, &plan, button);
             }
             CapturedInput::ButtonUp(button) => {
                 self.outputs.actions.try_hidpp_button_up(session, button);
@@ -213,28 +174,102 @@ impl InputDispatcher {
                 increments,
                 resolution,
             } => {
-                let Some(rotation) = WheelRotation::from_increments(increments) else {
-                    return;
-                };
-                let button = rotation.button();
-                let Some(configuration) = configuration else {
-                    return;
-                };
-                let action = configuration.action(rotation);
-                let wheels = self.wheels.for_session(session);
-                match wheels.advance(
-                    rotation,
-                    action,
-                    ScrollScale::new(resolution, configuration.sensitivity),
-                    Instant::now(),
-                ) {
-                    WheelOutput::Idle => {}
-                    WheelOutput::Scroll(delta) => self.outputs.post_scroll(session, delta),
-                    WheelOutput::FireAction => {
-                        debug!(key, ?button, action = %action.label(), "thumb wheel → action");
-                        self.outputs.actions.dispatch(action, Some(key));
-                    }
-                }
+                self.dispatch_scroll(session, configuration, increments, resolution);
+            }
+        }
+    }
+
+    /// Route one directional gesture to its bound action while its button stays held.
+    fn dispatch_gesture(
+        &mut self,
+        session: &HidppSessionId,
+        plan: &DeviceCapturePlan,
+        button: ButtonId,
+        direction: GestureDirection,
+    ) {
+        let key = session.device_key();
+        let Some(press) = self.gesture_presses.get(session, button) else {
+            debug!(key, %button, ?direction, "gesture from a canceled button lifecycle — ignored");
+            return;
+        };
+        if let Some(action) = plan
+            .gesture_bindings
+            .get(&button)
+            .and_then(|map| map.get(&direction))
+        {
+            debug!(key, %button, ?direction, action = %action.label(), "gesture → action");
+            if !self
+                .outputs
+                .actions
+                .try_dispatch_while_pressed(press, action)
+            {
+                debug!(key, %button, ?direction, "gesture press no longer active — ignored");
+            }
+        } else {
+            debug!(key, %button, ?direction, "gesture with no binding — ignored");
+        }
+    }
+
+    /// Route one HID++ button down, tracking gesture-source lifecycles separately.
+    fn dispatch_button_down(
+        &mut self,
+        session: &HidppSessionId,
+        plan: &DeviceCapturePlan,
+        button: ButtonId,
+    ) {
+        let key = session.device_key();
+        // A raw-XY gesture source owns its click/swipe map; its physical
+        // lifecycle is still tracked, but it must not also fire the
+        // single-action projection on down.
+        let is_gesture = plan.gesture_bindings.contains_key(&button);
+        let binding = (!is_gesture).then(|| plan.bindings.get(&button)).flatten();
+        if let Some(binding) = binding {
+            debug!(key, ?button, action = %binding.click_action().label(), "HID++ button → binding");
+        } else {
+            debug!(key, ?button, "HID++ button with no binding — ignored");
+        }
+        let press = self
+            .outputs
+            .actions
+            .try_hidpp_button_down(session, button, binding);
+        if is_gesture {
+            if let Some(press) = press {
+                self.gesture_presses.start(session, button, press);
+            } else {
+                self.gesture_presses.end(session, button);
+            }
+        }
+    }
+
+    /// Route one thumb-wheel rotation to its bound action or re-synthesised scroll.
+    fn dispatch_scroll(
+        &mut self,
+        session: &HidppSessionId,
+        configuration: Option<WheelConfiguration>,
+        increments: i16,
+        resolution: WheelResolution,
+    ) {
+        let key = session.device_key();
+        let Some(rotation) = WheelRotation::from_increments(increments) else {
+            return;
+        };
+        let button = rotation.button();
+        let Some(configuration) = configuration else {
+            return;
+        };
+        let action = configuration.action(rotation);
+        let wheels = self.wheels.for_session(session);
+        match wheels.advance(
+            rotation,
+            action,
+            ScrollScale::new(resolution, configuration.sensitivity),
+            Instant::now(),
+        ) {
+            WheelOutput::Idle => {}
+            WheelOutput::Scroll(delta) => self.outputs.post_scroll(session, delta),
+            WheelOutput::FireAction => {
+                debug!(key, ?button, action = %action.label(), "thumb wheel → action");
+                self.outputs.actions.dispatch(action, Some(key));
             }
         }
     }

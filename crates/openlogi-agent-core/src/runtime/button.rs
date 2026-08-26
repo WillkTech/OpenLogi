@@ -636,9 +636,9 @@ fn run_worker(
             .filter_map(|press| press.behavior.deadline())
             .min();
 
-        let timeout = next_deadline
-            .map(|deadline| deadline.saturating_duration_since(Instant::now()))
-            .unwrap_or(SHUTDOWN_POLL_INTERVAL);
+        let timeout = next_deadline.map_or(SHUTDOWN_POLL_INTERVAL, |deadline| {
+            deadline.saturating_duration_since(Instant::now())
+        });
 
         let command = match events.recv_timeout(timeout) {
             Ok(command) => command,
