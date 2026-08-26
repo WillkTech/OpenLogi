@@ -219,17 +219,14 @@ pub fn execute(action: &Action) {
         return;
     }
 
-    cfg_select! {
-        target_os = "macos" => {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
             macos::execute(action);
-        }
-        target_os = "linux" => {
+        } else if #[cfg(target_os = "linux")] {
             linux::execute(action);
-        }
-        target_os = "windows" => {
+        } else if #[cfg(target_os = "windows")] {
             windows::execute(action);
-        }
-        _ => {
+        } else {
             tracing::warn!(
                 action = action.label(),
                 "execute unsupported on this platform"
@@ -262,28 +259,25 @@ pub fn replace_hold(old: &KeyCombo, new: &KeyCombo) {
 }
 
 fn hold_transition(released: Option<&KeyCombo>, pressed: Option<&KeyCombo>) {
-    cfg_select! {
-        target_os = "macos" => {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
             let mut output = HELD_OUTPUT.lock().unwrap_or_else(PoisonError::into_inner);
             let modifiers = output.modifiers();
             let transition = output.transition(released, pressed);
             let modifiers = macos::hold_keys(&transition.up, KeyPhase::Up, modifiers);
             let modifiers = macos::hold_keys(&transition.down, KeyPhase::Down, modifiers);
             debug_assert_eq!(modifiers, output.modifiers());
-        }
-        target_os = "linux" => {
+        } else if #[cfg(target_os = "linux")] {
             let mut output = HELD_OUTPUT.lock().unwrap_or_else(PoisonError::into_inner);
             let transition = output.transition(released, pressed);
             linux::hold_keys(&transition.up, KeyPhase::Up);
             linux::hold_keys(&transition.down, KeyPhase::Down);
-        }
-        target_os = "windows" => {
+        } else if #[cfg(target_os = "windows")] {
             let mut output = HELD_OUTPUT.lock().unwrap_or_else(PoisonError::into_inner);
             let transition = output.transition(released, pressed);
             windows::hold_keys(&transition.up, KeyPhase::Up);
             windows::hold_keys(&transition.down, KeyPhase::Down);
-        }
-        _ => {
+        } else {
             tracing::warn!(
                 "held shortcut output unsupported on this platform"
             );
@@ -318,19 +312,76 @@ struct QuantizedScroll {
     y: i32,
 }
 
+use std::time::{Duration, Instant};
+
+const IDLE_TIMEOUT: Duration = Duration::from_millis(250);
+
 /// Carries fractional platform units across frames so rounding never changes
 /// the cumulative distance.
 #[derive(Default)]
 struct ScrollQuantizer {
     residual_x: f64,
     residual_y: f64,
+    last_dir_x: f64,
+    last_dir_y: f64,
+    last_update: Option<Instant>,
 }
 
 impl ScrollQuantizer {
     fn quantize(&mut self, delta: ScrollDelta, units_per_input: f64) -> QuantizedScroll {
+        self.quantize_at(delta, units_per_input, Instant::now())
+    }
+
+    fn quantize_at(
+        &mut self,
+        delta: ScrollDelta,
+        units_per_input: f64,
+        at: Instant,
+    ) -> QuantizedScroll {
+        if let Some(last_time) = self.last_update {
+            if at.saturating_duration_since(last_time) >= IDLE_TIMEOUT {
+                self.residual_x = 0.0;
+                self.residual_y = 0.0;
+                self.last_dir_x = 0.0;
+                self.last_dir_y = 0.0;
+            }
+        }
+
+        let input_x = delta.x();
+        let input_y = delta.y();
+
+        // Axis Switch: if input is strictly horizontal or vertical, clear the other axis remainder.
+        if input_x != 0.0 && input_y == 0.0 {
+            self.residual_y = 0.0;
+            self.last_dir_y = 0.0;
+        } else if input_y != 0.0 && input_x == 0.0 {
+            self.residual_x = 0.0;
+            self.last_dir_x = 0.0;
+        }
+
+        // Direction Reversal on X
+        if input_x != 0.0 {
+            let dir_x = input_x.signum();
+            if self.last_dir_x != 0.0 && dir_x != self.last_dir_x {
+                self.residual_x = 0.0;
+            }
+            self.last_dir_x = dir_x;
+        }
+
+        // Direction Reversal on Y
+        if input_y != 0.0 {
+            let dir_y = input_y.signum();
+            if self.last_dir_y != 0.0 && dir_y != self.last_dir_y {
+                self.residual_y = 0.0;
+            }
+            self.last_dir_y = dir_y;
+        }
+
+        self.last_update = Some(at);
+
         QuantizedScroll {
-            x: quantize_axis(&mut self.residual_x, delta.x(), units_per_input),
-            y: quantize_axis(&mut self.residual_y, delta.y(), units_per_input),
+            x: quantize_axis(&mut self.residual_x, input_x, units_per_input),
+            y: quantize_axis(&mut self.residual_y, input_y, units_per_input),
         }
     }
 }
@@ -358,17 +409,14 @@ pub fn post_scroll(delta: ScrollDelta) {
     if !delta.is_finite() || (delta.x() == 0.0 && delta.y() == 0.0) {
         return;
     }
-    cfg_select! {
-        target_os = "macos" => {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
             macos::post_scroll(delta);
-        }
-        target_os = "linux" => {
+        } else if #[cfg(target_os = "linux")] {
             linux::post_scroll(delta);
-        }
-        target_os = "windows" => {
+        } else if #[cfg(target_os = "windows")] {
             windows::post_scroll(delta);
-        }
-        _ => {
+        } else {
             let _ = delta;
         }
     }
@@ -403,11 +451,10 @@ pub fn post_smooth_scroll(delta: ScrollDelta, phase: SmoothScrollPhase) {
     if !delta.is_finite() {
         return;
     }
-    cfg_select! {
-        target_os = "macos" => {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
             macos::post_smooth_scroll(delta, phase);
-        }
-        _ => {
+        } else {
             let _ = phase;
             post_scroll(delta);
         }
@@ -512,6 +559,52 @@ mod tests {
         let backward = quantizer.quantize(ScrollDelta::wheel_ticks(-0.25, 0.0), 120.0);
         assert_eq!(forward, QuantizedScroll { x: 30, y: 0 });
         assert_eq!(backward, QuantizedScroll { x: -30, y: 0 });
+    }
+
+    #[test]
+    fn idle_timeout_clears_fractional_residuals() {
+        use std::time::{Duration, Instant};
+        let mut quantizer = ScrollQuantizer::default();
+        let now = Instant::now();
+        // Send fractional step (0.005 * 120 = 0.6 => rounds to 1, residual = -0.4)
+        let _ = quantizer.quantize_at(ScrollDelta::wheel_ticks(0.0, 0.005), 120.0, now);
+        assert_ne!(quantizer.residual_y, 0.0);
+
+        // After > 250ms idle, residual should be cleared
+        let later = now + Duration::from_millis(300);
+        let _ = quantizer.quantize_at(ScrollDelta::wheel_ticks(0.0, 0.005), 120.0, later);
+        // On new clean start: 0.005 * 120 = 0.6 => rounds to 1, residual = 0.6 - 1.0 = -0.4
+        assert_eq!(quantizer.residual_y, -0.4);
+    }
+
+    #[test]
+    fn axis_switch_clears_opposite_axis_residual() {
+        use std::time::Instant;
+        let mut quantizer = ScrollQuantizer::default();
+        let now = Instant::now();
+        // Send fractional vertical step
+        let _ = quantizer.quantize_at(ScrollDelta::wheel_ticks(0.0, 0.005), 120.0, now);
+        assert_ne!(quantizer.residual_y, 0.0);
+
+        // Switch to horizontal axis
+        let _ = quantizer.quantize_at(ScrollDelta::wheel_ticks(0.005, 0.0), 120.0, now);
+        assert_eq!(quantizer.residual_y, 0.0);
+        assert_ne!(quantizer.residual_x, 0.0);
+    }
+
+    #[test]
+    fn direction_reversal_clears_fractional_residual() {
+        use std::time::Instant;
+        let mut quantizer = ScrollQuantizer::default();
+        let now = Instant::now();
+        // Send fractional vertical step upwards (+y)
+        let _ = quantizer.quantize_at(ScrollDelta::wheel_ticks(0.0, 0.005), 120.0, now);
+        assert_ne!(quantizer.residual_y, 0.0);
+
+        // Reverse direction (-y)
+        let _ = quantizer.quantize_at(ScrollDelta::wheel_ticks(0.0, -0.005), 120.0, now);
+        // -0.005 * 120 = -0.6 (since residual was cleared on reversal, exact = -0.6 => rounds to -1, residual = 0.4)
+        assert_eq!(quantizer.residual_y, 0.4);
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]

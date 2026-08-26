@@ -11,6 +11,7 @@ keywords = ["logitech", "input", "uinput", "sendinput", "mouse"]
 categories = ["hardware-support", "os"]
 
 [dependencies]
+cfg-if = "1"
 shellexpand.workspace = true
 opener.workspace = true
 openlogi-core = { path = "../openlogi-core", version = "0.8.0" }

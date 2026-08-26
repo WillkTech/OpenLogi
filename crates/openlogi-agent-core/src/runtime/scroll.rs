@@ -133,7 +133,9 @@ impl MotionSegment {
     fn position_at(&self, at: Instant) -> WheelDelta {
         let elapsed = at.saturating_duration_since(self.started_at);
         let progress = (elapsed.as_secs_f64() / ANIMATION_DURATION.as_secs_f64()).clamp(0.0, 1.0);
-        let eased = progress * progress * (3.0 - 2.0 * progress);
+        // Easing curve f(p) = 1.2p + 0.6p^2 - 0.8p^3: gives instant non-zero
+        // velocity on frame 1 (f'(0) = 1.2) while maintaining a smooth landing (f'(1) = 0).
+        let eased = progress * (1.2 + progress * (0.6 - 0.8 * progress));
         self.from.plus(self.target.minus(self.from).scale(eased))
     }
 

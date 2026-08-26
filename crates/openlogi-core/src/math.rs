@@ -24,7 +24,7 @@ pub fn gain_at_rate(rate: f64, enabled: bool, factor: f64, max_gain: f64) -> f64
     let curve = excess_speed / (excess_speed + CURVE_SCALE);
     let gain = 1.0 + (max_gain - 1.0) * curve * factor;
 
-    gain.clamp(1.0, max_gain)
+    gain.max(1.0).min(max_gain.max(1.0))
 }
 
 /// Quantizes a floating point input into a bounded integer type `T`.
@@ -60,6 +60,8 @@ mod tests {
         reason = "the below-reference path returns the literal 1.0 exactly"
     )]
     fn gain_at_rate_below_reference_returns_unity() {
+        assert_eq!(gain_at_rate(0.0, true, 1.0, 2.5), 1.0);
+        assert_eq!(gain_at_rate(1.0, true, 1.0, 2.5), 1.0);
         assert_eq!(gain_at_rate(3.0, true, 1.0, 2.5), 1.0);
     }
 

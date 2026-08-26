@@ -25,7 +25,6 @@
 //! hook.stop();
 //! ```
 
-use std::cfg_select;
 
 pub use openlogi_core::app::ForegroundApp;
 pub use openlogi_core::binding::ButtonId;
@@ -386,11 +385,16 @@ impl HookBackend for Unsupported {
 }
 
 // The backend this build talks to — the crate's one platform switch.
-cfg_select! {
-    target_os = "macos" => { type Backend = macos::Backend; }
-    target_os = "linux" => { type Backend = linux::Backend; }
-    target_os = "windows" => { type Backend = windows::Backend; }
-    _ => { type Backend = Unsupported; }
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "macos")] {
+        type Backend = macos::Backend;
+    } else if #[cfg(target_os = "linux")] {
+        type Backend = linux::Backend;
+    } else if #[cfg(target_os = "windows")] {
+        type Backend = windows::Backend;
+    } else {
+        type Backend = Unsupported;
+    }
 }
 
 /// A running OS-level mouse hook. Call [`Hook::stop`] to tear down.
