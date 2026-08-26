@@ -202,8 +202,6 @@ pub async fn apply(
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
-
     use super::{
         COMMAND_BRIGHTNESS, COMMAND_POWER, COMMAND_TEMPERATURE, LightCommand, LitraModel,
         REPORT_ID, encode_command, litra_model_for_route,
@@ -243,10 +241,10 @@ mod tests {
         let report =
             encode_command(LitraModel::Glow, LightCommand::BrightnessNative(136)).expect("valid");
         assert_eq!(&report[3..6], &[COMMAND_BRIGHTNESS, 0, 136]);
-        assert_matches!(
+        assert!(matches!(
             encode_command(LitraModel::Glow, LightCommand::BrightnessNative(251)),
             Err(WriteError::InvalidLightValue { .. })
-        );
+        ));
     }
 
     #[test]
@@ -265,23 +263,23 @@ mod tests {
         assert_eq!(&minimum[3..6], &[COMMAND_TEMPERATURE, 0x0a, 0x8c]);
         assert_eq!(&maximum[3..6], &[COMMAND_TEMPERATURE, 0x19, 0x64]);
         for invalid in [2600, 2750, 6600] {
-            assert_matches!(
+            assert!(matches!(
                 encode_command(LitraModel::Glow, LightCommand::TemperatureKelvin(invalid)),
                 Err(WriteError::InvalidLightValue { .. })
-            );
+            ));
         }
     }
 
     #[test]
     fn invalid_values_are_rejected() {
-        assert_matches!(
+        assert!(matches!(
             encode_command(LitraModel::Glow, LightCommand::BrightnessPercent(101)),
             Err(WriteError::InvalidLightValue { .. })
-        );
-        assert_matches!(
+        ));
+        assert!(matches!(
             encode_command(LitraModel::Glow, LightCommand::TemperatureKelvin(2750)),
             Err(WriteError::InvalidLightValue { .. })
-        );
+        ));
     }
 
     #[test]

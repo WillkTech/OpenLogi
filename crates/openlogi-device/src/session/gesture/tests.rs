@@ -1,6 +1,7 @@
 use super::*;
 
 const GESTURE: &[u16] = &[reprog_controls::GESTURE_BUTTON_CID];
+const MULTIPLATFORM_GESTURE: &[u16] = &[reprog_controls::MULTIPLATFORM_GESTURE_BUTTON_CID];
 const PANEL: &[u16] = &[reprog_controls::HAPTIC_PANEL_CID];
 const BOTH: &[u16] = &[
     reprog_controls::GESTURE_BUTTON_CID,
@@ -53,6 +54,10 @@ fn restore_returns_the_remap_target_and_touches_nothing_else() {
 
 fn press() -> RawControlEvent {
     RawControlEvent::DivertedButtons([reprog_controls::GESTURE_BUTTON_CID, 0, 0, 0])
+}
+
+fn multiplatform_gesture_press() -> RawControlEvent {
+    RawControlEvent::DivertedButtons([reprog_controls::MULTIPLATFORM_GESTURE_BUTTON_CID, 0, 0, 0])
 }
 
 fn panel_press() -> RawControlEvent {
@@ -252,6 +257,66 @@ fn quick_tap_is_a_click_even_while_the_cursor_moves() {
     assert!(
         next_gesture(&mut rx).is_err(),
         "a quick tap emits exactly one click"
+    );
+}
+
+#[test]
+fn multiplatform_gesture_button_0x00d0_tracks_gestures_and_clicks() {
+    // M720 Triathlon uses CID 0x00d0 (MULTIPLATFORM_GESTURE_BUTTON_CID).
+    // Test that press -> RawXy swipe -> release resolves to ButtonId::GestureButton
+    // with the committed direction, and does not emit a click on release.
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let mut acc = CaptureAccum::default();
+
+    handle_reprog(
+        &mut acc,
+        multiplatform_gesture_press(),
+        MULTIPLATFORM_GESTURE,
+        &[],
+        &[],
+        &tx,
+    );
+    acc.swipe.backdate_hold_for_test();
+    handle_reprog(
+        &mut acc,
+        RawControlEvent::RawXy { dx: 120, dy: 5 },
+        MULTIPLATFORM_GESTURE,
+        &[],
+        &[],
+        &tx,
+    );
+
+    assert_eq!(
+        next_gesture(&mut rx),
+        Ok(CapturedInput::Gesture(
+            ButtonId::GestureButton,
+            GestureDirection::Right
+        ))
+    );
+
+    handle_reprog(&mut acc, release(), MULTIPLATFORM_GESTURE, &[], &[], &tx);
+    assert!(
+        next_gesture(&mut rx).is_err(),
+        "a committed multiplatform gesture swipe must not click on release"
+    );
+
+    // Test multiplatform gesture button quick tap -> click
+    handle_reprog(
+        &mut acc,
+        multiplatform_gesture_press(),
+        MULTIPLATFORM_GESTURE,
+        &[],
+        &[],
+        &tx,
+    );
+    handle_reprog(&mut acc, release(), MULTIPLATFORM_GESTURE, &[], &[], &tx);
+
+    assert_eq!(
+        next_gesture(&mut rx),
+        Ok(CapturedInput::Gesture(
+            ButtonId::GestureButton,
+            GestureDirection::Click
+        ))
     );
 }
 
