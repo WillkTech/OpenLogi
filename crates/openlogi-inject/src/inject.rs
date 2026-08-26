@@ -332,19 +332,23 @@ impl ScrollQuantizer {
         self.quantize_at(delta, units_per_input, Instant::now())
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "signum produces exact -1.0 or 1.0 sentinels and 0.0 is the exact neutral state"
+    )]
     fn quantize_at(
         &mut self,
         delta: ScrollDelta,
         units_per_input: f64,
         at: Instant,
     ) -> QuantizedScroll {
-        if let Some(last_time) = self.last_update {
-            if at.saturating_duration_since(last_time) >= IDLE_TIMEOUT {
-                self.residual_x = 0.0;
-                self.residual_y = 0.0;
-                self.last_dir_x = 0.0;
-                self.last_dir_y = 0.0;
-            }
+        if let Some(last_time) = self.last_update
+            && at.saturating_duration_since(last_time) >= IDLE_TIMEOUT
+        {
+            self.residual_x = 0.0;
+            self.residual_y = 0.0;
+            self.last_dir_x = 0.0;
+            self.last_dir_y = 0.0;
         }
 
         let input_x = delta.x();
@@ -562,6 +566,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::float_cmp,
+        reason = "residual assertions check exact arithmetic values"
+    )]
     fn idle_timeout_clears_fractional_residuals() {
         use std::time::{Duration, Instant};
         let mut quantizer = ScrollQuantizer::default();
@@ -578,6 +586,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::float_cmp,
+        reason = "residual assertions check exact arithmetic values"
+    )]
     fn axis_switch_clears_opposite_axis_residual() {
         use std::time::Instant;
         let mut quantizer = ScrollQuantizer::default();
@@ -593,6 +605,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::float_cmp,
+        reason = "residual assertions check exact arithmetic values"
+    )]
     fn direction_reversal_clears_fractional_residual() {
         use std::time::Instant;
         let mut quantizer = ScrollQuantizer::default();
