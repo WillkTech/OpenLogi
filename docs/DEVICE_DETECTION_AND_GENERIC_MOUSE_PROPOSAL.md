@@ -162,9 +162,9 @@ pub fn is_logitech(&self) -> bool {
 
 ---
 
-### 2. Generic Mouse Architectural Proposal
+### 2. Generic Mouse Architectural Proposal & Implementation Roadmap
 
-We propose introducing a first-class **`GenericMouse`** archetype in OpenLogi. This architecture separates hardware HID++ capability management from universal OS input hook processing.
+We propose introducing a first-class **`GenericMouse`** archetype in OpenLogi. The implementation establishes a two-track device pipeline: direct HID++ devices continue through feature discovery (`0x0000`/`0x0001`), while non-HID++ USB mice (such as the Logitech G90 and generic OEM pointer devices) bypass protocol probing to register as `DeviceKind::GenericMouse` for universal OS-level customization (button remapping, smooth scrolling, and Actions Ring overlay).
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -177,7 +177,7 @@ We propose introducing a first-class **`GenericMouse`** archetype in OpenLogi. T
 |                              openlogi-hook Filter                                 |
 |  source_is_remappable():                                                          |
 |  - Pass-through trackpads (is_trackpad_like() == true)                            |
-|  - Intercept Logitech & Generic USB Mice (allow_generic_mice config)             |
+|  - Intercept Logitech & Generic USB Mice (allow_generic_mice config)              |
 +-----------------------------------------------------------------------------------+
                                           |
                                           v
@@ -200,9 +200,16 @@ We propose introducing a first-class **`GenericMouse`** archetype in OpenLogi. T
 +-----------------------------------------------------------------------------------+
 ```
 
-#### Step 1: Core Type Extensions (`openlogi-core`)
+---
 
-Extend `DeviceKind` and `DeviceCapabilities` in `crates/openlogi-core/src/device.rs`:
+### Target Architecture Overview & Detailed Implementation Plan
+
+#### Step 1: Core Data Models & Configuration (`openlogi-core`, `openlogi-config`)
+
+* **Extend Device Archetypes (`crates/openlogi-core/src/device.rs`):**
+  - Add `GenericMouse` variant to `DeviceKind` enum.
+  - Define `GenericMouseDevice` struct carrying `RawDeviceAddress`, `vendor_id`, `product_id`, `display_name`, `manufacturer`, `serial_number`, and `online` state.
+  - Extend `DeviceCapabilities` to flag generic mice with `has_remapping: true`, `has_smooth_scroll: true`, `has_actions_ring: true`, while keeping `has_dpi`, `has_smartshift`, `has_lighting`, and `has_battery` set to `false`.
 
 ```rust
 /// Classification of a discovered device.
@@ -233,9 +240,24 @@ pub struct GenericMouseDevice {
 }
 ```
 
-#### Step 2: Generic Device Scanning (`openlogi-device`)
+* **Config Schema Updates (`crates/openlogi-config/src/schema.rs`):**
+  - Add `allow_generic_mice: bool` (default: `true`) to `AppSettings`.
+  - Ensure backwards compatibility without requiring a bump to `PROTOCOL_VERSION`.
 
-Add a generic mouse scanner module in `crates/openlogi-device/src/inventory/generic.rs`:
+---
+
+#### Step 2: Generic Device Discovery & Scanner (`openlogi-hid`, `openlogi-device`)
+
+* **Transport Filtering Decoupling (`crates/openlogi-hid/src/transport.rs`):**
+  - Retain `is_hidpp_candidate()` for the HID++ channel opener to avoid protocol probe timeouts on standard HID endpoints.
+  - Add `is_generic_mouse_candidate(usage_page, usage_id, vendor_id, product_id)`:
+    - Matches standard USB HID mouse endpoints: `UsagePage == 0x0001` (Generic Desktop) and `UsageID == 0x0002` (Mouse) or `0x0001` (Pointer).
+    - Excludes devices claimed by HID++ vendor usage pages (`0xFF00`, `0xFF43`) or Litra lights.
+
+* **Generic Inventory Scanner (`crates/openlogi-device/src/inventory/generic.rs`):**
+  - Implement `enumerate_generic_mice(backend: &dyn HidBackend) -> Result<Vec<GenericMouseDevice>, InventoryError>`.
+  - Map discovered standard HID descriptors directly into `GenericMouseDevice` instances without initiating two-way HID++ probe handshakes.
+  - Explicitly handle the **Logitech G90** (`VID: 0x046D`, `PID: ~0xC07E`): fallback directly to a generic mouse model labeled `"Logitech G90 Gaming Mouse"` or its reported USB product string.
 
 ```rust
 use openlogi_core::device::{GenericMouseDevice, RawDeviceAddress};
@@ -289,9 +311,12 @@ pub async fn enumerate_generic_mice(
 }
 ```
 
+---
+
 #### Step 3: Decouple OS Input Hook (`openlogi-hook`)
 
-Update `source_is_remappable` in `crates/openlogi-hook/src/lib.rs` to allow generic mouse interception while preserving trackpad protection:
+* **Filter Refactoring (`crates/openlogi-hook/src/lib.rs`):**
+  - Update `source_is_remappable()` to accept the `allow_generic_mice` configuration flag:
 
 ```rust
 /// Configurable filter flag for generic mouse remapping.
@@ -305,28 +330,66 @@ pub fn source_is_remappable_with_config(
     allow_generic_mice: bool,
 ) -> bool {
     match device {
-        // CRITICAL GUARD: Trackpads and touchpads are ALWAYS passed through
+        // Strict Trackpad Guard: Trackpads and touchpads are ALWAYS passed through
         // to protect built-in laptop trackpads & Apple Magic Trackpads.
         Some(d) if d.is_trackpad_like() => false,
-        Some(d) => {
-            if d.is_logitech() {
-                true
-            } else {
-                allow_generic_mice
-            }
-        }
+        Some(d) if d.is_logitech() => true,
+        Some(_) => allow_generic_mice,
         None => false,
     }
 }
 ```
 
-#### Step 4: Desktop UI Adjustments (`openlogi-desktop`)
+* **Trackpad Protection:** Preserve strict exclusion in `is_trackpad_like()` across macOS (`CGEventTap`), Windows (`WH_MOUSE_LL`), and Linux (`evdev`/`uinput`) so built-in trackpads and Apple Magic Trackpads are never intercepted.
 
-In `openlogi-desktop`:
-1. **Device Navigation Sidebar:** Render `GenericMouseDevice` entries with a distinct icon (e.g., standard wired mouse icon).
-2. **Settings View Conditioning:**
-   - **Show:** Button Remapping View (Middle click, Buttons 4 & 5, Side Buttons, Custom Shortcuts), Smooth Scroll / Acceleration View, Actions Ring Setup.
-   - **Hide:** SmartShift Mode Selector, Hardware DPI Slider, RGB / Lighting Customization, Battery Level Indicator.
+---
+
+#### Step 4: Agent Core Orchestration (`openlogi-agent-core`)
+
+* **Inventory Polling & Watcher (`crates/openlogi-agent-core/src/watchers/inventory.rs`):**
+  - Update `InventoryWatcher` to poll `enumerate_generic_mice()` alongside `DeviceInventory` and `StandaloneDevice` discovery.
+  - Register generic mice with stable synthetic device keys (`generic:<vendor_id>:<product_id>:<serial_or_index>`).
+
+* **Hook Routing & Dispatch:**
+  - Route button events (Buttons 1–5, middle click, side buttons) from generic mice into standard `ButtonAction` execution.
+  - Route scroll deltas from generic mice into `openlogi-agent-core`'s smooth scrolling worker and acceleration curve pipeline.
+
+---
+
+#### Step 5: Desktop UI & CLI Surface (`openlogi-desktop`, `openlogi-cli`)
+
+* **CLI Integration (`crates/openlogi-cli/src/main.rs`):**
+  - Update `openlogi list` to display detected generic mice with transport marked as `USB (Standard HID)`.
+
+* **Desktop Navigation & Rendering (`crates/openlogi-desktop`):**
+  - **Sidebar:** Render `GenericMouseDevice` items using a dedicated wired USB mouse icon.
+  - **Conditional View Rendering Matrix:**
+
+| UI Component | HID++ Mice (e.g., MX Master) | Generic Mice & Logitech G90 |
+| :--- | :---: | :---: |
+| **Button Remapping (1–5, Side, Middle)** | **Enabled** | **Enabled** |
+| **Smooth Scrolling & Acceleration** | **Enabled** | **Enabled** |
+| **Actions Ring Overlay** | **Enabled** | **Enabled** |
+| **DPI Presets & Hardware Stepping (`0x2201`)** | **Enabled** | **Hidden** |
+| **SmartShift / Ratchet Toggle (`0x2111`)** | **Enabled** | **Hidden** |
+| **RGB / Lighting Controls (`0x8070`)** | **Enabled** | **Hidden** |
+| **Battery Level / Charging Telemetry** | **Enabled** | **Hidden (Wired / Non-telemetry)** |
+
+---
+
+#### Step 6: Testing & Quality Assurance
+
+* **Unit Testing:**
+  - Test `is_generic_mouse_candidate()` against HID++ usage page combinations, non-HID++ standard mouse reports, and trackpad descriptors.
+  - Test `source_is_remappable_with_config()` with `allow_generic_mice` toggled `true`/`false`.
+  - Validate that G90 descriptors (`VID: 0x046D`, `PID: 0xC07E`, `Usage: 0x0001/0x0002`) instantiate valid `GenericMouseDevice` structs.
+
+* **Workspace Verification Commands:**
+  ```bash
+  cargo fmt --all -- --check
+  cargo clippy --workspace --all-targets -D warnings
+  cargo test --workspace
+  ```
 
 ---
 
