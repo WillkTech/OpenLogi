@@ -2,6 +2,15 @@
 
 use std::collections::BTreeMap;
 
+macro_rules! assert_matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => (),
+            ref e => panic!("assertion failed: `(left matches right)`\n  left: `{:?}`\n right: `{}`", e, stringify!($pattern)),
+        }
+    };
+}
+
 use serde::{Deserialize, Serialize};
 
 use super::*;

@@ -2,6 +2,16 @@
 
 use super::*;
 
+#[expect(unused_macros, reason = "used on unsupported target test")]
+macro_rules! assert_matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => (),
+            ref e => panic!("assertion failed: `(left matches right)`\n  left: `{:?}`\n right: `{}`", e, stringify!($pattern)),
+        }
+    };
+}
+
 /// All `HookError` variants produce non-empty display messages.
 #[test]
 fn hook_error_display() {
@@ -94,7 +104,6 @@ fn source_is_remappable_policy() {
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 #[test]
 fn unsupported_start_returns_unsupported() {
-
     // Asserted via `.err()` because `Hook` itself has no `Debug` impl to print.
     let result = Hook::start(|_| EventDisposition::PassThrough);
     assert_matches!(result.err(), Some(HookError::Unsupported));
