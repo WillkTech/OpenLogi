@@ -1,6 +1,6 @@
 //! Config load/save and binding-map tests.
 
-use std::{assert_matches, fs};
+use std::fs;
 
 use super::*;
 use crate::binding::{default_binding, default_gesture_binding};

@@ -219,7 +219,6 @@ impl fmt::Display for DeviceRoute {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
 
     use crate::device::{DeviceInventory, ReceiverInfo};
 
