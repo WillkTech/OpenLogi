@@ -37,6 +37,15 @@ fn catalog_has_at_least_29_entries() {
 }
 
 #[test]
+fn catalog_includes_show_actions_ring() {
+    let catalog = Action::catalog();
+    assert!(
+        catalog.contains(&Action::ShowActionsRing),
+        "catalog must include Action::ShowActionsRing"
+    );
+}
+
+#[test]
 fn catalog_excludes_custom_shortcut() {
     let catalog = Action::catalog();
     for action in &catalog {
@@ -306,7 +315,6 @@ fn persisted_action_variant_names_are_stable() {
         Action::RunAppleScript(String::new()),
         Action::RunShellCommand(String::new()),
         Action::Workflow(Vec::new()),
-        Action::ShowActionsRing,
         Action::OpenApplication(
             ApplicationTarget::new("/Applications/OpenLogi.app", "OpenLogi")
                 .unwrap_or_else(|error| panic!("valid target failed: {error}")),
