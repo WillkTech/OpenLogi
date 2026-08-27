@@ -736,7 +736,6 @@ static FRONTMOST_SOURCE: LazyLock<Box<dyn FrontmostSource>> =
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
 
     use evdev::{EventType, InputEvent, KeyCode, RelativeAxisCode};
 

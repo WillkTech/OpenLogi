@@ -1,6 +1,5 @@
 //! Binding catalog / serde roundtrip tests.
 
-use std::assert_matches;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

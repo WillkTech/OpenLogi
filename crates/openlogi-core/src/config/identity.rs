@@ -104,7 +104,13 @@ impl Config {
         {
             return Some(key);
         }
-        stable.physical_key()
+        if let Some(key) = stable.physical_key() {
+            return Some(key);
+        }
+        if matches!(stable, DeviceStableId::RawHid { .. }) {
+            return PhysicalDeviceKey::parse(&stable.runtime_key());
+        }
+        None
     }
 
     /// Record that the device keyed `canonical` was reached by `route_key`,

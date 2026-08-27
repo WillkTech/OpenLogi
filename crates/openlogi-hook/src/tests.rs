@@ -94,7 +94,6 @@ fn source_is_remappable_policy() {
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 #[test]
 fn unsupported_start_returns_unsupported() {
-    use std::assert_matches;
 
     // Asserted via `.err()` because `Hook` itself has no `Debug` impl to print.
     let result = Hook::start(|_| EventDisposition::PassThrough);

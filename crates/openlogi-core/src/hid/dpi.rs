@@ -173,7 +173,6 @@ pub struct DpiInfo {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
 
     use super::{Dpi, DpiCapabilities, WriteError};
 
