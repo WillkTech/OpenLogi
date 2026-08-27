@@ -25,19 +25,6 @@
 //! hook.stop();
 //! ```
 
-#[cfg(test)]
-#[macro_use]
-mod test_macros {
-    macro_rules! assert_matches {
-        ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
-            match $expression {
-                $pattern $(if $guard)? => (),
-                ref e => panic!("assertion failed: `(left matches right)`\n  left: `{:?}`\n right: `{}`", e, stringify!($pattern)),
-            }
-        };
-    }
-}
-
 pub use openlogi_core::app::ForegroundApp;
 pub use openlogi_core::binding::ButtonId;
 pub use openlogi_core::scroll::ScrollDelta;

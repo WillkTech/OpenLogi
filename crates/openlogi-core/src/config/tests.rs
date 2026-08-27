@@ -2,6 +2,15 @@
 
 use std::fs;
 
+macro_rules! assert_matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => (),
+            ref e => panic!("assertion failed: `(left matches right)`\n  left: `{:?}`\n right: `{}`", e, stringify!($pattern)),
+        }
+    };
+}
+
 use super::*;
 use crate::binding::{default_binding, default_gesture_binding};
 use crate::hid::{Dpi, SmartShiftAutoDisengage, SmartShiftThreshold, TunableTorque};

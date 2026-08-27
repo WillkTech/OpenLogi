@@ -219,6 +219,14 @@ impl fmt::Display for DeviceRoute {
 
 #[cfg(test)]
 mod tests {
+    macro_rules! assert_matches {
+        ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+            match $expression {
+                $pattern $(if $guard)? => (),
+                ref e => panic!("assertion failed: `(left matches right)`\n  left: `{:?}`\n right: `{}`", e, stringify!($pattern)),
+            }
+        };
+    }
 
     use crate::device::{DeviceInventory, ReceiverInfo};
 

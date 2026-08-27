@@ -10,18 +10,6 @@
 //! host at all, which is what the `wasm (portable crates)` CI job checks.
 
 #![deny(missing_docs)]
-#[cfg(test)]
-#[macro_use]
-mod test_macros {
-    macro_rules! assert_matches {
-        ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
-            match $expression {
-                $pattern $(if $guard)? => (),
-                ref e => panic!("assertion failed: `(left matches right)`\n  left: `{:?}`\n right: `{}`", e, stringify!($pattern)),
-            }
-        };
-    }
-}
 
 pub mod action_ring;
 pub mod app;
