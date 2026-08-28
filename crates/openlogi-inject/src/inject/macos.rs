@@ -74,9 +74,9 @@ fn dispatch_click(button: MouseButton) {
     match button {
         MouseButton::Left => post_click(CGMouseButton::Left),
         MouseButton::DoubleLeft => {
-            post_click(CGMouseButton::Left);
+            post_click_state(CGMouseButton::Left, Some(1));
             std::thread::sleep(std::time::Duration::from_millis(50));
-            post_click(CGMouseButton::Left);
+            post_click_state(CGMouseButton::Left, Some(2));
         }
         MouseButton::Right => post_click(CGMouseButton::Right),
         MouseButton::Middle => post_click(CGMouseButton::Center),
@@ -183,15 +183,74 @@ fn dispatch_script(script: Script<'_>) {
 /// synthetic click too: a `LeftClick`/`RightClick` flows straight through
 /// (the tap never owns the primary buttons), and a `MiddleClick` is left
 /// alone unless the user has *also* remapped the middle button.
-fn post_click(button: CGMouseButton) {
+use std::time::Instant;
+
+/// Double-click threshold (in ms) matching macOS default behavior (~500ms).
+const DOUBLE_CLICK_THRESHOLD: std::time::Duration = std::time::Duration::from_millis(500);
+/// Maximum allowable distance (in points) between consecutive clicks to count as multi-click.
+const DOUBLE_CLICK_DISTANCE_THRESHOLD: f64 = 5.0;
+
+#[derive(Clone, Copy, Debug)]
+struct MultiClickState {
+    last_click_time: Instant,
+    last_location: CGPoint,
+    click_count: i64,
+}
+
+static LEFT_CLICK_STATE: LazyLock<Mutex<Option<MultiClickState>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+/// Computes the next `click_state` (1, 2, 3...) for a left click at `location`,
+/// updating the stored tracker.
+fn record_left_click_state_at_time(
+    location: CGPoint,
+    explicit_count: Option<i64>,
+    now: Instant,
+) -> i64 {
+    let Ok(mut guard) = LEFT_CLICK_STATE.lock() else {
+        return explicit_count.unwrap_or(1);
+    };
+    let count = if let Some(override_count) = explicit_count {
+        override_count
+    } else if let Some(state) = *guard {
+        let elapsed = now.duration_since(state.last_click_time);
+        let dist = ((location.x - state.last_location.x).powi(2)
+            + (location.y - state.last_location.y).powi(2))
+        .sqrt();
+        if elapsed <= DOUBLE_CLICK_THRESHOLD && dist <= DOUBLE_CLICK_DISTANCE_THRESHOLD {
+            state.click_count + 1
+        } else {
+            1
+        }
+    } else {
+        1
+    };
+    *guard = Some(MultiClickState {
+        last_click_time: now,
+        last_location: location,
+        click_count: count,
+    });
+    count
+}
+
+fn record_left_click_state(location: CGPoint, explicit_count: Option<i64>) -> i64 {
+    record_left_click_state_at_time(location, explicit_count, Instant::now())
+}
+
+/// Post a mouse-down + mouse-up pair for `button` at the cursor's current
+/// location, setting `EventField::MOUSE_EVENT_CLICK_STATE`.
+fn post_click_state(button: CGMouseButton, explicit_click_state: Option<i64>) {
     let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
         tracing::warn!("CGEventSource::new failed for click");
         return;
     };
-    // A fresh event reports the current pointer location; mouse events need
-    // an explicit position or they land at (0, 0).
     let location =
         CGEvent::new(src.clone()).map_or_else(|()| CGPoint::new(0., 0.), |e| e.location());
+    let click_state = if button == CGMouseButton::Left {
+        record_left_click_state(location, explicit_click_state)
+    } else {
+        explicit_click_state.unwrap_or(1)
+    };
     let (down, up) = match button {
         CGMouseButton::Left => (CGEventType::LeftMouseDown, CGEventType::LeftMouseUp),
         CGMouseButton::Right => (CGEventType::RightMouseDown, CGEventType::RightMouseUp),
@@ -199,12 +258,17 @@ fn post_click(button: CGMouseButton) {
     };
     for (kind, phase) in [(down, "down"), (up, "up")] {
         if let Ok(ev) = CGEvent::new_mouse_event(src.clone(), kind, location, button) {
+            ev.set_integer_value_field(EventField::MOUSE_EVENT_CLICK_STATE, click_state);
             tag_synthetic(&ev);
             ev.post(CGEventTapLocation::HID);
         } else {
             tracing::warn!(phase, "CGEvent::new_mouse_event failed");
         }
     }
+}
+
+fn post_click(button: CGMouseButton) {
+    post_click_state(button, None);
 }
 
 /// Post a down + up pair for an "extra" mouse button by its raw button
@@ -447,6 +511,49 @@ mod tests {
 
     use super::{combo, held_key_event, hid_usage_to_macos};
     use crate::inject::{HeldKey, HeldModifiers, KeyPhase};
+
+    use super::{DOUBLE_CLICK_DISTANCE_THRESHOLD, DOUBLE_CLICK_THRESHOLD, record_left_click_state_at_time};
+    use core_graphics::geometry::CGPoint;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn test_multi_click_state_tracking() {
+        let start = Instant::now();
+        let loc1 = CGPoint::new(100.0, 100.0);
+
+        // First click -> 1
+        let state1 = record_left_click_state_at_time(loc1, None, start);
+        assert_eq!(state1, 1);
+
+        // Consecutive click within threshold (100ms later, same spot) -> 2
+        let t2 = start + Duration::from_millis(100);
+        let state2 = record_left_click_state_at_time(loc1, None, t2);
+        assert_eq!(state2, 2);
+
+        // Triple click (200ms later, same spot) -> 3
+        let t3 = start + Duration::from_millis(200);
+        let state3 = record_left_click_state_at_time(loc1, None, t3);
+        assert_eq!(state3, 3);
+
+        // Click after timeout (1000ms after t3) -> resets to 1
+        let t4 = t3 + Duration::from_millis(1000);
+        let state4 = record_left_click_state_at_time(loc1, None, t4);
+        assert_eq!(state4, 1);
+
+        // Click with significant movement (> 5.0 pt distance) -> resets to 1
+        let t5 = t4 + Duration::from_millis(100);
+        let loc2 = CGPoint::new(
+            loc1.x + DOUBLE_CLICK_DISTANCE_THRESHOLD + 2.0,
+            loc1.y,
+        );
+        let state5 = record_left_click_state_at_time(loc2, None, t5);
+        assert_eq!(state5, 1);
+
+        // Explicit override count (e.g., for double-click dispatch)
+        let t6 = t5 + Duration::from_millis(50);
+        let state6 = record_left_click_state_at_time(loc2, Some(2), t6);
+        assert_eq!(state6, 2);
+    }
 
     #[test]
     fn hid_usages_map_to_macos_virtual_keys() {
