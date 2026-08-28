@@ -5,19 +5,18 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, Entity, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement as _, Styled, Window, div, px, rgb, svg,
+    App, AppContext, Entity, IntoElement, ParentElement,
+    StatefulInteractiveElement as _, Styled, Window, div, prelude::FluentBuilder, px, rgb,
 };
 use gpui_component::{
     Icon, IconName, Selectable as _,
-    button::Button,
+    button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
     v_flex,
 };
 use openlogi_core::binding::{ActionRingIcon, KeyCombo, KeyComboParseError};
 
-use crate::ui::components::MenuRow;
 use crate::ui::section::section_label;
 use crate::ui::theme::{ACCENT_BLUE, Palette, Typography as _};
 
@@ -42,9 +41,10 @@ impl ShortcutBuilderState {
         name: &str,
         combo: Option<&KeyCombo>,
         icon: Option<ActionRingIcon>,
+        window: &mut Window,
         cx: &mut App,
     ) -> Self {
-        let (win, cmd, ctrl, alt, shift, fn_mod, key_str) = if let Some(combo) = combo {
+        let (win, cmd, ctrl, alt, shift, fn_mod) = if let Some(combo) = combo {
             (
                 combo.has_meta(),
                 combo.has_command(),
@@ -52,20 +52,24 @@ impl ShortcutBuilderState {
                 combo.has_option(),
                 combo.has_shift(),
                 combo.has_fn(),
-                combo.key().code(),
             )
         } else {
-            (false, false, false, false, false, false, 0)
+            (false, false, false, false, false, false)
         };
 
-        let key_text = if key_str != 0 {
-            format!("{}", combo.unwrap().key().code())
+        let key_text = if let Some(combo) = combo {
+            combo.key().label()
         } else {
             String::new()
         };
 
-        let name_input = cx.new(|cx| InputState::new(cx).with_value(name));
-        let key_input = cx.new(|cx| InputState::new(cx).with_value(&key_text));
+        let mut name_state = InputState::new(window, cx);
+        name_state.set_value(name, window, cx);
+        let name_input = cx.new(|_| name_state);
+
+        let mut key_state = InputState::new(window, cx);
+        key_state.set_value(&key_text, window, cx);
+        let key_input = cx.new(|_| key_state);
 
         Self {
             id: existing_id,
@@ -84,7 +88,8 @@ impl ShortcutBuilderState {
 
     /// Construct a `KeyCombo` from the currently selected modifier chips and target key input.
     pub fn build_combo(&self, cx: &App) -> Result<KeyCombo, KeyComboParseError> {
-        let key_str = self.key_input.read(cx).value().trim();
+        let value = self.key_input.read(cx).value();
+        let key_str = value.trim();
         if key_str.is_empty() {
             return Err(KeyComboParseError::MissingKey);
         }
@@ -243,7 +248,7 @@ pub fn render_shortcut_builder(
                     this.child(
                         v_flex()
                             .p_2()
-                            .bg(pal.card_bg)
+                            .bg(pal.control)
                             .rounded(pal.card_radius)
                             .text_caption()
                             .text_color(pal.text_muted)
@@ -270,7 +275,7 @@ pub fn render_shortcut_builder(
                                 .icon(
                                     Icon::empty()
                                         .path(icon.asset_path())
-                                        .text_color(if selected { rgb(ACCENT_BLUE) } else { pal.text_muted }),
+                                        .text_color(if selected { gpui::Hsla::from(rgb(ACCENT_BLUE)) } else { pal.text_muted }),
                                 )
                         })),
                 ),
@@ -314,7 +319,7 @@ fn modifier_chip(
     id: impl Into<gpui::ElementId>,
     label: &'static str,
     active: bool,
-    pal: Palette,
+    _pal: Palette,
 ) -> Button {
     Button::new(id)
         .compact()
