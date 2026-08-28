@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::action_ring::ActionRingIcon;
+use super::action_target::ActionTarget;
 use super::application_target::ApplicationTarget;
 use super::category::Category;
 use super::key_combo::KeyCombo;
@@ -191,14 +192,14 @@ pub enum Action {
     /// degrade this action to a balanced tap rather than leave keys held.
     HoldShortcut(KeyCombo),
     /// A user-created named shortcut stored in `config.custom_shortcuts`.
-    /// Carries `id`, `name`, `combo`, and optional `icon`.
+    /// Carries `id`, `name`, `target`, and optional `icon`.
     SavedShortcut {
         /// Unique identifier referencing a `CustomShortcutEntry`.
         id: String,
         /// Display name for the custom shortcut.
         name: String,
-        /// Keyboard chord.
-        combo: KeyCombo,
+        /// Target payload: key chord or application/folder launch target.
+        target: ActionTarget,
         /// Selectable icon glyph.
         icon: Option<ActionRingIcon>,
     },

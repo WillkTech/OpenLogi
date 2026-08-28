@@ -276,9 +276,11 @@ impl Action {
             Action::HorizontalScrollLeft => Effect::Scroll { dx: -1, dy: 0 },
             Action::HorizontalScrollRight => Effect::Scroll { dx: 1, dy: 0 },
 
-            Action::CustomShortcut(combo) | Action::SavedShortcut { combo, .. } => {
-                Effect::Key(combo)
-            }
+            Action::CustomShortcut(combo) => Effect::Key(combo),
+            Action::SavedShortcut { target, .. } => match target {
+                super::action_target::ActionTarget::Shortcut(combo) => Effect::Key(combo),
+                super::action_target::ActionTarget::Application(_) => Effect::AgentSide,
+            },
             Action::HoldShortcut(combo) => Effect::HeldKey(combo),
 
             Action::TypeText(text) => Effect::Text(text),

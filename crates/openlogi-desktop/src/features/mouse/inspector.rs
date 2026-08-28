@@ -20,7 +20,7 @@ use openlogi_core::binding::{Action, ButtonId, GestureDirection, default_binding
 
 use super::hotspots::MouseControlId;
 use super::picker::{
-    GESTURE_BUTTON_ICON, PickFn, action_icon_path, action_rows_matching, editor_section,
+    EditFn, GESTURE_BUTTON_ICON, PickFn, action_icon_path, action_rows_matching, editor_section,
 };
 use super::thumbwheel::ThumbwheelPreset;
 use super::view::MouseModelView;
@@ -622,7 +622,21 @@ fn action_library(
     cx: &Context<MouseModelView>,
 ) -> impl IntoElement {
     let query = picker.search.read(cx).value();
-    let rows = action_rows_matching(id_prefix, current, &query, on_pick, pal, cx);
+    let view_edit = picker.view.clone();
+    let on_edit: EditFn = Rc::new(move |entry, window, cx| {
+        view_edit.update(cx, |view, cx| {
+            view.open_shortcut_builder_with(
+                Some(entry.id),
+                &entry.name,
+                Some(&entry.target),
+                entry.icon,
+                window,
+                cx,
+            );
+            cx.notify();
+        });
+    });
+    let rows = action_rows_matching(id_prefix, current, &query, on_pick, Some(&on_edit), pal, cx);
     let view = picker.view.clone();
     v_flex()
         .gap_2()

@@ -856,7 +856,7 @@ fn panel_action_rows(
     pal: &Palette,
     cx: &App,
 ) -> Vec<gpui::Div> {
-    let mut children = action_rows("panel-action", current, on_pick, *pal, cx);
+    let mut children = action_rows("panel-action", current, on_pick, None, *pal, cx);
 
     let power_user_actions: &[(PowerUserKind, &str, &'static str)] = &[
         (

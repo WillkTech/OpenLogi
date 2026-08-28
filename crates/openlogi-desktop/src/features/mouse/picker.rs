@@ -24,6 +24,10 @@ pub(crate) const EDITOR_LIST_MAX_H: f32 = 360.;
 /// Commit callback invoked when an action row is clicked.
 pub(crate) type PickFn = Rc<dyn Fn(Action, &mut Window, &mut App)>;
 
+/// Callback invoked when a pencil edit button on a saved custom action row is clicked.
+pub(crate) type EditFn =
+    Rc<dyn Fn(openlogi_core::config::CustomShortcutEntry, &mut Window, &mut App)>;
+
 /// The action catalog grouped by [`Category`], preserving catalog order within
 /// each group and first-seen order across groups. Includes user-created custom shortcuts.
 pub(crate) fn grouped_catalog(cx: &App) -> Vec<(Category, Vec<Action>)> {
@@ -36,7 +40,7 @@ pub(crate) fn grouped_catalog(cx: &App) -> Vec<(Category, Vec<Action>)> {
             .map(|entry| Action::SavedShortcut {
                 id: entry.id.clone(),
                 name: entry.name.clone(),
-                combo: entry.combo.clone(),
+                target: entry.target.clone(),
                 icon: entry.icon,
             })
             .collect();
@@ -110,8 +114,11 @@ pub(crate) fn action_icon_path(action: &Action) -> &'static str {
         Action::ScrollDown => "action-icons/chevrons-down.svg",
         Action::HorizontalScrollLeft => "action-icons/chevrons-left.svg",
         Action::HorizontalScrollRight => "action-icons/chevrons-right.svg",
-        Action::SavedShortcut { icon, .. } => icon.map_or(
-            "action-icons/keyboard.svg",
+        Action::SavedShortcut { icon, target, .. } => icon.map_or_else(
+            || match target {
+                openlogi_core::binding::ActionTarget::Shortcut(_) => "action-icons/keyboard.svg",
+                openlogi_core::binding::ActionTarget::Application(_) => "action-icons/grid-3x3.svg",
+            },
             openlogi_core::binding::ActionRingIcon::asset_path,
         ),
         Action::CustomShortcut(_) | Action::HoldShortcut(_) | Action::TypeText(_) => {
@@ -126,10 +133,11 @@ pub(crate) fn action_rows(
     id_prefix: &'static str,
     current: Option<&Action>,
     on_pick: &PickFn,
+    on_edit: Option<&EditFn>,
     pal: Palette,
     cx: &App,
 ) -> Vec<gpui::Div> {
-    action_rows_matching(id_prefix, current, "", on_pick, pal, cx)
+    action_rows_matching(id_prefix, current, "", on_pick, on_edit, pal, cx)
 }
 
 /// Build action rows filtered by localized action or category name.
@@ -138,6 +146,7 @@ pub(crate) fn action_rows_matching(
     current: Option<&Action>,
     query: &str,
     on_pick: &PickFn,
+    on_edit: Option<&EditFn>,
     pal: Palette,
     cx: &App,
 ) -> Vec<gpui::Div> {
@@ -177,12 +186,24 @@ pub(crate) fn action_rows_matching(
                     let accessible_label = label.clone();
                     let icon_path = action_icon_path(&action);
                     let is_custom = matches!(&action, Action::SavedShortcut { .. });
-                    let custom_id = if let Action::SavedShortcut { id, .. } = &action {
-                        Some(id.clone())
+                    let custom_entry = if let Action::SavedShortcut {
+                        id,
+                        name,
+                        target,
+                        icon,
+                    } = &action
+                    {
+                        Some(openlogi_core::config::CustomShortcutEntry {
+                            id: id.clone(),
+                            name: name.clone(),
+                            target: target.clone(),
+                            icon: *icon,
+                        })
                     } else {
                         None
                     };
                     let on_pick = on_pick.clone();
+                    let on_edit = on_edit.cloned();
                     MenuRow::new((id_prefix, action_key))
                         .selected(selected)
                         .role(Role::MenuItem)
@@ -205,19 +226,45 @@ pub(crate) fn action_rows_matching(
                                         )
                                         .child(div().child(label)),
                                 )
-                                .when_some(custom_id, |parent, id| {
+                                .when_some(custom_entry, |parent, entry| {
+                                    let id = entry.id.clone();
+                                    let edit_entry = entry.clone();
                                     parent.child(
-                                        Button::new(("delete-custom-shortcut", action_key))
-                                            .icon(IconName::Close)
-                                            .compact()
-                                            .ghost()
-                                            .tooltip("Delete shortcut")
-                                            .on_click(move |_event, _, cx| {
-                                                let id = id.clone();
-                                                AppState::update(cx, |state, _cx| {
-                                                    state.delete_custom_shortcut(&id);
-                                                });
-                                            }),
+                                        h_flex()
+                                            .items_center()
+                                            .gap_1()
+                                            .when_some(on_edit, |controls, on_edit| {
+                                                controls.child(
+                                                    Button::new((
+                                                        "edit-custom-shortcut",
+                                                        action_key,
+                                                    ))
+                                                    .icon(
+                                                        Icon::empty()
+                                                            .path("action-icons/pencil.svg")
+                                                            .text_color(pal.text_muted),
+                                                    )
+                                                    .compact()
+                                                    .ghost()
+                                                    .tooltip("Edit shortcut")
+                                                    .on_click(move |_event, window, cx| {
+                                                        (on_edit)(edit_entry.clone(), window, cx);
+                                                    }),
+                                                )
+                                            })
+                                            .child(
+                                                Button::new(("delete-custom-shortcut", action_key))
+                                                    .icon(IconName::Close)
+                                                    .compact()
+                                                    .ghost()
+                                                    .tooltip("Delete shortcut")
+                                                    .on_click(move |_event, _, cx| {
+                                                        let id = id.clone();
+                                                        AppState::update(cx, |state, _cx| {
+                                                            state.delete_custom_shortcut(&id);
+                                                        });
+                                                    }),
+                                            ),
                                     )
                                 }),
                         )
