@@ -246,7 +246,7 @@ fn post_click_state(button: CGMouseButton, explicit_click_state: Option<i64>) {
     };
     let location =
         CGEvent::new(src.clone()).map_or_else(|()| CGPoint::new(0., 0.), |e| e.location());
-    let click_state = if button == CGMouseButton::Left {
+    let click_state = if matches!(button, CGMouseButton::Left) {
         record_left_click_state(location, explicit_click_state)
     } else {
         explicit_click_state.unwrap_or(1)
