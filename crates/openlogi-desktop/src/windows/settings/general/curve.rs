@@ -15,12 +15,12 @@ use crate::ui::theme::{self, Palette};
 #[derive(IntoElement)]
 pub(crate) struct AccelerationCurveGraph {
     enabled: bool,
-    acceleration_factor: f64,
-    max_gain: f64,
+    acceleration_factor: f32,
+    max_gain: f32,
 }
 
 impl AccelerationCurveGraph {
-    pub(crate) fn new(enabled: bool, acceleration_factor: f64, max_gain: f64) -> Self {
+    pub(crate) fn new(enabled: bool, acceleration_factor: f32, max_gain: f32) -> Self {
         Self {
             enabled,
             acceleration_factor,
@@ -33,10 +33,10 @@ const SAMPLE_COUNT: usize = 30;
 
 fn compute_curve_samples(
     enabled: bool,
-    factor: f64,
-    max_gain: f64,
+    factor: f32,
+    max_gain: f32,
 ) -> [(f32, f32); SAMPLE_COUNT + 1] {
-    let min_y_val = 1.0f64;
+    let min_y_val = 1.0f32;
     let max_y_val = max_gain.max(3.0);
     let range = max_y_val - min_y_val;
 
@@ -47,11 +47,11 @@ fn compute_curve_samples(
             clippy::cast_precision_loss,
             reason = "sample index and count are small bounded constants"
         )]
-        let t = i as f64 / SAMPLE_COUNT as f64;
+        let t = i as f32 / SAMPLE_COUNT as f32;
         let rate = t * 40.0;
         let gain = openlogi_core::math::gain_at_rate(rate, enabled, factor, max_gain);
-        let norm_x = norm_f32(t);
-        let norm_y = norm_f32((gain - min_y_val) / range);
+        let norm_x = t;
+        let norm_y = (gain - min_y_val) / range;
         *sample = (norm_x, norm_y);
     }
 
@@ -93,7 +93,7 @@ impl RenderOnce for AccelerationCurveGraph {
 fn paint_graph(
     bounds: Bounds<gpui::Pixels>,
     enabled: bool,
-    max_gain: f64,
+    max_gain: f32,
     samples: [(f32, f32); SAMPLE_COUNT + 1],
     pal: Palette,
     window: &mut Window,
@@ -123,7 +123,7 @@ fn paint_graph(
 
     // Dynamic vertical scale: 1.0× at bottom, the multiplier at top (never
     // below 3.0×, so small-multiplier curves don't fill the whole plot).
-    let min_y_val = 1.0f64;
+    let min_y_val = 1.0f32;
     let max_y_val = max_gain.max(3.0);
 
     let line_color = if enabled {
@@ -144,7 +144,7 @@ fn paint_graph(
     }
 
     // 2. Draw Max Gain reference line (faded top threshold line)
-    let norm_max = norm_f32((max_gain - min_y_val) / (max_y_val - min_y_val));
+    let norm_max = (max_gain - min_y_val) / (max_y_val - min_y_val);
     let y_max = graph_bottom - norm_max * plot_h;
 
     let mut max_line_path = PathBuilder::stroke(px(1.));
@@ -172,15 +172,4 @@ fn paint_graph(
     if let Ok(p) = curve_path.build() {
         window.paint_path(p, line_color);
     }
-}
-
-/// Map a normalized 0..=1 curve coordinate onto the f32 geometry space. The
-/// inputs are bounded by construction, so the narrowing conversion loses no
-/// meaningful precision.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "normalized coordinates are bounded to 0.0..=1.0"
-)]
-fn norm_f32(value: f64) -> f32 {
-    value as f32
 }

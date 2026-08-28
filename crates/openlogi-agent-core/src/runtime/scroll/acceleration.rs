@@ -11,7 +11,7 @@ use openlogi_core::math;
 const IDLE_TIMEOUT: Duration = Duration::from_millis(250);
 
 /// Smoothing factor for exponential moving average of estimated wheel rate.
-const ALPHA: f64 = 0.4;
+const ALPHA: f32 = 0.4;
 
 /// Per-axis acceleration parameters.
 #[derive(Debug, Clone, Copy)]
@@ -19,17 +19,17 @@ pub struct AxisAccelerationParams {
     /// Whether acceleration is enabled for the axis.
     pub enabled: bool,
     /// Acceleration strength factor.
-    pub factor: f64,
+    pub factor: f32,
     /// Upper bound on the gain multiplier.
-    pub max_gain: f64,
+    pub max_gain: f32,
 }
 
 /// Stateful acceleration tracker for a single scroll axis.
 #[derive(Debug, Default, Clone)]
 pub struct AxisAcceleration {
     last_event_time: Option<Instant>,
-    estimated_rate: f64,
-    last_direction: f64,
+    estimated_rate: f32,
+    last_direction: f32,
 }
 
 impl AxisAcceleration {
@@ -47,12 +47,12 @@ impl AxisAcceleration {
     )]
     pub fn compute_gain(
         &mut self,
-        delta_ticks: f64,
+        delta_ticks: f32,
         at: Instant,
         enabled: bool,
-        acceleration_factor: f64,
-        max_gain: f64,
-    ) -> f64 {
+        acceleration_factor: f32,
+        max_gain: f32,
+    ) -> f32 {
         if !enabled
             || max_gain <= 1.0
             || delta_ticks == 0.0
@@ -78,7 +78,7 @@ impl AxisAcceleration {
 
         if let Some(last_time) = self.last_event_time {
             let dt = at.saturating_duration_since(last_time);
-            let dt_secs = dt.as_secs_f64();
+            let dt_secs = dt.as_secs_f32();
 
             if dt >= IDLE_TIMEOUT {
                 // Long idle: decay state back to zero
@@ -124,12 +124,12 @@ impl ScrollAccelerationEngine {
     /// Returns `(gain_x, gain_y)`.
     pub fn compute_gains(
         &mut self,
-        x_ticks: f64,
-        y_ticks: f64,
+        x_ticks: f32,
+        y_ticks: f32,
         at: Instant,
         vertical: AxisAccelerationParams,
         horizontal: AxisAccelerationParams,
-    ) -> (f64, f64) {
+    ) -> (f32, f32) {
         let gain_x = self.horizontal.compute_gain(
             x_ticks,
             at,
@@ -359,7 +359,7 @@ mod tests {
         assert!(!gy2.is_nan());
 
         // NaN / Infinite inputs
-        let (_gx_nan, gy_nan) = engine.compute_gains(0.0, f64::NAN, now, V, H);
+        let (_gx_nan, gy_nan) = engine.compute_gains(0.0, f32::NAN, now, V, H);
         assert_eq!(gy_nan, 1.0);
     }
 }

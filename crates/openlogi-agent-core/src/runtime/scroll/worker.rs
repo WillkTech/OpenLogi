@@ -24,11 +24,11 @@ pub struct ScrollPreferenceSnapshot {
     pub smooth_scroll: bool,
     pub vertical_sensitivity: VerticalScrollSensitivity,
     pub vertical_acceleration_enabled: bool,
-    pub vertical_acceleration: f64,
-    pub vertical_max_gain: f64,
+    pub vertical_acceleration: f32,
+    pub vertical_max_gain: f32,
     pub horizontal_acceleration_enabled: bool,
-    pub horizontal_acceleration: f64,
-    pub horizontal_max_gain: f64,
+    pub horizontal_acceleration: f32,
+    pub horizontal_max_gain: f32,
 }
 
 impl From<&openlogi_core::config::AppSettings> for ScrollPreferenceSnapshot {
@@ -654,8 +654,8 @@ mod tests {
         let total = output
             .iter()
             .fold(WheelDelta::ZERO, |sum, frame| sum.plus(frame.delta));
-        assert!(total.x.abs() < f64::EPSILON, "cancelled source emitted");
-        assert!((total.y - 1.0).abs() < f64::EPSILON);
+        assert!(total.x.abs() < f32::EPSILON, "cancelled source emitted");
+        assert!((total.y - 1.0).abs() < f32::EPSILON);
         assert!(
             output
                 .iter()

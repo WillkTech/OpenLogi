@@ -208,19 +208,19 @@ pub struct AppSettings {
     pub vertical_acceleration_enabled: bool,
     /// Vertical acceleration strength multiplier.
     #[serde(default = "default_acceleration_factor")]
-    pub vertical_acceleration: f64,
+    pub vertical_acceleration: f32,
     /// Maximum upper bound for vertical acceleration gain.
     #[serde(default = "default_vertical_max_gain")]
-    pub vertical_max_gain: f64,
+    pub vertical_max_gain: f32,
     /// Whether horizontal mouse-wheel acceleration is enabled.
     #[serde(default)]
     pub horizontal_acceleration_enabled: bool,
     /// Horizontal acceleration strength multiplier.
     #[serde(default = "default_acceleration_factor")]
-    pub horizontal_acceleration: f64,
+    pub horizontal_acceleration: f32,
     /// Maximum upper bound for horizontal acceleration gain.
     #[serde(default = "default_horizontal_max_gain")]
-    pub horizontal_max_gain: f64,
+    pub horizontal_max_gain: f32,
     /// Which app icon the user picked. Applied at launch, and whenever it
     /// changes, by whichever process owns a surface showing one — on macOS the
     /// GUI hands the choice to the Dock and writes it onto the bundle (so the
@@ -343,8 +343,8 @@ impl VerticalScrollSensitivity {
 
     /// Vertical scroll-distance multiplier relative to [`Self::DEFAULT`].
     #[must_use]
-    pub fn scroll_multiplier(self) -> f64 {
-        f64::from(self.into_inner()) / f64::from(Self::DEFAULT.into_inner())
+    pub fn scroll_multiplier(self) -> f32 {
+        f32::from(self.into_inner()) / f32::from(Self::DEFAULT.into_inner())
     }
 }
 
@@ -411,8 +411,8 @@ impl ThumbwheelSensitivity {
 
     /// Continuous-scroll speed multiplier relative to [`Self::DEFAULT`].
     #[must_use]
-    pub fn scroll_multiplier(self) -> f64 {
-        f64::from(self.into_inner()) / f64::from(Self::DEFAULT.into_inner())
+    pub fn scroll_multiplier(self) -> f32 {
+        f32::from(self.into_inner()) / f32::from(Self::DEFAULT.into_inner())
     }
 
     /// Rotation increments required to fire a discrete thumb-wheel action.
@@ -498,15 +498,15 @@ fn default_true() -> bool {
     true
 }
 
-const fn default_acceleration_factor() -> f64 {
+const fn default_acceleration_factor() -> f32 {
     1.0
 }
 
-const fn default_vertical_max_gain() -> f64 {
+const fn default_vertical_max_gain() -> f32 {
     2.5
 }
 
-const fn default_horizontal_max_gain() -> f64 {
+const fn default_horizontal_max_gain() -> f32 {
     2.0
 }
 
