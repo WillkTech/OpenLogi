@@ -238,7 +238,7 @@ rustPlatform.buildRustPackage {
 
   meta = {
     description = "Local-first companion for Logitech HID++ peripherals";
-    homepage = "https://github.com/AprilNEA/OpenLogi";
+    homepage = "https://github.com/WillkTech/OpenLogi";
     license = with lib.licenses; [
       mit
       asl20

@@ -26,7 +26,7 @@ jobs:
   synchronize:
     name: Synchronize translations
     runs-on: ubuntu-latest
-    if: github.repository == 'AprilNEA/OpenLogi'
+    if: github.repository == 'WillkTech/OpenLogi'
 
     steps:
       # persist-credentials must stay false: checkout's default GITHUB_TOKEN

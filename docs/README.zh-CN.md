@@ -12,20 +12,19 @@
 
 
 <div align="center">
-    <a href="https://twitter.com/AprilNEA" target="_blank">
-    <img alt="twitter" src="https://img.shields.io/badge/follow-AprilNEA-green?style=social&logo=Twitter"></a>
+    <a href="https://twitter.com/WillkTech" target="_blank">
+    <img alt="twitter" src="https://img.shields.io/badge/follow-WillkTech-green?style=social&logo=Twitter"></a>
     <a href="https://t.me/+VDtkR5OSAT04NzVh" target="_blank">
     <img alt="telegram" src="https://img.shields.io/badge/chat-telegram-blueviolet?style=flat&logo=Telegram"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/releases" target="_blank">
-    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/AprilNEA/OpenLogi/total.svg?style=flat"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/commits" target="_blank">
-    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/AprilNEA/OpenLogi?style=flat"></a>
-    <img alt="Hits" src="https://hits.aprilnea.com/hits?url=https://github.com/aprilnea/openlogi">
+    <a href="https://github.com/WillkTech/OpenLogi/releases" target="_blank">
+    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/WillkTech/OpenLogi/total.svg?style=flat"></a>
+    <a href="https://github.com/WillkTech/OpenLogi/commits" target="_blank">
+    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/WillkTech/OpenLogi?style=flat"></a>
 </div>
 
 <p align="center">
     <a href="https://trendshift.io/repositories/42303" target="_blank">
-    <img src="https://trendshift.io/api/badge/trendshift/repositories/42303/daily?language=Rust" alt="AprilNEA%2FOpenLogi | Trendshift" width="250" height="55"/></a>
+    <img src="https://trendshift.io/api/badge/trendshift/repositories/42303/daily?language=Rust" alt="WillkTech%2FOpenLogi | Trendshift" width="250" height="55"/></a>
 </p>
 
 > **被 Options+ 折腾够了？试试 OpenLogi。**
@@ -83,7 +82,7 @@ OpenLogi 能做、而 Options+ 做不到的事：
 
 需要 macOS 13 或更高版本。
 
-从[最新 release](https://github.com/AprilNEA/OpenLogi/releases/latest) 下载已签名、已公证的 `.dmg`，把 `OpenLogi.app` 拖入 `/Applications`。
+从[最新 release](https://github.com/WillkTech/OpenLogi/releases/latest) 下载已签名、已公证的 `.dmg`，把 `OpenLogi.app` 拖入 `/Applications`。
 
 或通过 [Homebrew](https://brew.sh) 安装：
 
@@ -91,18 +90,18 @@ OpenLogi 能做、而 Options+ 做不到的事：
 brew install --cask openlogi
 ```
 
-官方 Homebrew cask 是默认安装途径。如需改用 `aprilnea/tap` 显式跟踪 GitHub 最新 release：
+官方 Homebrew cask 是默认安装途径。如需改用 `willktech/tap` 显式跟踪 GitHub 最新 release：
 
 ```sh
-brew tap aprilnea/tap
-brew install --cask aprilnea/tap/openlogi@latest
+brew tap willktech/tap
+brew install --cask willktech/tap/openlogi@latest
 ```
 
 `openlogi@latest` 由 OpenLogi 的发布工作流维护，可能比官方 cask 的自动更新先一步。`openlogi` 和 `openlogi@latest` 二选一安装，不要同时装。
 
 ### Linux
 
-从[最新 release](https://github.com/AprilNEA/OpenLogi/releases/latest) 下载适用于你的发行版的安装包：
+从[最新 release](https://github.com/WillkTech/OpenLogi/releases/latest) 下载适用于你的发行版的安装包：
 
 ```sh
 # Debian / Ubuntu
@@ -129,7 +128,7 @@ systemctl --user enable --now openlogi-agent.service
 
 每个 release 都附带签名的便携式 `.zip` 压缩包和按用户安装的 `.msi` 安装程序（x86_64 与 arm64）。两者均同时包含 GUI（`OpenLogi.exe`）和拥有全部设备 I/O 的后台 agent（`openlogi-agent.exe`）。使用便携式 zip 时，请把这两个文件放在同一目录，否则 GUI 将无法连接。
 
-Windows 支持可正常工作，并已在 Windows 11 实机上完成端到端验证：包括有线键盘、使用 Unifying 接收器的鼠标，以及 MSI 的安装、原位升级和卸载。它比 macOS 版本更新，如遇到粗糙之处，请[反馈问题](https://github.com/AprilNEA/OpenLogi/issues)。agent 会显示系统托盘图标（「显示主窗口」/「退出」），因此关闭主窗口后仍可打开应用。如需在 Windows 上禁用该图标，请在 TOML 的 `[app_settings]` 块中设置 `show_in_menu_bar = false`，然后重启 agent；GUI 开关目前仅适用于 macOS。
+Windows 支持可正常工作，并已在 Windows 11 实机上完成端到端验证：包括有线键盘、使用 Unifying 接收器的鼠标，以及 MSI 的安装、原位升级和卸载。它比 macOS 版本更新，如遇到粗糙之处，请[反馈问题](https://github.com/WillkTech/OpenLogi/issues)。agent 会显示系统托盘图标（「显示主窗口」/「退出」），因此关闭主窗口后仍可打开应用。如需在 Windows 上禁用该图标，请在 TOML 的 `[app_settings]` 块中设置 `show_in_menu_bar = false`，然后重启 agent；GUI 开关目前仅适用于 macOS。
 
 从源码构建见 [DEVELOPMENT.md](DEVELOPMENT.md)。
 

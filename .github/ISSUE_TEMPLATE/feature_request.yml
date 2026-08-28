@@ -14,7 +14,7 @@ body:
     attributes:
       label: Pre-flight checklist
       options:
-        - label: I searched existing issues and the [Roadmap](https://github.com/AprilNEA/OpenLogi#roadmap), and this isn't already tracked.
+        - label: I searched existing issues and the [Roadmap](https://github.com/WillkTech/OpenLogi#roadmap), and this isn't already tracked.
           required: true
 
   - type: textarea

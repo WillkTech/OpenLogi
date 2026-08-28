@@ -37,8 +37,8 @@ edition = "2024"
 # CI matrix keeps the number honest for `cargo install`.
 rust-version = "1.94"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/AprilNEA/OpenLogi"
-authors = ["AprilNEA <dev@aprilnea.me>"]
+repository = "https://github.com/WillkTech/OpenLogi"
+authors = ["WillkTech"]
 description = "Lightweight, local-first alternative to Logitech Options+ for HID++ devices"
 
 [workspace.dependencies]
@@ -123,7 +123,7 @@ doc_markdown = "allow"
 allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 # Shared lint set, kept in sync with
-# https://gist.github.com/AprilNEA/cdf81f76840fcb883a32503ee7caa539.
+# https://gist.github.com/WillkTech/cdf81f76840fcb883a32503ee7caa539.
 # `cast_*` and `ptr_as_ptr` are pedantic members already; they are listed
 # explicitly so the set stands on its own if the pedantic group ever moves.
 assertions_on_result_states = "warn"

@@ -1,4 +1,4 @@
-# Code owners for AprilNEA/OpenLogi.
+# Code owners for WillkTech/OpenLogi.
 #
 # This is a personal repository, so every owner must be an individual account
 # with write access — `@org/team` entries do not exist here, and an owner
@@ -10,7 +10,7 @@
 # the maintainer.
 
 # ── Default ────────────────────────────────────────────────────────────────
-*                               @AprilNEA
+*                               @WillkTech
 
 # ── Windows port ───────────────────────────────────────────────────────────
 # Listed file by file rather than by a `*windows*` glob: in this repo the word
@@ -24,52 +24,52 @@
 #
 # The installer manifest (packaging/windows) and the signing workflow also stay
 # with the maintainer — see the supply-chain block below.
-/crates/openlogi-agent/src/resume_windows.rs    @AprilNEA @davidbudnick
-/crates/openlogi-agent/src/tray_windows.rs      @AprilNEA @davidbudnick
-/crates/openlogi-camera/src/capture_windows.rs  @AprilNEA @davidbudnick
-/crates/openlogi-camera/src/com_windows.rs      @AprilNEA @davidbudnick
-/crates/openlogi-camera/src/uvc_windows.rs      @AprilNEA @davidbudnick
-/crates/openlogi-hid/src/transport/windows.rs   @AprilNEA @davidbudnick
-/crates/openlogi-hid/src/windows_hid.rs         @AprilNEA @davidbudnick
-/crates/openlogi-hook/src/windows.rs            @AprilNEA @davidbudnick
-/crates/openlogi-inject/src/inject/windows.rs   @AprilNEA @davidbudnick
+/crates/openlogi-agent/src/resume_windows.rs    @WillkTech @davidbudnick
+/crates/openlogi-agent/src/tray_windows.rs      @WillkTech @davidbudnick
+/crates/openlogi-camera/src/capture_windows.rs  @WillkTech @davidbudnick
+/crates/openlogi-camera/src/com_windows.rs      @WillkTech @davidbudnick
+/crates/openlogi-camera/src/uvc_windows.rs      @WillkTech @davidbudnick
+/crates/openlogi-hid/src/transport/windows.rs   @WillkTech @davidbudnick
+/crates/openlogi-hid/src/windows_hid.rs         @WillkTech @davidbudnick
+/crates/openlogi-hook/src/windows.rs            @WillkTech @davidbudnick
+/crates/openlogi-inject/src/inject/windows.rs   @WillkTech @davidbudnick
 
 # ── Release, packaging, supply chain ───────────────────────────────────────
 # Anything here can reach the release pipeline's signing and notarization
 # credentials, or change what ends up inside a published artifact.
-/.github/                       @AprilNEA
-/xtask/                         @AprilNEA
-/packaging/                     @AprilNEA
-/.config/                       @AprilNEA
-/.cargo/                        @AprilNEA
-/Cargo.toml                     @AprilNEA
-/Cargo.lock                     @AprilNEA
-/release-plz.toml               @AprilNEA
-/rust-toolchain.toml            @AprilNEA
-/rustfmt.toml                   @AprilNEA
-/prek.toml                      @AprilNEA
-/flake.nix                      @AprilNEA
-/flake.lock                     @AprilNEA
-/devenv.nix                     @AprilNEA
-/devenv.yaml                    @AprilNEA
-/devenv.lock                    @AprilNEA
+/.github/                       @WillkTech
+/xtask/                         @WillkTech
+/packaging/                     @WillkTech
+/.config/                       @WillkTech
+/.cargo/                        @WillkTech
+/Cargo.toml                     @WillkTech
+/Cargo.lock                     @WillkTech
+/release-plz.toml               @WillkTech
+/rust-toolchain.toml            @WillkTech
+/rustfmt.toml                   @WillkTech
+/prek.toml                      @WillkTech
+/flake.nix                      @WillkTech
+/flake.lock                     @WillkTech
+/devenv.nix                     @WillkTech
+/devenv.yaml                    @WillkTech
+/devenv.lock                    @WillkTech
 
 # ── Licensing and brand ────────────────────────────────────────────────────
 # design/ is proprietary; the license files define the dual-license boundary.
-/LICENSE-MIT                    @AprilNEA
-/LICENSE-APACHE                 @AprilNEA
-/design/                        @AprilNEA
+/LICENSE-MIT                    @WillkTech
+/LICENSE-APACHE                 @WillkTech
+/design/                        @WillkTech
 
 # ── Cross-crate contracts ──────────────────────────────────────────────────
 # openlogi-ipc is an append-only wire format, openlogi-core is the shared
 # config and device model, openlogi-hidpp is a hard fork with its own rules.
-/crates/openlogi-ipc/           @AprilNEA
-/crates/openlogi-core/          @AprilNEA
-/crates/openlogi-hidpp/         @AprilNEA
-/crates/openlogi-hidpp-derive/  @AprilNEA
+/crates/openlogi-ipc/           @WillkTech
+/crates/openlogi-core/          @WillkTech
+/crates/openlogi-hidpp/         @WillkTech
+/crates/openlogi-hidpp-derive/  @WillkTech
 
 # ── Agent guides ───────────────────────────────────────────────────────────
-/AGENTS.md                      @AprilNEA
-/CLAUDE.md                      @AprilNEA
-/.claude/                       @AprilNEA
-/.agents/                       @AprilNEA
+/AGENTS.md                      @WillkTech
+/CLAUDE.md                      @WillkTech
+/.claude/                       @WillkTech
+/.agents/                       @WillkTech

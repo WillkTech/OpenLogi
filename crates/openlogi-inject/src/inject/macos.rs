@@ -512,7 +512,9 @@ mod tests {
     use super::{combo, held_key_event, hid_usage_to_macos};
     use crate::inject::{HeldKey, HeldModifiers, KeyPhase};
 
-    use super::{DOUBLE_CLICK_DISTANCE_THRESHOLD, DOUBLE_CLICK_THRESHOLD, record_left_click_state_at_time};
+    use super::{
+        DOUBLE_CLICK_DISTANCE_THRESHOLD, DOUBLE_CLICK_THRESHOLD, record_left_click_state_at_time,
+    };
     use core_graphics::geometry::CGPoint;
     use std::time::{Duration, Instant};
 
@@ -542,10 +544,7 @@ mod tests {
 
         // Click with significant movement (> 5.0 pt distance) -> resets to 1
         let t5 = t4 + Duration::from_millis(100);
-        let loc2 = CGPoint::new(
-            loc1.x + DOUBLE_CLICK_DISTANCE_THRESHOLD + 2.0,
-            loc1.y,
-        );
+        let loc2 = CGPoint::new(loc1.x + DOUBLE_CLICK_DISTANCE_THRESHOLD + 2.0, loc1.y);
         let state5 = record_left_click_state_at_time(loc2, None, t5);
         assert_eq!(state5, 1);
 

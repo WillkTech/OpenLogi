@@ -102,7 +102,7 @@ pub(crate) fn run(args: &Args) -> Result<()> {
             .format(&Rfc3339)
             .context("could not format current timestamp")?,
         release_url: format!(
-            "https://github.com/AprilNEA/OpenLogi/releases/tag/{}",
+            "https://github.com/WillkTech/OpenLogi/releases/tag/{}",
             args.tag
         ),
         assets,

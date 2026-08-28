@@ -12,20 +12,19 @@
 
 
 <div align="center">
-    <a href="https://twitter.com/AprilNEA" target="_blank">
-    <img alt="twitter" src="https://img.shields.io/badge/follow-AprilNEA-green?style=social&logo=Twitter"></a>
+    <a href="https://twitter.com/WillkTech" target="_blank">
+    <img alt="twitter" src="https://img.shields.io/badge/follow-WillkTech-green?style=social&logo=Twitter"></a>
     <a href="https://t.me/+VDtkR5OSAT04NzVh" target="_blank">
     <img alt="telegram" src="https://img.shields.io/badge/chat-telegram-blueviolet?style=flat&logo=Telegram"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/releases" target="_blank">
-    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/AprilNEA/OpenLogi/total.svg?style=flat"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/commits" target="_blank">
-    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/AprilNEA/OpenLogi?style=flat"></a>
-    <img alt="Hits" src="https://hits.aprilnea.com/hits?url=https://github.com/aprilnea/openlogi">
+    <a href="https://github.com/WillkTech/OpenLogi/releases" target="_blank">
+    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/WillkTech/OpenLogi/total.svg?style=flat"></a>
+    <a href="https://github.com/WillkTech/OpenLogi/commits" target="_blank">
+    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/WillkTech/OpenLogi?style=flat"></a>
 </div>
 
 <p align="center">
     <a href="https://trendshift.io/repositories/42303" target="_blank">
-    <img src="https://trendshift.io/api/badge/trendshift/repositories/42303/daily?language=Rust" alt="AprilNEA%2FOpenLogi | Trendshift" width="250" height="55"/></a>
+    <img src="https://trendshift.io/api/badge/trendshift/repositories/42303/daily?language=Rust" alt="WillkTech%2FOpenLogi | Trendshift" width="250" height="55"/></a>
 </p>
 
 > **Assez d'Options+ ? Essayez OpenLogi.**
@@ -83,7 +82,7 @@ Ce qu'OpenLogi fait et qu'Options+ ne fait pas :
 
 Nécessite macOS 13 ou une version ultérieure.
 
-Téléchargez le `.dmg` signé et notarié depuis la [dernière release](https://github.com/AprilNEA/OpenLogi/releases/latest) et glissez `OpenLogi.app` dans `/Applications`.
+Téléchargez le `.dmg` signé et notarié depuis la [dernière release](https://github.com/WillkTech/OpenLogi/releases/latest) et glissez `OpenLogi.app` dans `/Applications`.
 
 Ou installez via [Homebrew](https://brew.sh) :
 
@@ -91,18 +90,18 @@ Ou installez via [Homebrew](https://brew.sh) :
 brew install --cask openlogi
 ```
 
-Le cask Homebrew officiel est la voie d'installation par défaut. Pour suivre explicitement la dernière release GitHub via `aprilnea/tap` :
+Le cask Homebrew officiel est la voie d'installation par défaut. Pour suivre explicitement la dernière release GitHub via `willktech/tap` :
 
 ```sh
-brew tap aprilnea/tap
-brew install --cask aprilnea/tap/openlogi@latest
+brew tap willktech/tap
+brew install --cask willktech/tap/openlogi@latest
 ```
 
 `openlogi@latest` est maintenu par le workflow de release d'OpenLogi et peut être mis à jour avant l'autobump du cask officiel. Installez `openlogi` ou `openlogi@latest`, pas les deux.
 
 ### Linux
 
-Téléchargez le `.deb` ou le `.rpm` depuis la [dernière release](https://github.com/AprilNEA/OpenLogi/releases/latest) :
+Téléchargez le `.deb` ou le `.rpm` depuis la [dernière release](https://github.com/WillkTech/OpenLogi/releases/latest) :
 
 ```sh
 # Debian / Ubuntu
@@ -129,7 +128,7 @@ Pour les installations manuelles / depuis les sources et les distributions sans 
 
 Des archives portables `.zip` signées et des installateurs `.msi` par utilisateur (x86_64 et arm64) accompagnent chaque release. Tous deux contiennent la GUI (`OpenLogi.exe`) et l'agent d'arrière-plan (`openlogi-agent.exe`), qui possède toutes les E/S des appareils. Avec le ZIP portable, gardez les deux fichiers côte à côte, sinon la GUI n'aura rien auquel se connecter.
 
-La prise en charge de Windows fonctionne et a été validée de bout en bout sur du matériel Windows 11 réel — un clavier filaire et une souris sur récepteur Unifying, y compris l'installation, la mise à niveau sur place et la désinstallation du MSI. Ce portage est plus récent que celui de macOS ; [signalez](https://github.com/AprilNEA/OpenLogi/issues) toute aspérité. L'agent affiche une icône dans la zone de notification (Afficher la fenêtre principale / Quitter), afin que l'application reste accessible après la fermeture de sa fenêtre principale. Pour la désactiver sous Windows, définissez `show_in_menu_bar = false` dans le bloc TOML `[app_settings]`, puis redémarrez l'agent ; l'option de la GUI est actuellement réservée à macOS.
+La prise en charge de Windows fonctionne et a été validée de bout en bout sur du matériel Windows 11 réel — un clavier filaire et une souris sur récepteur Unifying, y compris l'installation, la mise à niveau sur place et la désinstallation du MSI. Ce portage est plus récent que celui de macOS ; [signalez](https://github.com/WillkTech/OpenLogi/issues) toute aspérité. L'agent affiche une icône dans la zone de notification (Afficher la fenêtre principale / Quitter), afin que l'application reste accessible après la fermeture de sa fenêtre principale. Pour la désactiver sous Windows, définissez `show_in_menu_bar = false` dans le bloc TOML `[app_settings]`, puis redémarrez l'agent ; l'option de la GUI est actuellement réservée à macOS.
 
 Pour compiler depuis les sources, voir [DEVELOPMENT.md](DEVELOPMENT.md).
 

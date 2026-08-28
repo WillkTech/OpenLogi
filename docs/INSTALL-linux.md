@@ -25,7 +25,7 @@ rules required for device access and manages the agent's user service.
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.openlogi = {
-    url = "github:AprilNEA/OpenLogi";
+    url = "github:WillkTech/OpenLogi";
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -54,18 +54,18 @@ rules without automatically starting the agent. It remains available as
 For a build without installing the module:
 
 ```sh
-nix build github:AprilNEA/OpenLogi#openlogi
+nix build github:WillkTech/OpenLogi#openlogi
 ```
 
 ## Build from source
 
 Pre-built `.deb` and `.rpm` packages are available on the
-[releases page](https://github.com/AprilNEA/OpenLogi/releases/latest) — see
+[releases page](https://github.com/WillkTech/OpenLogi/releases/latest) — see
 the main [README](../README.md#linux) for the package-based install. To build
 from source instead, use the stable Rust toolchain:
 
 ```sh
-git clone https://github.com/AprilNEA/OpenLogi
+git clone https://github.com/WillkTech/OpenLogi
 cd OpenLogi
 cargo build --release -p openlogi -p openlogi-desktop -p openlogi-agent
 ```

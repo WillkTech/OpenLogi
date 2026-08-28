@@ -49,7 +49,7 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "CompanyName", "AprilNEA"
+            VALUE "CompanyName", "WillkTech"
             VALUE "FileDescription", "OpenLogi Actions Ring Overlay"
             VALUE "FileVersion", "{version}"
             VALUE "InternalName", "openlogi-overlay"
