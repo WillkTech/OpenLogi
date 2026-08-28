@@ -38,7 +38,7 @@ pub fn configure_application() {}
 )]
 pub fn configure_windows() {
     use std::mem::size_of;
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
     use windows_sys::Win32::Graphics::Dwm::{
         DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DWMWA_WINDOW_CORNER_PREFERENCE,
         DWMWCP_DONOTROUND, DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
@@ -46,6 +46,9 @@ pub fn configure_windows() {
     use windows_sys::Win32::System::Threading::GetCurrentThreadId;
     use windows_sys::Win32::UI::Controls::MARGINS;
     use windows_sys::Win32::UI::WindowsAndMessaging::{EnumThreadWindows, IsWindowVisible};
+
+    type BOOL = i32;
+    const TRUE: BOOL = 1;
 
     unsafe extern "system" fn enum_window_callback(hwnd: HWND, _lparam: LPARAM) -> BOOL {
         // SAFETY: `hwnd` is passed by Win32 for a window owned by the current thread.
@@ -79,7 +82,7 @@ pub fn configure_windows() {
                 let _ = DwmExtendFrameIntoClientArea(hwnd, &margins);
             }
         }
-        1 // TRUE to continue enumeration
+        TRUE
     }
 
     // SAFETY: `EnumThreadWindows` safely enumerates windows created on the current thread.
