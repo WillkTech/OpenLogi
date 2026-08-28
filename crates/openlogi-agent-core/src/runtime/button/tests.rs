@@ -245,7 +245,7 @@ fn worker_drops_input_queued_before_generation_invalidation() {
     commands
         .send(ButtonCommand::Input {
             generation: 0,
-            input: ButtonInput::Down(hook_press(1, ButtonId::Back)),
+            input: Box::new(ButtonInput::Down(hook_press(1, ButtonId::Back))),
         })
         .expect("test queue should accept the command");
     drop(commands);
@@ -498,16 +498,16 @@ fn overdue_long_press_precedes_unrelated_queued_actions() {
     commands
         .send(ButtonCommand::Input {
             generation: 0,
-            input: ButtonInput::Pulse(hook_press(2, ButtonId::Forward)),
+            input: Box::new(ButtonInput::Pulse(hook_press(2, ButtonId::Forward))),
         })
         .expect("test queue should accept the unrelated pulse");
     commands
         .send(ButtonCommand::Input {
             generation: 0,
-            input: ButtonInput::Up {
+            input: Box::new(ButtonInput::Up {
                 key: press.token.key.clone(),
                 released_at: Instant::now(),
-            },
+            }),
         })
         .expect("test queue should accept the overdue release");
     let (_shutdown, shutdown) = mpsc::channel();
@@ -551,10 +551,10 @@ fn continuous_commands_cannot_starve_a_long_press_deadline() {
     commands
         .send(ButtonCommand::Input {
             generation: 0,
-            input: ButtonInput::Down(ActivePress {
+            input: Box::new(ButtonInput::Down(ActivePress {
                 token: PressToken::hook_for_test(1, ButtonId::Back),
                 behavior: PressBehavior::new(Some(&binding), pressed_at),
-            }),
+            })),
         })
         .expect("test queue should accept the press");
     for _ in 1..EVENT_QUEUE_CAPACITY {

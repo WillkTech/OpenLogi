@@ -173,19 +173,32 @@ impl MouseModelView {
         }
     }
 
-    /// Open shortcut builder modal.
-    pub fn open_shortcut_builder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// Open shortcut builder modal pre-filled with target and icon.
+    pub fn open_shortcut_builder_with(
+        &mut self,
+        existing_id: Option<String>,
+        name: &str,
+        target: Option<&openlogi_core::binding::ActionTarget>,
+        icon: Option<openlogi_core::binding::ActionRingIcon>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let view = cx.entity();
         let modal = cx.new(|cx| {
             let mut m = crate::ui::shortcut_builder::ShortcutBuilderModal::new(
-                None, "", None, None, window, cx,
+                existing_id,
+                name,
+                target,
+                icon,
+                window,
+                cx,
             );
             let view_save = view.clone();
-            m.on_save = Some(Rc::new(move |id, name, combo, icon, _window, cx| {
+            m.on_save = Some(Rc::new(move |id, name, target, icon, _window, cx| {
                 let entry = openlogi_core::config::CustomShortcutEntry {
                     id,
                     name,
-                    combo,
+                    target,
                     icon,
                 };
                 AppState::update(cx, |state, _cx| {
@@ -206,6 +219,11 @@ impl MouseModelView {
             m
         });
         self.shortcut_builder = Some(modal);
+    }
+
+    /// Open blank shortcut builder modal.
+    pub fn open_shortcut_builder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_shortcut_builder_with(None, "", None, None, window, cx);
     }
 
     /// Close the shortcut builder modal.

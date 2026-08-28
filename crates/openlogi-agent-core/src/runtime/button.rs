@@ -273,7 +273,10 @@ enum ButtonInput {
 }
 
 enum ButtonCommand {
-    Input { generation: u64, input: ButtonInput },
+    Input {
+        generation: u64,
+        input: Box<ButtonInput>,
+    },
     CancelStalePress(PressToken),
     CancelSource(ButtonSource),
     CancelHooks,
@@ -526,7 +529,10 @@ impl ButtonInputHandle {
         if !self.accepting.load(Ordering::Acquire) {
             return false;
         }
-        self.try_command(ButtonCommand::Input { generation, input })
+        self.try_command(ButtonCommand::Input {
+            generation,
+            input: Box::new(input),
+        })
     }
 
     fn try_command(&self, command: ButtonCommand) -> bool {
@@ -701,7 +707,7 @@ fn process_command(
         ButtonCommand::Input {
             generation: input_generation,
             input,
-        } if input_generation == generation => process_input(state, input, emit),
+        } if input_generation == generation => process_input(state, *input, emit),
         ButtonCommand::Input { .. } | ButtonCommand::Wake => {}
         ButtonCommand::CancelStalePress(token) => {
             if let Some(press) = state.cancel_press(&token) {

@@ -28,6 +28,7 @@ pub struct ActionRingPanel {
     application_input: Option<Entity<InputState>>,
     shortcut_input: Option<Entity<InputState>>,
     library_scroll: ScrollHandle,
+    shortcut_builder: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
     #[expect(dead_code, reason = "held to keep the AppState subscription alive")]
     state_obs: Subscription,
 }
@@ -53,8 +54,64 @@ impl ActionRingPanel {
             application_input: None,
             shortcut_input: None,
             library_scroll: ScrollHandle::new(),
+            shortcut_builder: None,
             state_obs,
         }
+    }
+
+    /// Open shortcut builder modal pre-filled with target and icon.
+    pub fn open_shortcut_builder_with(
+        &mut self,
+        existing_id: Option<String>,
+        name: &str,
+        target: Option<&openlogi_core::binding::ActionTarget>,
+        icon: Option<openlogi_core::binding::ActionRingIcon>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let view = cx.entity();
+        let modal = cx.new(|cx| {
+            let mut m = crate::ui::shortcut_builder::ShortcutBuilderModal::new(
+                existing_id,
+                name,
+                target,
+                icon,
+                window,
+                cx,
+            );
+            let view_save = view.clone();
+            m.on_save = Some(std::rc::Rc::new(
+                move |id, name, target, icon, _window, cx| {
+                    let entry = openlogi_core::config::CustomShortcutEntry {
+                        id,
+                        name,
+                        target,
+                        icon,
+                    };
+                    AppState::update(cx, |state, _cx| {
+                        state.commit_custom_shortcut(entry);
+                    });
+                    view_save.update(cx, |view, cx| {
+                        view.close_shortcut_builder();
+                        cx.notify();
+                    });
+                },
+            ));
+            let view_cancel = view.clone();
+            m.on_cancel = Some(std::rc::Rc::new(move |_window, cx| {
+                view_cancel.update(cx, |view, cx| {
+                    view.close_shortcut_builder();
+                    cx.notify();
+                });
+            }));
+            m
+        });
+        self.shortcut_builder = Some(modal);
+    }
+
+    /// Close the shortcut builder modal.
+    pub fn close_shortcut_builder(&mut self) {
+        self.shortcut_builder = None;
     }
 }
 
@@ -85,85 +142,99 @@ impl Render for ActionRingPanel {
         );
         let view = cx.entity();
 
-        v_flex()
+        div()
+            .relative()
             .w_full()
-            .gap_4()
-            .tab_group()
-            .track_focus(&self.focus_handle)
             .child(
                 v_flex()
-                    .gap_1()
-                    .child(div().text_subheading().child(tr!("Actions Ring")))
-                    .child(
-                        div()
-                            .text_caption()
-                            .text_color(pal.text_muted)
-                            .child(tr!("Configure the eight actions shown around the cursor.")),
-                    ),
-            )
-            .child(
-                h_flex()
                     .w_full()
-                    .items_start()
-                    .justify_center()
                     .gap_4()
-                    .child(ring_preview(&ring.default, self.selected_slot, &view, pal))
-                    .child(action_library(
-                        self.selected_slot,
-                        ring.default.slots.get(&self.selected_slot),
-                        &application_input,
-                        &shortcut_input,
-                        &self.library_scroll,
-                        pal,
-                        cx,
-                    )),
-            )
-            .child(
-                h_flex()
-                    .items_center()
-                    .justify_between()
-                    .gap_3()
+                    .tab_group()
+                    .track_focus(&self.focus_handle)
                     .child(
                         v_flex()
-                            .child(div().text_body().child(tr!("Actions Ring")))
-                            .child(
-                                div()
-                                    .text_caption()
-                                    .text_color(pal.text_muted)
-                                    .child(tr!("Open at the current cursor position.")),
-                            ),
+                            .gap_1()
+                            .child(div().text_subheading().child(tr!("Actions Ring")))
+                            .child(div().text_caption().text_color(pal.text_muted).child(tr!(
+                                "Configure the eight actions shown around the cursor."
+                            ))),
                     )
-                    .child(toggle_button(
-                        "ring-enabled",
-                        ring.enabled,
-                        |state, enabled| {
-                            state.commit_action_ring_enabled(enabled);
-                        },
-                    )),
-            )
-            .when(haptics_supported, |panel| {
-                panel.child(
-                    h_flex()
-                        .items_center()
-                        .justify_between()
-                        .gap_3()
-                        .child(
-                            v_flex()
-                                .child(div().text_body().child(tr!("Haptic feedback")))
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .items_start()
+                            .justify_center()
+                            .gap_4()
+                            .child(ring_preview(&ring.default, self.selected_slot, &view, pal))
+                            .child(action_library(
+                                self.selected_slot,
+                                ring.default.slots.get(&self.selected_slot),
+                                &application_input,
+                                &shortcut_input,
+                                &self.library_scroll,
+                                &view,
+                                pal,
+                                cx,
+                            )),
+                    )
+                    .child(
+                        h_flex()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
+                            .child(
+                                v_flex()
+                                    .child(div().text_body().child(tr!("Actions Ring")))
+                                    .child(
+                                        div()
+                                            .text_caption()
+                                            .text_color(pal.text_muted)
+                                            .child(tr!("Open at the current cursor position.")),
+                                    ),
+                            )
+                            .child(toggle_button(
+                                "ring-enabled",
+                                ring.enabled,
+                                |state, enabled| {
+                                    state.commit_action_ring_enabled(enabled);
+                                },
+                            )),
+                    )
+                    .when(haptics_supported, |panel| {
+                        panel.child(
+                            h_flex()
+                                .items_center()
+                                .justify_between()
+                                .gap_3()
                                 .child(
-                                    div()
-                                        .text_caption()
-                                        .text_color(pal.text_muted)
-                                        .child(tr!("Play feedback when hovering and activating.")),
-                                ),
+                                    v_flex()
+                                        .child(div().text_body().child(tr!("Haptic feedback")))
+                                        .child(
+                                            div().text_caption().text_color(pal.text_muted).child(
+                                                tr!("Play feedback when hovering and activating."),
+                                            ),
+                                        ),
+                                )
+                                .child(toggle_button(
+                                    "ring-haptics",
+                                    ring.haptics,
+                                    |state, enabled| {
+                                        state.commit_action_ring_haptics(enabled);
+                                    },
+                                )),
                         )
-                        .child(toggle_button(
-                            "ring-haptics",
-                            ring.haptics,
-                            |state, enabled| {
-                                state.commit_action_ring_haptics(enabled);
-                            },
-                        )),
+                    }),
+            )
+            .when_some(self.shortcut_builder.clone(), |parent, modal_entity| {
+                parent.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .bg(gpui::rgba(0x0000_0088))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(div().w(px(460.0)).max_w(px(520.0)).child(modal_entity)),
                 )
             })
     }

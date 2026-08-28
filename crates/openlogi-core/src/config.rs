@@ -38,22 +38,54 @@ pub use settings::{
 };
 
 use crate::binding::{
-    Action, ActionRingConfig, ActionRingIcon, ActionRingSlot, Binding, ButtonId, GestureDirection,
-    KeyCombo, RingAction, default_binding, default_binding_for, default_gesture_binding,
+    Action, ActionRingConfig, ActionRingIcon, ActionRingSlot, ActionTarget, Binding, ButtonId,
+    GestureDirection, KeyCombo, RingAction, default_binding, default_binding_for,
+    default_gesture_binding,
 };
 
 /// User-created named custom shortcut entry in `config.custom_shortcuts`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct CustomShortcutEntry {
     /// Unique identifier for referencing this shortcut.
     pub id: String,
     /// Human-readable label / name for the custom shortcut.
     pub name: String,
-    /// Keyboard chord payload.
-    pub combo: KeyCombo,
+    /// Target payload: key chord or application/folder launch target.
+    pub target: ActionTarget,
     /// Selectable icon glyph from `ActionRingIcon`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<ActionRingIcon>,
+}
+
+#[derive(Deserialize)]
+struct RawCustomShortcutEntry {
+    id: String,
+    name: String,
+    target: Option<ActionTarget>,
+    combo: Option<KeyCombo>,
+    icon: Option<ActionRingIcon>,
+}
+
+impl<'de> Deserialize<'de> for CustomShortcutEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = RawCustomShortcutEntry::deserialize(deserializer)?;
+        let target = match (raw.target, raw.combo) {
+            (Some(target), _) => target,
+            (None, Some(combo)) => ActionTarget::Shortcut(combo),
+            (None, None) => {
+                return Err(serde::de::Error::missing_field("target"));
+            }
+        };
+        Ok(Self {
+            id: raw.id,
+            name: raw.name,
+            target,
+            icon: raw.icon,
+        })
+    }
 }
 use crate::device_order::PhysicalDeviceKey;
 use crate::hid::Dpi;
@@ -62,6 +94,9 @@ use settings::GestureOwner;
 /// The schema version the current build produces. Bumped whenever the
 /// persisted shape or enum vocabulary changes; readers inspect this value
 /// before consuming the rest of the file.
+///
+/// v7 extends `CustomShortcutEntry` and `Action::SavedShortcut` to use `ActionTarget`,
+/// unifying key chords and application/folder launch targets under custom shortcuts.
 ///
 /// v6 adds threshold-based `{ short = ..., long = ... }` button bindings.
 ///
@@ -100,7 +135,7 @@ use settings::GestureOwner;
 /// next save; [`Config::load_from_path`] accepts supported versions `1` through
 /// [`SCHEMA_VERSION`] so an invalid or forward file fails loudly instead of
 /// silently losing bindings.
-pub const SCHEMA_VERSION: u32 = 6;
+pub const SCHEMA_VERSION: u32 = 7;
 
 /// Top-level config document.
 #[derive(Debug, Clone, Serialize, Deserialize)]

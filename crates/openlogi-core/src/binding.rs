@@ -11,6 +11,7 @@
 
 mod action;
 mod action_ring;
+mod action_target;
 mod application_target;
 mod button;
 mod category;
@@ -29,6 +30,7 @@ pub use action_ring::{
     ActionRingConfig, ActionRingEntry, ActionRingIcon, ActionRingLayout, ActionRingSlot,
     RingAction, RingActionError,
 };
+pub use action_target::ActionTarget;
 pub use application_target::{ApplicationTarget, ApplicationTargetError};
 pub use button::ButtonId;
 pub use category::Category;
