@@ -9,8 +9,12 @@ use gpui::{
 };
 use gpui_base::Button as BaseButton;
 use gpui_component::{
-    Icon, IconName, Selectable as _, Sizable as _, button::Button, h_flex, input::InputState,
-    scroll::ScrollableElement as _, v_flex,
+    Icon, IconName, Selectable as _, Sizable as _,
+    button::{Button, ButtonVariants},
+    h_flex,
+    input::InputState,
+    scroll::ScrollableElement as _,
+    v_flex,
 };
 use openlogi_core::binding::{Action, ButtonId, GestureDirection, default_binding};
 
@@ -210,7 +214,7 @@ fn button_inspector(
             panel.child(action_library(
                 "inspector-action",
                 Some(&action),
-                picker.search,
+                picker,
                 &on_pick,
                 pal,
                 cx,
@@ -263,7 +267,7 @@ fn inherited_gesture_inspector(
             panel.child(action_library(
                 "inspector-gesture-override",
                 None,
-                picker.search,
+                picker,
                 &on_pick,
                 pal,
                 cx,
@@ -326,7 +330,7 @@ fn gesture_inspector(
             panel.child(action_library(
                 "inspector-gesture-action",
                 Some(&current),
-                picker.search,
+                picker,
                 &on_pick,
                 pal,
                 cx,
@@ -612,18 +616,36 @@ fn selection_card(
 fn action_library(
     id_prefix: &'static str,
     current: Option<&Action>,
-    action_search: &Entity<InputState>,
+    picker: ActionPickerContext<'_>,
     on_pick: &PickFn,
     pal: Palette,
     cx: &Context<MouseModelView>,
 ) -> impl IntoElement {
-    let query = action_search.read(cx).value();
-    let rows = action_rows_matching(id_prefix, current, &query, on_pick, pal);
+    let query = picker.search.read(cx).value();
+    let rows = action_rows_matching(id_prefix, current, &query, on_pick, pal, cx);
+    let view = picker.view.clone();
     v_flex()
         .gap_2()
         .pt_1()
-        .child(editor_section(tr!("Actions"), pal))
-        .child(control_input(action_search).cleanable(true))
+        .child(
+            h_flex()
+                .justify_between()
+                .items_center()
+                .child(editor_section(tr!("Actions"), pal))
+                .child(
+                    Button::new("new-custom-shortcut")
+                        .compact()
+                        .ghost()
+                        .label(tr!("+ New Shortcut"))
+                        .on_click(move |_, window, cx| {
+                            view.update(cx, |view, cx| {
+                                view.open_shortcut_builder(window, cx);
+                                cx.notify();
+                            });
+                        }),
+                ),
+        )
+        .child(control_input(picker.search).cleanable(true))
         .child(
             v_flex()
                 .gap_0p5()

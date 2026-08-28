@@ -8,7 +8,7 @@ pub(crate) mod components;
 #[cfg(debug_assertions)]
 pub(crate) mod gallery;
 pub mod section;
-pub mod spacing;
 pub mod shortcut_builder;
+pub mod spacing;
 pub mod status;
 pub mod theme;

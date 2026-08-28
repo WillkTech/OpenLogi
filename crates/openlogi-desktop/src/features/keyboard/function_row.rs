@@ -820,7 +820,7 @@ impl FunctionRowView {
             view_for_pick.update(cx, |_, vcx| vcx.notify());
         });
 
-        let rows = panel_action_rows(current.as_ref(), &on_pick, view, &pal);
+        let rows = panel_action_rows(current.as_ref(), &on_pick, view, &pal, cx);
 
         compact_panel(pal)
             .w(px(PANEL_W))
@@ -854,8 +854,9 @@ fn panel_action_rows(
     on_pick: &PickFn,
     view: &Entity<FunctionRowView>,
     pal: &Palette,
+    cx: &App,
 ) -> Vec<gpui::Div> {
-    let mut children = action_rows("panel-action", current, on_pick, *pal);
+    let mut children = action_rows("panel-action", current, on_pick, *pal, cx);
 
     let power_user_actions: &[(PowerUserKind, &str, &'static str)] = &[
         (

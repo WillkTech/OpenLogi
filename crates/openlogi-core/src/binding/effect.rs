@@ -276,9 +276,10 @@ impl Action {
             Action::HorizontalScrollLeft => Effect::Scroll { dx: -1, dy: 0 },
             Action::HorizontalScrollRight => Effect::Scroll { dx: 1, dy: 0 },
 
-            Action::CustomShortcut(combo) => Effect::Key(combo),
+            Action::CustomShortcut(combo) | Action::SavedShortcut { combo, .. } => {
+                Effect::Key(combo)
+            }
             Action::HoldShortcut(combo) => Effect::HeldKey(combo),
-            Action::SavedShortcut { combo, .. } => Effect::Key(combo),
 
             Action::TypeText(text) => Effect::Text(text),
             Action::RunAppleScript(src) => Effect::Script(Script::AppleScript(src)),

@@ -983,6 +983,32 @@ impl Config {
             .or_default()
             .thumbwheel_sensitivity = sensitivity;
     }
+
+    /// User-defined custom shortcuts list.
+    #[must_use]
+    pub fn custom_shortcuts(&self) -> &[CustomShortcutEntry] {
+        &self.custom_shortcuts
+    }
+
+    /// Save or overwrite a custom shortcut entry.
+    pub fn save_custom_shortcut(&mut self, entry: CustomShortcutEntry) {
+        if let Some(existing) = self
+            .custom_shortcuts
+            .iter_mut()
+            .find(|existing| existing.id == entry.id)
+        {
+            *existing = entry;
+        } else {
+            self.custom_shortcuts.push(entry);
+        }
+    }
+
+    /// Delete a custom shortcut by its unique ID.
+    pub fn delete_custom_shortcut(&mut self, id: &str) -> bool {
+        let initial_len = self.custom_shortcuts.len();
+        self.custom_shortcuts.retain(|entry| entry.id != id);
+        self.custom_shortcuts.len() != initial_len
+    }
 }
 
 /// Resolve the most specific application overlay for a foreground identifier.

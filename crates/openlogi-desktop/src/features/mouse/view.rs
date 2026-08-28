@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
@@ -127,6 +128,7 @@ pub struct MouseModelView {
     gesture_active_dir: Option<GestureDirection>,
     action_picker_open: bool,
     action_search: Entity<InputState>,
+    shortcut_builder: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
     _state_obs: Subscription,
 }
 
@@ -166,8 +168,49 @@ impl MouseModelView {
             gesture_active_dir: None,
             action_picker_open: false,
             action_search,
+            shortcut_builder: None,
             _state_obs: state_obs,
         }
+    }
+
+    /// Open shortcut builder modal.
+    pub fn open_shortcut_builder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let view = cx.entity();
+        let modal = cx.new(|cx| {
+            let mut m = crate::ui::shortcut_builder::ShortcutBuilderModal::new(
+                None, "", None, None, window, cx,
+            );
+            let view_save = view.clone();
+            m.on_save = Some(Rc::new(move |id, name, combo, icon, _window, cx| {
+                let entry = openlogi_core::config::CustomShortcutEntry {
+                    id,
+                    name,
+                    combo,
+                    icon,
+                };
+                AppState::update(cx, |state, _cx| {
+                    state.commit_custom_shortcut(entry);
+                });
+                view_save.update(cx, |view, cx| {
+                    view.close_shortcut_builder();
+                    cx.notify();
+                });
+            }));
+            let view_cancel = view.clone();
+            m.on_cancel = Some(Rc::new(move |_window, cx| {
+                view_cancel.update(cx, |view, cx| {
+                    view.close_shortcut_builder();
+                    cx.notify();
+                });
+            }));
+            m
+        });
+        self.shortcut_builder = Some(modal);
+    }
+
+    /// Close the shortcut builder modal.
+    pub fn close_shortcut_builder(&mut self) {
+        self.shortcut_builder = None;
     }
 
     /// Set (or clear, with `None`) the activated gesture direction. Callers must
@@ -325,7 +368,14 @@ impl Render for MouseModelView {
             &view,
             cx,
         );
-        workspace_layout(canvas, profile_status, inspector, &self.focus_handle)
+        let builder_modal = self.shortcut_builder.clone();
+        workspace_layout(
+            canvas,
+            profile_status,
+            inspector,
+            builder_modal,
+            &self.focus_handle,
+        )
     }
 }
 
@@ -333,36 +383,53 @@ fn workspace_layout(
     canvas: impl IntoElement,
     profile_status: Option<gpui::Div>,
     inspector: impl IntoElement,
+    modal: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
     focus_handle: &FocusHandle,
 ) -> impl IntoElement {
-    h_flex()
-        .flex_1()
-        .min_h_0()
-        .w_full()
-        .items_stretch()
-        .tab_group()
-        .track_focus(focus_handle)
+    div()
+        .relative()
+        .size_full()
         .child(
-            v_flex()
+            h_flex()
                 .flex_1()
-                .min_w_0()
-                .h_full()
-                .overflow_hidden()
-                .children(profile_status)
+                .size_full()
+                .items_stretch()
+                .tab_group()
+                .track_focus(focus_handle)
                 .child(
-                    div()
+                    v_flex()
                         .flex_1()
-                        .min_h_0()
-                        .w_full()
+                        .min_w_0()
+                        .h_full()
                         .overflow_hidden()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .p_4()
-                        .child(canvas),
-                ),
+                        .children(profile_status)
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_h_0()
+                                .w_full()
+                                .overflow_hidden()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .p_4()
+                                .child(canvas),
+                        ),
+                )
+                .child(inspector),
         )
-        .child(inspector)
+        .when_some(modal, |parent, modal_entity| {
+            parent.child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .bg(gpui::rgba(0x0000_0088))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(div().w(px(460.0)).max_w(px(520.0)).child(modal_entity)),
+            )
+        })
 }
 
 struct ModelLayout {

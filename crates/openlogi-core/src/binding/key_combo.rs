@@ -33,7 +33,9 @@ impl KeyboardUsage {
         self.into_inner()
     }
 
-    fn label(self) -> String {
+    /// User-facing label or character for this keyboard usage.
+    #[must_use]
+    pub fn label(self) -> String {
         let code = self.into_inner();
         match code {
             0x04..=0x1d => char::from(b'A' + code - 0x04).to_string(),

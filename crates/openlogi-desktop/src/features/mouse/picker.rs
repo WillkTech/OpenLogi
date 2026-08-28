@@ -6,9 +6,14 @@ use gpui::{
     App, InteractiveElement, IntoElement, ParentElement, Role, StatefulInteractiveElement as _,
     Styled, Window, div, prelude::FluentBuilder as _, px, rgb, svg,
 };
-use gpui_component::{Icon, IconName, Selectable as _, h_flex, v_flex};
+use gpui_component::{
+    Icon, IconName, Selectable as _,
+    button::{Button, ButtonVariants},
+    h_flex, v_flex,
+};
 use openlogi_core::binding::{Action, Category};
 
+use crate::state::AppState;
 use crate::ui::components::MenuRow;
 use crate::ui::section::section_label;
 use crate::ui::theme::{ACCENT_BLUE, Palette, Typography as _};
@@ -20,9 +25,26 @@ pub(crate) const EDITOR_LIST_MAX_H: f32 = 360.;
 pub(crate) type PickFn = Rc<dyn Fn(Action, &mut Window, &mut App)>;
 
 /// The action catalog grouped by [`Category`], preserving catalog order within
-/// each group and first-seen order across groups.
-pub(crate) fn grouped_catalog() -> Vec<(Category, Vec<Action>)> {
+/// each group and first-seen order across groups. Includes user-created custom shortcuts.
+pub(crate) fn grouped_catalog(cx: &App) -> Vec<(Category, Vec<Action>)> {
     let mut sections: Vec<(Category, Vec<Action>)> = Vec::new();
+
+    if let Some(state) = crate::state::AppState::try_read(cx) {
+        let custom_actions: Vec<Action> = state
+            .custom_shortcuts()
+            .iter()
+            .map(|entry| Action::SavedShortcut {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                combo: entry.combo.clone(),
+                icon: entry.icon,
+            })
+            .collect();
+        if !custom_actions.is_empty() {
+            sections.push((Category::CustomShortcuts, custom_actions));
+        }
+    }
+
     for action in Action::catalog() {
         let category = action.category();
         if let Some(section) = sections
@@ -88,9 +110,10 @@ pub(crate) fn action_icon_path(action: &Action) -> &'static str {
         Action::ScrollDown => "action-icons/chevrons-down.svg",
         Action::HorizontalScrollLeft => "action-icons/chevrons-left.svg",
         Action::HorizontalScrollRight => "action-icons/chevrons-right.svg",
-        Action::SavedShortcut { icon, .. } => {
-            icon.map_or("action-icons/keyboard.svg", openlogi_core::binding::ActionRingIcon::asset_path)
-        }
+        Action::SavedShortcut { icon, .. } => icon.map_or(
+            "action-icons/keyboard.svg",
+            openlogi_core::binding::ActionRingIcon::asset_path,
+        ),
         Action::CustomShortcut(_) | Action::HoldShortcut(_) | Action::TypeText(_) => {
             "action-icons/keyboard.svg"
         }
@@ -104,8 +127,9 @@ pub(crate) fn action_rows(
     current: Option<&Action>,
     on_pick: &PickFn,
     pal: Palette,
+    cx: &App,
 ) -> Vec<gpui::Div> {
-    action_rows_matching(id_prefix, current, "", on_pick, pal)
+    action_rows_matching(id_prefix, current, "", on_pick, pal, cx)
 }
 
 /// Build action rows filtered by localized action or category name.
@@ -115,11 +139,12 @@ pub(crate) fn action_rows_matching(
     query: &str,
     on_pick: &PickFn,
     pal: Palette,
+    cx: &App,
 ) -> Vec<gpui::Div> {
     let query = query.trim().to_lowercase();
     let mut catalog_index = 0usize;
     let mut sections = Vec::new();
-    for (category, actions) in grouped_catalog() {
+    for (category, actions) in grouped_catalog(cx) {
         let category_label = rust_i18n::t!(category.label());
         let category_matches = category_label.to_lowercase().contains(&query);
         // Number the full catalog before filtering so typing in the search box
@@ -151,6 +176,12 @@ pub(crate) fn action_rows_matching(
                     let label = tr!(action.label());
                     let accessible_label = label.clone();
                     let icon_path = action_icon_path(&action);
+                    let is_custom = matches!(&action, Action::SavedShortcut { .. });
+                    let custom_id = if let Action::SavedShortcut { id, .. } = &action {
+                        Some(id.clone())
+                    } else {
+                        None
+                    };
                     let on_pick = on_pick.clone();
                     MenuRow::new((id_prefix, action_key))
                         .selected(selected)
@@ -158,18 +189,39 @@ pub(crate) fn action_rows_matching(
                         .aria_label(accessible_label)
                         .child(
                             h_flex()
+                                .flex_1()
                                 .items_center()
-                                .gap_2()
+                                .justify_between()
                                 .child(
-                                    svg()
-                                        .path(icon_path)
-                                        .size_4()
-                                        .flex_none()
-                                        .text_color(pal.text_muted),
+                                    h_flex()
+                                        .items_center()
+                                        .gap_2()
+                                        .child(
+                                            svg()
+                                                .path(icon_path)
+                                                .size_4()
+                                                .flex_none()
+                                                .text_color(pal.text_muted),
+                                        )
+                                        .child(div().child(label)),
                                 )
-                                .child(div().child(label)),
+                                .when_some(custom_id, |parent, id| {
+                                    parent.child(
+                                        Button::new(("delete-custom-shortcut", action_key))
+                                            .icon(IconName::Close)
+                                            .compact()
+                                            .ghost()
+                                            .tooltip("Delete shortcut")
+                                            .on_click(move |_event, _, cx| {
+                                                let id = id.clone();
+                                                AppState::update(cx, |state, _cx| {
+                                                    state.delete_custom_shortcut(&id);
+                                                });
+                                            }),
+                                    )
+                                }),
                         )
-                        .when(selected, |row| {
+                        .when(selected && !is_custom, |row| {
                             row.child(
                                 Icon::new(IconName::Check)
                                     .size_3()

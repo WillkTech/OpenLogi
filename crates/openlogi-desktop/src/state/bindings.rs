@@ -460,4 +460,23 @@ impl AppState {
         // The agent owns the gesture watcher; have it rebuild from config.
         self.persist_and_reload("gesture binding");
     }
+
+    /// User-created custom shortcuts configured in the app.
+    #[must_use]
+    pub fn custom_shortcuts(&self) -> &[openlogi_core::config::CustomShortcutEntry] {
+        self.config.custom_shortcuts()
+    }
+
+    /// Commit or update a custom shortcut.
+    pub fn commit_custom_shortcut(&mut self, entry: openlogi_core::config::CustomShortcutEntry) {
+        self.config
+            .edit(|config| config.save_custom_shortcut(entry));
+        self.persist_and_reload("custom shortcut");
+    }
+
+    /// Delete a custom shortcut by ID.
+    pub fn delete_custom_shortcut(&mut self, id: &str) {
+        self.config.edit(|config| config.delete_custom_shortcut(id));
+        self.persist_and_reload("delete custom shortcut");
+    }
 }

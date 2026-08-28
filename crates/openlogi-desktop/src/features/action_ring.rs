@@ -115,6 +115,7 @@ impl Render for ActionRingPanel {
                         &shortcut_input,
                         &self.library_scroll,
                         pal,
+                        cx,
                     )),
             )
             .child(

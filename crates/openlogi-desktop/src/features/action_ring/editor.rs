@@ -27,6 +27,7 @@ pub(super) fn action_library(
     shortcut_input: &Entity<InputState>,
     library_scroll: &ScrollHandle,
     pal: Palette,
+    cx: &gpui::App,
 ) -> impl IntoElement {
     let current_action = current.map(ActionRingEntry::action).cloned();
     let current_label = current_action
@@ -82,7 +83,7 @@ pub(super) fn action_library(
                 })
                 .child(shortcut_editor(slot, shortcut_input, pal))
                 .child(path_editor(slot, application_input, pal))
-                .children(action_sections(slot, current_action.as_ref(), pal)),
+                .children(action_sections(slot, current_action.as_ref(), pal, cx)),
             library_scroll,
         ))
 }
@@ -216,51 +217,72 @@ fn action_sections(
     slot: ActionRingSlot,
     current: Option<&Action>,
     pal: Palette,
+    cx: &gpui::App,
 ) -> impl Iterator<Item = impl IntoElement> {
     let mut index = 0usize;
-    ring_catalog().into_iter().map(move |(category, actions)| {
-        v_flex()
-            .child(editor_section(rust_i18n::t!(category.label()), pal))
-            .children(actions.into_iter().map(|action| {
-                let selected = current == Some(&action);
-                let action_to_commit = action.clone();
-                let label = tr!(action.label());
-                let icon_path = action_icon_path(&action);
-                let row_index = index;
-                index += 1;
-                MenuRow::new(("ring-action", row_index))
-                    .role(Role::MenuItem)
-                    .aria_label(label.clone())
-                    .selected(selected)
-                    .child(
-                        h_flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                svg()
-                                    .path(icon_path)
-                                    .size_4()
-                                    .flex_none()
-                                    .text_color(pal.text_muted),
-                            )
-                            .child(label),
-                    )
-                    .when(selected, |row| {
-                        row.child(
-                            Icon::new(IconName::Check)
-                                .size_3()
-                                .text_color(rgb(theme::ACCENT_BLUE)),
+    ring_catalog(Some(cx))
+        .into_iter()
+        .map(move |(category, actions)| {
+            v_flex()
+                .child(editor_section(rust_i18n::t!(category.label()), pal))
+                .children(actions.into_iter().map(|action| {
+                    let selected = current == Some(&action);
+                    let action_to_commit = action.clone();
+                    let label = tr!(action.label());
+                    let icon_path = action_icon_path(&action);
+                    let row_index = index;
+                    index += 1;
+                    MenuRow::new(("ring-action", row_index))
+                        .role(Role::MenuItem)
+                        .aria_label(label.clone())
+                        .selected(selected)
+                        .child(
+                            h_flex()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    svg()
+                                        .path(icon_path)
+                                        .size_4()
+                                        .flex_none()
+                                        .text_color(pal.text_muted),
+                                )
+                                .child(label),
                         )
-                    })
-                    .on_click(move |_, _, cx| {
-                        commit_action(slot, action_to_commit.clone(), cx);
-                    })
-            }))
-    })
+                        .when(selected, |row| {
+                            row.child(
+                                Icon::new(IconName::Check)
+                                    .size_3()
+                                    .text_color(rgb(theme::ACCENT_BLUE)),
+                            )
+                        })
+                        .on_click(move |_, _, cx| {
+                            commit_action(slot, action_to_commit.clone(), cx);
+                        })
+                }))
+        })
 }
 
-fn ring_catalog() -> Vec<(Category, Vec<Action>)> {
+fn ring_catalog(cx: Option<&gpui::App>) -> Vec<(Category, Vec<Action>)> {
     let mut sections: Vec<(Category, Vec<Action>)> = Vec::new();
+
+    if let Some(state) = cx.and_then(AppState::try_read) {
+        let custom_actions: Vec<Action> = state
+            .custom_shortcuts()
+            .iter()
+            .map(|entry| Action::SavedShortcut {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                combo: entry.combo.clone(),
+                icon: entry.icon,
+            })
+            .filter(|action| RingAction::new(action.clone()).is_ok())
+            .collect();
+        if !custom_actions.is_empty() {
+            sections.push((Category::CustomShortcuts, custom_actions));
+        }
+    }
+
     for action in Action::catalog() {
         if RingAction::new(action.clone()).is_err() {
             continue;
@@ -372,7 +394,7 @@ mod tests {
 
     #[test]
     fn ring_catalog_is_categorized_and_excludes_invalid_actions() {
-        let sections = ring_catalog();
+        let sections = ring_catalog(None);
         assert!(
             sections
                 .iter()
