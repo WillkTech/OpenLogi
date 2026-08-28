@@ -30,8 +30,66 @@ pub fn configure_windows() {
 #[cfg(not(target_os = "macos"))]
 pub fn configure_application() {}
 
+/// Disable DWM drop shadows and non-client rendering for the overlay window on Windows.
+#[cfg(target_os = "windows")]
+#[expect(
+    unsafe_code,
+    reason = "raw Win32/DWM window enumeration and attribute calls"
+)]
+pub fn configure_windows() {
+    use std::mem::size_of;
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::Graphics::Dwm::{
+        DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DWMWA_WINDOW_CORNER_PREFERENCE,
+        DWMWCP_DONOTROUND, DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, MARGINS,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumThreadWindows, IsWindowVisible};
+
+    unsafe extern "system" fn enum_window_callback(hwnd: HWND, _lparam: LPARAM) -> BOOL {
+        // SAFETY: `hwnd` is passed by Win32 for a window owned by the current thread.
+        unsafe {
+            if IsWindowVisible(hwnd) != 0 {
+                // Disable DWM non-client rendering / drop shadows.
+                let policy = DWMNCRP_DISABLED;
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_NCRENDERING_POLICY as _,
+                    &policy as *const _ as _,
+                    size_of::<u32>() as u32,
+                );
+
+                // Prevent default Windows 11 rounded corner rectangular backdrop.
+                let corner_pref = DWMWCP_DONOTROUND;
+                let _ = DwmSetWindowAttribute(
+                    hwnd,
+                    DWMWA_WINDOW_CORNER_PREFERENCE as _,
+                    &corner_pref as *const _ as _,
+                    size_of::<u32>() as u32,
+                );
+
+                // Ensure margins are set to zero so DWM does not render frame shadows into client area.
+                let margins = MARGINS {
+                    cxLeftWidth: 0,
+                    cxRightWidth: 0,
+                    cyTopHeight: 0,
+                    cyBottomHeight: 0,
+                };
+                let _ = DwmExtendFrameIntoClientArea(hwnd, &margins);
+            }
+        }
+        1 // TRUE to continue enumeration
+    }
+
+    // SAFETY: `EnumThreadWindows` safely enumerates windows created on the current thread.
+    unsafe {
+        let thread_id = GetCurrentThreadId();
+        EnumThreadWindows(thread_id, Some(enum_window_callback), 0);
+    }
+}
+
 /// Other GPUI backends need no additional native window configuration here.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn configure_windows() {}
 
 /// Owner of the native click-away event monitor; dropping it removes the
