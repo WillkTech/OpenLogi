@@ -345,10 +345,11 @@ fn held_key_event(
 ) -> Option<(u16, CGEventFlags)> {
     modifiers.set(key, phase == KeyPhase::Down);
     let vk = match key {
-        HeldKey::Command => Some(0x37),
+        HeldKey::Command | HeldKey::Meta => Some(0x37),
         HeldKey::Shift => Some(0x38),
         HeldKey::Alt => Some(0x3a),
         HeldKey::Control => Some(0x3b),
+        HeldKey::Fn => Some(0x3f),
         HeldKey::Key(usage) => hid_usage_to_macos(usage.code()),
     }?;
     Some((vk, held_modifier_flags(*modifiers)))
@@ -356,7 +357,7 @@ fn held_key_event(
 
 fn held_modifier_flags(modifiers: HeldModifiers) -> CGEventFlags {
     let mut flags = CGEventFlags::CGEventFlagNull;
-    if modifiers.contains(HeldKey::Command) {
+    if modifiers.contains(HeldKey::Command) || modifiers.contains(HeldKey::Meta) {
         flags |= CGEventFlags::CGEventFlagCommand;
     }
     if modifiers.contains(HeldKey::Shift) {
@@ -368,12 +369,15 @@ fn held_modifier_flags(modifiers: HeldModifiers) -> CGEventFlags {
     if modifiers.contains(HeldKey::Alt) {
         flags |= CGEventFlags::CGEventFlagAlternate;
     }
+    if modifiers.contains(HeldKey::Fn) {
+        flags |= CGEventFlags::from_bits_truncate(1 << 23);
+    }
     flags
 }
 
 fn combo_flags(combo: &KeyCombo) -> CGEventFlags {
     let mut flags = CGEventFlags::CGEventFlagNull;
-    if combo.has_command() {
+    if combo.has_command() || combo.has_meta() {
         flags |= CGEventFlags::CGEventFlagCommand;
     }
     if combo.has_shift() {
@@ -384,6 +388,9 @@ fn combo_flags(combo: &KeyCombo) -> CGEventFlags {
     }
     if combo.has_option() {
         flags |= CGEventFlags::CGEventFlagAlternate;
+    }
+    if combo.has_fn() {
+        flags |= CGEventFlags::from_bits_truncate(1 << 23);
     }
     flags
 }

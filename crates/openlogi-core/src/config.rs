@@ -39,8 +39,22 @@ pub use settings::{
 
 use crate::binding::{
     Action, ActionRingConfig, ActionRingIcon, ActionRingSlot, Binding, ButtonId, GestureDirection,
-    RingAction, default_binding, default_binding_for, default_gesture_binding,
+    KeyCombo, RingAction, default_binding, default_binding_for, default_gesture_binding,
 };
+
+/// User-created named custom shortcut entry in `config.custom_shortcuts`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CustomShortcutEntry {
+    /// Unique identifier for referencing this shortcut.
+    pub id: String,
+    /// Human-readable label / name for the custom shortcut.
+    pub name: String,
+    /// Keyboard chord payload.
+    pub combo: KeyCombo,
+    /// Selectable icon glyph from `ActionRingIcon`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<ActionRingIcon>,
+}
 use crate::device_order::PhysicalDeviceKey;
 use crate::hid::Dpi;
 #[cfg(feature = "fs")]
@@ -128,6 +142,10 @@ pub struct Config {
     /// `[keyboard]` section loading unchanged.
     #[serde(default)]
     pub keyboard: KeyboardConfig,
+    /// User-created named custom shortcuts globally accessible across all devices
+    /// and radial action ring slots.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_shortcuts: Vec<CustomShortcutEntry>,
 }
 
 impl Default for Config {
@@ -139,6 +157,7 @@ impl Default for Config {
             devices: BTreeMap::new(),
             ephemeral: false,
             keyboard: KeyboardConfig::default(),
+            custom_shortcuts: Vec::new(),
         }
     }
 }

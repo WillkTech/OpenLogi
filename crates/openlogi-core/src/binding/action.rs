@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::action_ring::ActionRingIcon;
 use super::application_target::ApplicationTarget;
 use super::category::Category;
 use super::key_combo::KeyCombo;
@@ -189,6 +190,18 @@ pub enum Action {
     /// cancellation and shutdown. Dispatchers without a release context must
     /// degrade this action to a balanced tap rather than leave keys held.
     HoldShortcut(KeyCombo),
+    /// A user-created named shortcut stored in `config.custom_shortcuts`.
+    /// Carries `id`, `name`, `combo`, and optional `icon`.
+    SavedShortcut {
+        /// Unique identifier referencing a `CustomShortcutEntry`.
+        id: String,
+        /// Display name for the custom shortcut.
+        name: String,
+        /// Keyboard chord.
+        combo: KeyCombo,
+        /// Selectable icon glyph.
+        icon: Option<ActionRingIcon>,
+    },
 }
 
 /// One step in a [`Action::Workflow`]. A workflow is a `Vec<WorkflowStep>`
@@ -316,6 +329,7 @@ macro_rules! derive_action_core {
                     Action::Workflow(steps) => format!("Workflow ({} steps)", steps.len()),
                     Action::OpenApplication(target) => format!("Open {}", target.display_name()),
                     Action::HoldShortcut(combo) => format!("Hold {}", combo.rendered_label()),
+                    Action::SavedShortcut { name, .. } => name.clone(),
                 }
             }
 
@@ -324,8 +338,6 @@ macro_rules! derive_action_core {
             pub fn category(&self) -> Category {
                 match self {
                     $( Action::$variant => Category::$category, )*
-                    // CustomShortcut is assigned to Editing so it doesn't need a
-                    // separate arm (it's not in the picker catalog).
                     Action::CustomShortcut(_)
                     | Action::TypeText(_)
                     | Action::RunAppleScript(_)
@@ -334,6 +346,7 @@ macro_rules! derive_action_core {
                     | Action::HoldShortcut(_) => Category::Editing,
                     Action::SetDpiPreset(_) => Category::Dpi,
                     Action::OpenApplication(_) => Category::System,
+                    Action::SavedShortcut { .. } => Category::CustomShortcuts,
                 }
             }
 

@@ -485,6 +485,7 @@ fn held_keycode(key: HeldKey) -> Option<KeyCode> {
         HeldKey::Control => Some(KeyCode::KEY_LEFTCTRL),
         HeldKey::Shift => Some(KeyCode::KEY_LEFTSHIFT),
         HeldKey::Alt => Some(KeyCode::KEY_LEFTALT),
+        HeldKey::Meta => Some(KeyCode::KEY_LEFTMETA),
         HeldKey::Key(usage) => {
             let key = hid_usage_to_linux(usage.code());
             if key.is_none() {

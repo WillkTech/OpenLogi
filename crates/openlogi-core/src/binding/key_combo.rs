@@ -10,7 +10,9 @@ const MOD_COMMAND: u8 = 1 << 0;
 const MOD_SHIFT: u8 = 1 << 1;
 const MOD_CONTROL: u8 = 1 << 2;
 const MOD_OPTION: u8 = 1 << 3;
-const ALL_MODIFIERS: u8 = MOD_COMMAND | MOD_SHIFT | MOD_CONTROL | MOD_OPTION;
+const MOD_META: u8 = 1 << 4;
+const MOD_FN: u8 = 1 << 5;
+const ALL_MODIFIERS: u8 = MOD_COMMAND | MOD_SHIFT | MOD_CONTROL | MOD_OPTION | MOD_META | MOD_FN;
 
 /// USB HID keyboard usage supported by custom shortcuts.
 ///
@@ -191,11 +193,37 @@ impl KeyCombo {
         self.modifiers & MOD_OPTION != 0
     }
 
+    /// Whether the chord includes Meta/Win/Super.
+    #[must_use]
+    pub const fn has_meta(&self) -> bool {
+        self.modifiers & MOD_META != 0
+    }
+
+    /// Whether the chord includes Fn/Globe.
+    #[must_use]
+    pub const fn has_fn(&self) -> bool {
+        self.modifiers & MOD_FN != 0
+    }
+
     /// Canonical user-facing chord label.
     #[must_use]
     pub fn rendered_label(&self) -> String {
         let mut parts = Vec::new();
+        if self.has_fn() {
+            parts.push("Fn".to_string());
+        }
+        if self.has_meta() {
+            #[cfg(target_os = "windows")]
+            parts.push("Win".to_string());
+            #[cfg(target_os = "linux")]
+            parts.push("Super".to_string());
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+            parts.push("Meta".to_string());
+        }
         if self.has_command() {
+            #[cfg(target_os = "macos")]
+            parts.push("⌘".to_string());
+            #[cfg(not(target_os = "macos"))]
             parts.push("Cmd".to_string());
         }
         if self.has_control() {
@@ -266,7 +294,9 @@ impl FromStr for KeyCombo {
 
 fn parse_modifier(token: &str) -> Option<u8> {
     match token.to_ascii_lowercase().as_str() {
-        "cmd" | "command" | "meta" | "win" => Some(MOD_COMMAND),
+        "win" | "super" | "meta" => Some(MOD_META),
+        "cmd" | "command" | "⌘" => Some(MOD_COMMAND),
+        "fn" | "globe" => Some(MOD_FN),
         "shift" => Some(MOD_SHIFT),
         "ctrl" | "control" => Some(MOD_CONTROL),
         "alt" | "option" => Some(MOD_OPTION),

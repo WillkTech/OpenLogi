@@ -278,6 +278,7 @@ impl Action {
 
             Action::CustomShortcut(combo) => Effect::Key(combo),
             Action::HoldShortcut(combo) => Effect::HeldKey(combo),
+            Action::SavedShortcut { combo, .. } => Effect::Key(combo),
 
             Action::TypeText(text) => Effect::Text(text),
             Action::RunAppleScript(src) => Effect::Script(Script::AppleScript(src)),

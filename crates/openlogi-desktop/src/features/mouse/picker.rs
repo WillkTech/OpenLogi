@@ -88,6 +88,9 @@ pub(crate) fn action_icon_path(action: &Action) -> &'static str {
         Action::ScrollDown => "action-icons/chevrons-down.svg",
         Action::HorizontalScrollLeft => "action-icons/chevrons-left.svg",
         Action::HorizontalScrollRight => "action-icons/chevrons-right.svg",
+        Action::SavedShortcut { icon, .. } => {
+            icon.map_or("action-icons/keyboard.svg", openlogi_core::binding::ActionRingIcon::asset_path)
+        }
         Action::CustomShortcut(_) | Action::HoldShortcut(_) | Action::TypeText(_) => {
             "action-icons/keyboard.svg"
         }

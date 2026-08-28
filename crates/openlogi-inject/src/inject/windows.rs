@@ -291,6 +291,9 @@ fn post_custom_shortcut(combo: &KeyCombo) {
 
 fn combo_modifiers(combo: &KeyCombo) -> Vec<u16> {
     let mut modifiers = Vec::new();
+    if combo.has_meta() {
+        modifiers.push(VK_LWIN);
+    }
     if combo.has_command() {
         modifiers.push(VK_CONTROL);
     }
@@ -325,6 +328,7 @@ fn held_virtual_key(key: HeldKey) -> Option<u16> {
         HeldKey::Control => Some(VK_CONTROL),
         HeldKey::Shift => Some(VK_SHIFT),
         HeldKey::Alt => Some(VK_MENU),
+        HeldKey::Meta => Some(VK_LWIN),
         HeldKey::Key(usage) => {
             let key = super::hid_usage_to_windows(usage.code());
             if key.is_none() {
