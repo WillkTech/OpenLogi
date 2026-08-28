@@ -290,7 +290,7 @@ impl AppState {
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
-    pub fn set_vertical_acceleration(&mut self, factor: f64) {
+    pub fn set_vertical_acceleration(&mut self, factor: f32) {
         if self.config.app_settings.vertical_acceleration == factor {
             return;
         }
@@ -303,7 +303,7 @@ impl AppState {
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
-    pub fn set_vertical_max_gain(&mut self, max_gain: f64) {
+    pub fn set_vertical_max_gain(&mut self, max_gain: f32) {
         if self.config.app_settings.vertical_max_gain == max_gain {
             return;
         }
@@ -316,7 +316,7 @@ impl AppState {
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
-    pub fn set_horizontal_acceleration(&mut self, factor: f64) {
+    pub fn set_horizontal_acceleration(&mut self, factor: f32) {
         if self.config.app_settings.horizontal_acceleration == factor {
             return;
         }
@@ -329,7 +329,7 @@ impl AppState {
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
-    pub fn set_horizontal_max_gain(&mut self, max_gain: f64) {
+    pub fn set_horizontal_max_gain(&mut self, max_gain: f32) {
         if self.config.app_settings.horizontal_max_gain == max_gain {
             return;
         }

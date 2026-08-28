@@ -278,7 +278,7 @@ impl ScrollScale {
 
     /// Native scroll ticks one diverted increment contributes.
     fn per_increment(self) -> f64 {
-        self.resolution.native_per_increment() * self.sensitivity.scroll_multiplier()
+        self.resolution.native_per_increment() * f64::from(self.sensitivity.scroll_multiplier())
     }
 }
 

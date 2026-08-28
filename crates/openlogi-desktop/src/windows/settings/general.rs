@@ -43,7 +43,7 @@ impl AccelerationPreset {
     /// The `(strength, multiplier)` pair a preset writes; `None` carries none
     /// (it only flips the axis' enabled flag) and `Custom` keeps whatever the
     /// sliders hold.
-    pub(super) fn values(self, is_vertical: bool) -> Option<(f64, f64)> {
+    pub(super) fn values(self, is_vertical: bool) -> Option<(f32, f32)> {
         match self {
             Self::None | Self::Custom => None,
             Self::Precise => Some((0.5, 1.5)),
@@ -63,8 +63,8 @@ impl AccelerationPreset {
     /// hydrates that preset's values instead of reviving stale ones.
     pub(super) fn from_values(
         enabled: bool,
-        factor: f64,
-        max_gain: f64,
+        factor: f32,
+        max_gain: f32,
         is_vertical: bool,
     ) -> Self {
         if !enabled {
@@ -476,6 +476,6 @@ fn sensitivity_field(
     clippy::cast_sign_loss,
     reason = "factor is snapped into 0.2..=4.0 before rounding, so the cast is exact"
 )]
-fn percent_of(factor: f64) -> u32 {
+fn percent_of(factor: f32) -> u32 {
     (factor * 100.0).round() as u32
 }

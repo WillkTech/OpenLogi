@@ -11,7 +11,7 @@ fn hidpp_source(device_key: &str, epoch: u64) -> ScrollSource {
     ScrollSource::Hidpp(HidppSessionId::new(device_key, epoch))
 }
 
-fn wheel(x: f64, y: f64) -> WheelDelta {
+fn wheel(x: f32, y: f32) -> WheelDelta {
     WheelDelta { x, y }
 }
 
@@ -22,7 +22,7 @@ fn cumulative(frames: &[ScrollFrame]) -> WheelDelta {
 }
 
 fn assert_delta(actual: WheelDelta, expected: WheelDelta) {
-    const EPSILON: f64 = 1.0e-12;
+    const EPSILON: f32 = 1.0e-5;
     assert!(
         (actual.x - expected.x).abs() < EPSILON,
         "x: {} != {}",

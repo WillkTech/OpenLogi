@@ -30,8 +30,8 @@ const FRAME_INTERVAL: Duration = Duration::from_millis(8);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct WheelDelta {
-    x: f64,
-    y: f64,
+    x: f32,
+    y: f32,
 }
 
 impl WheelDelta {
@@ -55,7 +55,7 @@ impl WheelDelta {
         }
     }
 
-    fn scale(self, factor: f64) -> Self {
+    fn scale(self, factor: f32) -> Self {
         Self {
             x: self.x * factor,
             y: self.y * factor,
@@ -74,18 +74,26 @@ impl TryFrom<ScrollDelta> for WheelDelta {
         let ScrollDelta::WheelTicks { x, y } = delta else {
             return Err(());
         };
-        let delta = Self { x, y };
-        if x.is_finite() && y.is_finite() && !delta.is_zero() {
-            Ok(delta)
-        } else {
-            Err(())
+        if x.is_finite() && y.is_finite() && (x != 0.0 || y != 0.0) {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "wheel ticks fit comfortably within f32 precision"
+            )]
+            let delta = Self {
+                x: x as f32,
+                y: y as f32,
+            };
+            if !delta.is_zero() {
+                return Ok(delta);
+            }
         }
+        Err(())
     }
 }
 
 impl From<WheelDelta> for ScrollDelta {
     fn from(delta: WheelDelta) -> Self {
-        Self::wheel_ticks(delta.x, delta.y)
+        Self::wheel_ticks(f64::from(delta.x), f64::from(delta.y))
     }
 }
 
@@ -132,7 +140,7 @@ struct MotionSegment {
 impl MotionSegment {
     fn position_at(&self, at: Instant) -> WheelDelta {
         let elapsed = at.saturating_duration_since(self.started_at);
-        let progress = (elapsed.as_secs_f64() / ANIMATION_DURATION.as_secs_f64()).clamp(0.0, 1.0);
+        let progress = (elapsed.as_secs_f32() / ANIMATION_DURATION.as_secs_f32()).clamp(0.0, 1.0);
         // Easing curve f(p) = 1.2p + 0.6p^2 - 0.8p^3: gives instant non-zero
         // velocity on frame 1 (f'(0) = 1.2) while maintaining a smooth landing (f'(1) = 0).
         let eased = progress * (1.2 + progress * (0.6 - 0.8 * progress));

@@ -410,7 +410,7 @@ impl SettingsView {
         min: f32,
         max: f32,
         step: f32,
-        current: f64,
+        current: f32,
     ) -> Entity<SliderState> {
         cx.new(|_| {
             SliderState::new()
@@ -428,8 +428,8 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
         enabled: bool,
-        factor: f64,
-        max_gain: f64,
+        factor: f32,
+        max_gain: f32,
         is_vertical: bool,
     ) -> Entity<SelectState<Vec<general::PresetOption>>> {
         let preset =
@@ -497,9 +497,9 @@ impl SettingsView {
         is_strength: bool,
     ) {
         if let SliderEvent::Release(value) = event {
-            // Snap on integer grids (5% / 0.1×) in f64 so the stored value is
+            // Snap on integer grids (5% / 0.1×) in f32 so the stored value is
             // exact; the slider's own float stepping can drift a ulp.
-            let raw = f64::from(value.start());
+            let raw = value.start();
             let snapped = if is_strength {
                 (raw * 100.0 / 5.0).round() * 5.0 / 100.0
             } else {
@@ -623,8 +623,8 @@ impl SettingsView {
     fn sync_preset_select(
         &mut self,
         is_vertical: bool,
-        factor: f64,
-        max_gain: f64,
+        factor: f32,
+        max_gain: f32,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -804,13 +804,7 @@ impl Render for SettingsView {
 }
 
 /// Seat a bounded acceleration value (Acceleration 0.2-4.0, Multiplier
-/// 1.0-5.0) on an f32 slider. Stored values are clamped into the current
-/// slider range, which sits far inside f32's precision - the conversion is
-/// total.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "inputs are clamped into the 0.2-5.0 slider range first"
-)]
-fn slider_f32(value: f64) -> f32 {
-    value.clamp(0.2, 5.0) as f32
+/// 1.0-5.0) on an f32 slider.
+fn slider_f32(value: f32) -> f32 {
+    value.clamp(0.2, 5.0)
 }
