@@ -314,6 +314,7 @@ macro_rules! derive_action_icon {
                 match action {
                     $( Action::$variant => Self::$icon, )*
                     Action::SetDpiPreset(_) => Self::Gauge,
+                    Action::SavedShortcut { icon, .. } => icon.unwrap_or(Self::Keyboard),
                     Action::CustomShortcut(_)
                     | Action::TypeText(_)
                     | Action::Workflow(_)

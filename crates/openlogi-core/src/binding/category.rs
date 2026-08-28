@@ -6,6 +6,8 @@
 /// as a small muted label above each group in the action picker.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Category {
+    /// Custom named user-created shortcuts.
+    CustomShortcuts,
     /// Cut, copy, paste, undo, redo, select-all, find, save.
     Editing,
     /// Browser navigation: tabs, page reload, back/forward.
@@ -33,6 +35,7 @@ impl Category {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
+            Category::CustomShortcuts => "Custom Shortcuts",
             Category::Editing => "Editing",
             Category::Browser => "Browser",
             Category::Media => "Media",

@@ -9,5 +9,6 @@ pub(crate) mod components;
 pub(crate) mod gallery;
 pub mod section;
 pub mod spacing;
+pub mod shortcut_builder;
 pub mod status;
 pub mod theme;

@@ -44,6 +44,9 @@ enum HeldKey {
     Control,
     Shift,
     Alt,
+    Meta,
+    #[cfg(target_os = "macos")]
+    Fn,
     Key(KeyboardUsage),
 }
 
@@ -81,6 +84,8 @@ impl HeldModifiers {
             HeldKey::Control => Some(1 << 1),
             HeldKey::Shift => Some(1 << 2),
             HeldKey::Alt => Some(1 << 3),
+            HeldKey::Meta => Some(1 << 4),
+            HeldKey::Fn => Some(1 << 5),
             HeldKey::Key(_) => None,
         }
     }
@@ -137,6 +142,8 @@ impl HeldOutput {
             HeldKey::Control,
             HeldKey::Shift,
             HeldKey::Alt,
+            HeldKey::Meta,
+            HeldKey::Fn,
         ] {
             modifiers.set(key, self.owners.contains_key(&key));
         }
@@ -168,6 +175,13 @@ fn held_keys(combo: &KeyCombo) -> Vec<HeldKey> {
     }
     if combo.has_option() {
         keys.push(HeldKey::Alt);
+    }
+    if combo.has_meta() {
+        keys.push(HeldKey::Meta);
+    }
+    #[cfg(target_os = "macos")]
+    if combo.has_fn() {
+        keys.push(HeldKey::Fn);
     }
     keys.push(HeldKey::Key(combo.key()));
     keys
