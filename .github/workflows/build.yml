@@ -350,7 +350,7 @@ jobs:
       id-token: write
       contents: read
     # The federated credential's subject is bound to this GitHub environment, so the
-    # OIDC `sub` claim stays stable (repo:AprilNEA/OpenLogi:environment:release)
+    # OIDC `sub` claim stays stable (repo:WillkTech/OpenLogi:environment:release)
     # instead of changing with every tag ref. Only signed (release) runs enter it;
     # an unsigned run needs no secrets, so it takes no environment (fork PRs, which
     # can't access a protected environment at all, then build fine).
@@ -473,7 +473,7 @@ jobs:
           cargo build --release -p openlogi-desktop -p openlogi-overlay -p openlogi-agent -p openlogi --target ${{ matrix.target }}
 
       # Federated (passwordless) login. Requires an app registration whose federated
-      # credential subject is `repo:AprilNEA/OpenLogi:environment:release`, granted the
+      # credential subject is `repo:WillkTech/OpenLogi:environment:release`, granted the
       # "Artifact Signing Certificate Profile Signer" role on the signing account.
       - name: Azure login (OIDC)
         if: ${{ inputs.sign }}

@@ -44,7 +44,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="OpenLogi"
-           Manufacturer="AprilNEA"
+           Manufacturer="WillkTech"
            Version="$(var.Version)"
            UpgradeCode="$(var.UpgradeCode)"
            Language="1033"
@@ -221,6 +221,6 @@
     <Icon Id="OpenLogiIco" SourceFile="$(var.IconFile)" />
     <Property Id="ARPPRODUCTICON" Value="OpenLogiIco" />
     <Property Id="ARPURLINFOABOUT" Value="https://openlogi.org" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/AprilNEA/OpenLogi" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/WillkTech/OpenLogi" />
   </Package>
 </Wix>

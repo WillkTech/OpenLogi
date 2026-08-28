@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- *(agent)* dispatch independent long-press actions ([#961](https://github.com/AprilNEA/OpenLogi/pull/961))
+- *(agent)* dispatch independent long-press actions ([#961](https://github.com/WillkTech/OpenLogi/pull/961))
 - *(gui)* expose smooth scroll control
 - *(gui)* persist smooth scroll setting
 - *(gui)* add vertical scroll sensitivity control
@@ -25,17 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(inject)* add phased smooth scroll output
 - *(core)* add smooth scroll preference
 - *(inject)* preserve fractional wheel output
-- *(gui)* add polished battery indicator ([#983](https://github.com/AprilNEA/OpenLogi/pull/983))
-- *(gui)* add installed application catalog picker ([#976](https://github.com/AprilNEA/OpenLogi/pull/976))
+- *(gui)* add polished battery indicator ([#983](https://github.com/WillkTech/OpenLogi/pull/983))
+- *(gui)* add installed application catalog picker ([#976](https://github.com/WillkTech/OpenLogi/pull/976))
 - *(agent)* hold shortcut output until button release
 - *(gui)* add debug component gallery
 - *(gui)* add switchable device gallery views
 - *(gui)* replace device carousel with responsive grid
 - *(core)* persist custom device names
-- *(i18n)* add Turkish (tr) interface locale ([#835](https://github.com/AprilNEA/OpenLogi/pull/835))
+- *(i18n)* add Turkish (tr) interface locale ([#835](https://github.com/WillkTech/OpenLogi/pull/835))
 - *(agent)* unify button lifecycle
 - *(gui)* add scalable interface presets
-- *(gui)* make custom controls keyboard-operable ([#916](https://github.com/AprilNEA/OpenLogi/pull/916))
+- *(gui)* make custom controls keyboard-operable ([#916](https://github.com/WillkTech/OpenLogi/pull/916))
 - *(gui)* redesign device configuration workspace
 - *(gui)* edit per-app button profiles
 - *(gui)* give the binding panels an editing scope
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(gui)* show which per-app profile is in effect
 - *(ipc)* report the foreground application in the agent snapshot
 - *(core)* add the foreground-application type
-- *(core,gui)* make the main wheel's tilt rebindable (MX anywhere 2s,...) ([#902](https://github.com/AprilNEA/OpenLogi/pull/902))
+- *(core,gui)* make the main wheel's tilt rebindable (MX anywhere 2s,...) ([#902](https://github.com/WillkTech/OpenLogi/pull/902))
 
 ### Changed
 
@@ -51,8 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- *(hid)* preserve diverted wheel reporting ([#992](https://github.com/AprilNEA/OpenLogi/pull/992))
-- *(core,gui,agent)* key device settings by identity, not by transport ([#876](https://github.com/AprilNEA/OpenLogi/pull/876))
+- *(hid)* preserve diverted wheel reporting ([#992](https://github.com/WillkTech/OpenLogi/pull/992))
+- *(core,gui,agent)* key device settings by identity, not by transport ([#876](https://github.com/WillkTech/OpenLogi/pull/876))
 - *(gui)* type permission badge elements
 - *(gui)* close macos render lifetime
 - *(gui)* restore rejected scroll sensitivity
@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(agent)* balance concurrent scroll phases
 - *(agent)* preserve fractional thumbwheel distance
 - *(macos)* preserve fractional wheel deltas
-- *(thumbwheel)* scale remapped vertical scrolling ([#925](https://github.com/AprilNEA/OpenLogi/pull/925))
+- *(thumbwheel)* scale remapped vertical scrolling ([#925](https://github.com/WillkTech/OpenLogi/pull/925))
 - *(macos)* retain shared held-key ownership
 - *(hook)* fail open rejected key releases
 - *(agent)* preserve held shortcut lifecycles
@@ -75,10 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(gui)* distinguish same-model cameras
 - *(gui)* keep pointer card widths consistent
 - *(gui)* wait for SmartShift confirmation
-- *(hidpp)* read Unifying link encryption from bit 5, not the software-present bit ([#924](https://github.com/AprilNEA/OpenLogi/pull/924))
-- show Windows MSI completion and failure state ([#819](https://github.com/AprilNEA/OpenLogi/pull/819))
-- *(hid)* preserve usage pairs in native handle cache ([#882](https://github.com/AprilNEA/OpenLogi/pull/882))
-- *(macos)* use reliable async-hid report writes ([#889](https://github.com/AprilNEA/OpenLogi/pull/889))
+- *(hidpp)* read Unifying link encryption from bit 5, not the software-present bit ([#924](https://github.com/WillkTech/OpenLogi/pull/924))
+- show Windows MSI completion and failure state ([#819](https://github.com/WillkTech/OpenLogi/pull/819))
+- *(hid)* preserve usage pairs in native handle cache ([#882](https://github.com/WillkTech/OpenLogi/pull/882))
+- *(macos)* use reliable async-hid report writes ([#889](https://github.com/WillkTech/OpenLogi/pull/889))
 - *(gui)* adapt profile editors to state events
 - *(gui)* let device summary text fill its row
 - *(gui)* apply semantic colors to custom controls
@@ -89,13 +89,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(hidpp)* correct 0x41 re-broadcast semantics and expose decoding
 - *(hid)* trust live Unifying arrival events
 - *(hid)* fail fast on unresponsive receivers
-- *(macos)* honor XDG state dir in permission diagnostics ([#915](https://github.com/AprilNEA/OpenLogi/pull/915))
-- *(gui)* restore full-phrase thumb-wheel preset labels ([#913](https://github.com/AprilNEA/OpenLogi/pull/913))
-- *(linux)* restore glibc 2.35 package baseline ([#911](https://github.com/AprilNEA/OpenLogi/pull/911))
-- *(mouse)* compose thumb-wheel preset labels from translated action names ([#910](https://github.com/AprilNEA/OpenLogi/pull/910))
+- *(macos)* honor XDG state dir in permission diagnostics ([#915](https://github.com/WillkTech/OpenLogi/pull/915))
+- *(gui)* restore full-phrase thumb-wheel preset labels ([#913](https://github.com/WillkTech/OpenLogi/pull/913))
+- *(linux)* restore glibc 2.35 package baseline ([#911](https://github.com/WillkTech/OpenLogi/pull/911))
+- *(mouse)* compose thumb-wheel preset labels from translated action names ([#910](https://github.com/WillkTech/OpenLogi/pull/910))
 - *(gui)* update app state through sync context
-- *(gui)* recognize mx ergo wheel tilt metadata ([#905](https://github.com/AprilNEA/OpenLogi/pull/905))
-- *(linux)* install the app icon at every indexed hicolor size ([#837](https://github.com/AprilNEA/OpenLogi/pull/837))
+- *(gui)* recognize mx ergo wheel tilt metadata ([#905](https://github.com/WillkTech/OpenLogi/pull/905))
+- *(linux)* install the app icon at every indexed hicolor size ([#837](https://github.com/WillkTech/OpenLogi/pull/837))
 
 ## [0.7.10] - 2026-08-23
 
@@ -108,31 +108,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- *(cli)* read the running agent's inventory in openlogi list ([#823](https://github.com/AprilNEA/OpenLogi/pull/823))
-- *(ipc)* surface HID open failures in agent status ([#822](https://github.com/AprilNEA/OpenLogi/pull/822))
+- *(cli)* read the running agent's inventory in openlogi list ([#823](https://github.com/WillkTech/OpenLogi/pull/823))
+- *(ipc)* surface HID open failures in agent status ([#822](https://github.com/WillkTech/OpenLogi/pull/822))
 
 ### Fixed
 
-- *(overlay,agent)* stop the anonymous overlay tenant from wedging the Actions Ring ([#848](https://github.com/AprilNEA/OpenLogi/pull/848))
-- *(gui)* stop discarding correctly rebuilt device records ([#868](https://github.com/AprilNEA/OpenLogi/pull/868))
-- *(thumbwheel)* stop the tap firing App Exposé, and scroll by the wheel's native amount ([#857](https://github.com/AprilNEA/OpenLogi/pull/857))
-- *(agent)* follow the picked app icon in the menu bar ([#846](https://github.com/AprilNEA/OpenLogi/pull/846))
-- *(nix)* provide git to the sandboxed test phase ([#833](https://github.com/AprilNEA/OpenLogi/pull/833))
-- *(gui)* check the open helper's exit status when launching the agent ([#820](https://github.com/AprilNEA/OpenLogi/pull/820))
+- *(overlay,agent)* stop the anonymous overlay tenant from wedging the Actions Ring ([#848](https://github.com/WillkTech/OpenLogi/pull/848))
+- *(gui)* stop discarding correctly rebuilt device records ([#868](https://github.com/WillkTech/OpenLogi/pull/868))
+- *(thumbwheel)* stop the tap firing App Exposé, and scroll by the wheel's native amount ([#857](https://github.com/WillkTech/OpenLogi/pull/857))
+- *(agent)* follow the picked app icon in the menu bar ([#846](https://github.com/WillkTech/OpenLogi/pull/846))
+- *(nix)* provide git to the sandboxed test phase ([#833](https://github.com/WillkTech/OpenLogi/pull/833))
+- *(gui)* check the open helper's exit status when launching the agent ([#820](https://github.com/WillkTech/OpenLogi/pull/820))
 
 ## [0.7.8] - 2026-08-23
 
 ### Added
 
-- *(cli)* read the running agent's inventory in openlogi list ([#823](https://github.com/AprilNEA/OpenLogi/pull/823))
-- *(ipc)* surface HID open failures in agent status ([#822](https://github.com/AprilNEA/OpenLogi/pull/822))
+- *(cli)* read the running agent's inventory in openlogi list ([#823](https://github.com/WillkTech/OpenLogi/pull/823))
+- *(ipc)* surface HID open failures in agent status ([#822](https://github.com/WillkTech/OpenLogi/pull/822))
 
 ### Fixed
 
-- *(thumbwheel)* stop the tap firing App Exposé, and scroll by the wheel's native amount ([#857](https://github.com/AprilNEA/OpenLogi/pull/857))
-- *(agent)* follow the picked app icon in the menu bar ([#846](https://github.com/AprilNEA/OpenLogi/pull/846))
-- *(nix)* provide git to the sandboxed test phase ([#833](https://github.com/AprilNEA/OpenLogi/pull/833))
-- *(gui)* check the open helper's exit status when launching the agent ([#820](https://github.com/AprilNEA/OpenLogi/pull/820))
+- *(thumbwheel)* stop the tap firing App Exposé, and scroll by the wheel's native amount ([#857](https://github.com/WillkTech/OpenLogi/pull/857))
+- *(agent)* follow the picked app icon in the menu bar ([#846](https://github.com/WillkTech/OpenLogi/pull/846))
+- *(nix)* provide git to the sandboxed test phase ([#833](https://github.com/WillkTech/OpenLogi/pull/833))
+- *(gui)* check the open helper's exit status when launching the agent ([#820](https://github.com/WillkTech/OpenLogi/pull/820))
 
 ## [0.7.7] - 2026-08-23
 
@@ -142,22 +142,22 @@ ships here.
 
 ### Added
 
-- *(hid)* recognise Lightspeed receiver 046d:c54d (PRO X SUPERLIGHT 2 DEX) ([#811](https://github.com/AprilNEA/OpenLogi/pull/811))
+- *(hid)* recognise Lightspeed receiver 046d:c54d (PRO X SUPERLIGHT 2 DEX) ([#811](https://github.com/WillkTech/OpenLogi/pull/811))
 - *(gui)* wear and pick the app icon
 - *(core)* persist which app icon the user picked
-- *(camera)* add anti-flicker and low-light controls ([#793](https://github.com/AprilNEA/OpenLogi/pull/793))
-- *(cli)* report feature flags and firmware entities in diag features ([#690](https://github.com/AprilNEA/OpenLogi/pull/690))
-- *(i18n)* add Ukrainian (uk) locale ([#715](https://github.com/AprilNEA/OpenLogi/pull/715))
+- *(camera)* add anti-flicker and low-light controls ([#793](https://github.com/WillkTech/OpenLogi/pull/793))
+- *(cli)* report feature flags and firmware entities in diag features ([#690](https://github.com/WillkTech/OpenLogi/pull/690))
+- *(i18n)* add Ukrainian (uk) locale ([#715](https://github.com/WillkTech/OpenLogi/pull/715))
 
 ### Fixed
 
-- *(ci)* build both macOS legs with an Icon Composer-capable Xcode ([#815](https://github.com/AprilNEA/OpenLogi/pull/815))
-- *(agent)* make macOS permission failures diagnosable ([#817](https://github.com/AprilNEA/OpenLogi/pull/817))
+- *(ci)* build both macOS legs with an Icon Composer-capable Xcode ([#815](https://github.com/WillkTech/OpenLogi/pull/815))
+- *(agent)* make macOS permission failures diagnosable ([#817](https://github.com/WillkTech/OpenLogi/pull/817))
 - *(release)* trust release-plz no-op results
 - *(release)* use changelog as release PR body
-- *(hid)* park the Windows HID read on a permanently dead handle ([#779](https://github.com/AprilNEA/OpenLogi/pull/779))
-- *(hid)* take async-hid 0.5.3 so a denied HID open stops leaking ([#804](https://github.com/AprilNEA/OpenLogi/pull/804))
-- *(ipc)* surface Input Monitoring via agent status and fix registry_model_id bincode ([#760](https://github.com/AprilNEA/OpenLogi/pull/760))
+- *(hid)* park the Windows HID read on a permanently dead handle ([#779](https://github.com/WillkTech/OpenLogi/pull/779))
+- *(hid)* take async-hid 0.5.3 so a denied HID open stops leaking ([#804](https://github.com/WillkTech/OpenLogi/pull/804))
+- *(ipc)* surface Input Monitoring via agent status and fix registry_model_id bincode ([#760](https://github.com/WillkTech/OpenLogi/pull/760))
 - *(agent)* an unreadable stat breaks the absence run
 - *(agent)* only confirmed absence may condemn the agent
 - *(agent)* shut down when the app is uninstalled
@@ -173,11 +173,11 @@ ships here.
 
 ### Added
 
-- *(hid)* support G602 nano receiver ([#684](https://github.com/AprilNEA/OpenLogi/pull/684))
+- *(hid)* support G602 nano receiver ([#684](https://github.com/WillkTech/OpenLogi/pull/684))
 
 ### Fixed
 
-- *(hid)* surface the 0xc539 dongle as a Lightspeed receiver, not Unifying ([#665](https://github.com/AprilNEA/OpenLogi/pull/665))
+- *(hid)* surface the 0xc539 dongle as a Lightspeed receiver, not Unifying ([#665](https://github.com/WillkTech/OpenLogi/pull/665))
 - *(ci)* make the MSRV job actually pin the toolchain it installs
 - *(camera)* finish the 1.98 chunks_exact sweep in the platform backends
 - satisfy the lints Rust 1.98 added
@@ -200,9 +200,9 @@ ships here.
 
 ### Fixed
 
-- *(overlay)* prevent GPUI from exiting on window close ([#700](https://github.com/AprilNEA/OpenLogi/pull/700))
+- *(overlay)* prevent GPUI from exiting on window close ([#700](https://github.com/WillkTech/OpenLogi/pull/700))
 - *(gui)* give the auxiliary windows the app's real Wayland identity
-- *(gui)* use the GPUI executor timer, not tokio::time::interval, for camera scans ([#686](https://github.com/AprilNEA/OpenLogi/pull/686))
+- *(gui)* use the GPUI executor timer, not tokio::time::interval, for camera scans ([#686](https://github.com/WillkTech/OpenLogi/pull/686))
 - *(overlay)* use the workspace's Duration idioms for the give-up clock
 - *(agent)* ask the overlay to leave before quitting
 - *(overlay)* give up when no agent answers for a minute
@@ -210,20 +210,20 @@ ships here.
 - *(core)* keep dev builds on the dev profile after the suffix rename
 - *(agent)* supervise the overlay role instead of launching into it
 - *(gui)* bind the Actions Ring overlay to one agent run
-- *(agent)* reapply volatile settings after Windows resume ([#639](https://github.com/AprilNEA/OpenLogi/pull/639))
+- *(agent)* reapply volatile settings after Windows resume ([#639](https://github.com/WillkTech/OpenLogi/pull/639))
 
 ## [0.7.1] - 2026-08-15
 
 ### Added
 
-- *(gui)* add a reversed Volume preset for the thumb wheel ([#608](https://github.com/AprilNEA/OpenLogi/pull/608))
+- *(gui)* add a reversed Volume preset for the thumb wheel ([#608](https://github.com/WillkTech/OpenLogi/pull/608))
 
 ### Fixed
 
-- *(agent)* request Input Monitoring access at startup on macOS ([#607](https://github.com/AprilNEA/OpenLogi/pull/607))
-- *(infra)* stop ignoring the committed Amp orb lifecycle scripts ([#637](https://github.com/AprilNEA/OpenLogi/pull/637))
-- *(assets)* trust the OS certificate store, not bundled Mozilla roots ([#634](https://github.com/AprilNEA/OpenLogi/pull/634))
-- *(hid)* never switch a device to a host slot it is not paired on ([#631](https://github.com/AprilNEA/OpenLogi/pull/631))
+- *(agent)* request Input Monitoring access at startup on macOS ([#607](https://github.com/WillkTech/OpenLogi/pull/607))
+- *(infra)* stop ignoring the committed Amp orb lifecycle scripts ([#637](https://github.com/WillkTech/OpenLogi/pull/637))
+- *(assets)* trust the OS certificate store, not bundled Mozilla roots ([#634](https://github.com/WillkTech/OpenLogi/pull/634))
+- *(hid)* never switch a device to a host slot it is not paired on ([#631](https://github.com/WillkTech/OpenLogi/pull/631))
 
 ## [0.7.0] - 2026-08-16
 
@@ -244,14 +244,14 @@ observable behaviour, so they do not belong in a patch release.
   mouse exposing `0x2202 ExtendedAdjustableDpi` without the older `0x2201` used
   to get a DPI panel where every read and write failed; a keyboard exposing
   `0x8081 PerKeyLighting2` without `0x8080` got no lighting tab at all. Both are
-  driven properly. ([#629](https://github.com/AprilNEA/OpenLogi/pull/629))
+  driven properly. ([#629](https://github.com/WillkTech/OpenLogi/pull/629))
 - **The Actions Ring is reliable under repeat use.** Haptics no longer fire from
   a retired session, a stale feature handle can no longer be reused across a
   reconnect, and the ring stays alive as long as it is clickable.
-  ([#596](https://github.com/AprilNEA/OpenLogi/pull/596),
-  [#597](https://github.com/AprilNEA/OpenLogi/pull/597),
-  [#598](https://github.com/AprilNEA/OpenLogi/pull/598),
-  [#599](https://github.com/AprilNEA/OpenLogi/pull/599))
+  ([#596](https://github.com/WillkTech/OpenLogi/pull/596),
+  [#597](https://github.com/WillkTech/OpenLogi/pull/597),
+  [#598](https://github.com/WillkTech/OpenLogi/pull/598),
+  [#599](https://github.com/WillkTech/OpenLogi/pull/599))
 - **Windows camera control stops leaking.** Every COM and Media Foundation
   initialization is now paired with its release, and a UVC entity scan stays
   inside its own VideoControl block instead of walking into a neighbour's.
@@ -271,104 +271,104 @@ observable behaviour, so they do not belong in a patch release.
 
 ### Fixed
 
-- *(config)* harden schema and persistence ([#604](https://github.com/AprilNEA/OpenLogi/pull/604))
-- *(hid)* drive 0x2202 DPI and 0x8081 lighting, not just their predecessors ([#629](https://github.com/AprilNEA/OpenLogi/pull/629))
-- *(release)* put openlogi-camera in the workspace version group ([#618](https://github.com/AprilNEA/OpenLogi/pull/618))
+- *(config)* harden schema and persistence ([#604](https://github.com/WillkTech/OpenLogi/pull/604))
+- *(hid)* drive 0x2202 DPI and 0x8081 lighting, not just their predecessors ([#629](https://github.com/WillkTech/OpenLogi/pull/629))
+- *(release)* put openlogi-camera in the workspace version group ([#618](https://github.com/WillkTech/OpenLogi/pull/618))
 - *(agent)* bound the background lighting write by WRITE_BUDGET
 - *(camera)* pair every COM and Media Foundation initialization
 - *(camera)* scope a UVC entity scan to its own VideoControl block
 - *(camera)* release every activate Media Foundation hands back
-- keep the ring session alive as long as the ring is clickable ([#599](https://github.com/AprilNEA/OpenLogi/pull/599))
-- *(agent)* bound the Actions Ring haptic worker to the session it serves ([#598](https://github.com/AprilNEA/OpenLogi/pull/598))
-- *(hid)* never cache a haptic feature for a retired channel ([#597](https://github.com/AprilNEA/OpenLogi/pull/597))
-- *(hid)* four defects from the Actions Ring review ([#596](https://github.com/AprilNEA/OpenLogi/pull/596))
+- keep the ring session alive as long as the ring is clickable ([#599](https://github.com/WillkTech/OpenLogi/pull/599))
+- *(agent)* bound the Actions Ring haptic worker to the session it serves ([#598](https://github.com/WillkTech/OpenLogi/pull/598))
+- *(hid)* never cache a haptic feature for a retired channel ([#597](https://github.com/WillkTech/OpenLogi/pull/597))
+- *(hid)* four defects from the Actions Ring review ([#596](https://github.com/WillkTech/OpenLogi/pull/596))
 - *(xtask)* stamp and verify the macOS bundle identity per channel
 
 ## [0.6.27] - 2026-08-13
 
 ### Added
 
-- *(gui)* dismiss the Actions Ring on a click outside it ([#591](https://github.com/AprilNEA/OpenLogi/pull/591))
-- *(agent)* pressing the ring trigger again dismisses the Actions Ring ([#592](https://github.com/AprilNEA/OpenLogi/pull/592))
-- *(agent)* add a hardware-free mock agent for GUI development ([#568](https://github.com/AprilNEA/OpenLogi/pull/568))
-- per-slot custom labels for the Actions Ring ([#584](https://github.com/AprilNEA/OpenLogi/pull/584))
-- *(core)* support stable Windows app selectors ([#572](https://github.com/AprilNEA/OpenLogi/pull/572))
-- *(gui)* add capability-driven actions ring ([#528](https://github.com/AprilNEA/OpenLogi/pull/528))
-- *(hid)* persist the immutable probe cache across restarts ([#564](https://github.com/AprilNEA/OpenLogi/pull/564))
-- *(gui)* back navigation via the mouse's back button and Alt+Left ([#563](https://github.com/AprilNEA/OpenLogi/pull/563))
-- capture the MX Master 4 haptic panel as a first-class control ([#565](https://github.com/AprilNEA/OpenLogi/pull/565))
-- *(hid)* recognise Lightspeed receiver 046d:c547 (G915, G502 X) ([#574](https://github.com/AprilNEA/OpenLogi/pull/574))
-- *(hid,hidpp)* read battery over BatteryVoltage (0x1001) ([#575](https://github.com/AprilNEA/OpenLogi/pull/575))
+- *(gui)* dismiss the Actions Ring on a click outside it ([#591](https://github.com/WillkTech/OpenLogi/pull/591))
+- *(agent)* pressing the ring trigger again dismisses the Actions Ring ([#592](https://github.com/WillkTech/OpenLogi/pull/592))
+- *(agent)* add a hardware-free mock agent for GUI development ([#568](https://github.com/WillkTech/OpenLogi/pull/568))
+- per-slot custom labels for the Actions Ring ([#584](https://github.com/WillkTech/OpenLogi/pull/584))
+- *(core)* support stable Windows app selectors ([#572](https://github.com/WillkTech/OpenLogi/pull/572))
+- *(gui)* add capability-driven actions ring ([#528](https://github.com/WillkTech/OpenLogi/pull/528))
+- *(hid)* persist the immutable probe cache across restarts ([#564](https://github.com/WillkTech/OpenLogi/pull/564))
+- *(gui)* back navigation via the mouse's back button and Alt+Left ([#563](https://github.com/WillkTech/OpenLogi/pull/563))
+- capture the MX Master 4 haptic panel as a first-class control ([#565](https://github.com/WillkTech/OpenLogi/pull/565))
+- *(hid)* recognise Lightspeed receiver 046d:c547 (G915, G502 X) ([#574](https://github.com/WillkTech/OpenLogi/pull/574))
+- *(hid,hidpp)* read battery over BatteryVoltage (0x1001) ([#575](https://github.com/WillkTech/OpenLogi/pull/575))
 
 ### Fixed
 
-- *(gui)* open the Actions Ring on the display containing the cursor ([#588](https://github.com/AprilNEA/OpenLogi/pull/588))
-- *(hid)* detect and recover dead-delivery HID channels ([#589](https://github.com/AprilNEA/OpenLogi/pull/589))
-- Actions Ring haptic reliability — coalescing, feature cache, firmware arming, deadlock guards ([#590](https://github.com/AprilNEA/OpenLogi/pull/590))
-- *(agent)* implement the Actions Ring IPC surface in the mock agent ([#587](https://github.com/AprilNEA/OpenLogi/pull/587))
-- *(gui)* redraw the Actions Ring on hover changes ([#585](https://github.com/AprilNEA/OpenLogi/pull/585))
-- *(hid)* widen the Bolt per-slot probe budget for high-latency USB paths ([#562](https://github.com/AprilNEA/OpenLogi/pull/562))
-- *(macos)* prevent corrupted small app icons ([#570](https://github.com/AprilNEA/OpenLogi/pull/570))
-- *(hook)* release macOS tap after accessibility revocation ([#578](https://github.com/AprilNEA/OpenLogi/pull/578))
-- *(ui)* prevent middle and thumb wheel popover flicker ([#559](https://github.com/AprilNEA/OpenLogi/pull/559))
+- *(gui)* open the Actions Ring on the display containing the cursor ([#588](https://github.com/WillkTech/OpenLogi/pull/588))
+- *(hid)* detect and recover dead-delivery HID channels ([#589](https://github.com/WillkTech/OpenLogi/pull/589))
+- Actions Ring haptic reliability — coalescing, feature cache, firmware arming, deadlock guards ([#590](https://github.com/WillkTech/OpenLogi/pull/590))
+- *(agent)* implement the Actions Ring IPC surface in the mock agent ([#587](https://github.com/WillkTech/OpenLogi/pull/587))
+- *(gui)* redraw the Actions Ring on hover changes ([#585](https://github.com/WillkTech/OpenLogi/pull/585))
+- *(hid)* widen the Bolt per-slot probe budget for high-latency USB paths ([#562](https://github.com/WillkTech/OpenLogi/pull/562))
+- *(macos)* prevent corrupted small app icons ([#570](https://github.com/WillkTech/OpenLogi/pull/570))
+- *(hook)* release macOS tap after accessibility revocation ([#578](https://github.com/WillkTech/OpenLogi/pull/578))
+- *(ui)* prevent middle and thumb wheel popover flicker ([#559](https://github.com/WillkTech/OpenLogi/pull/559))
 
 ## [0.6.26] - 2026-08-10
 
 ### Fixed
 
-- *(macos)* add camera hardened-runtime entitlement ([#557](https://github.com/AprilNEA/OpenLogi/pull/557))
+- *(macos)* add camera hardened-runtime entitlement ([#557](https://github.com/WillkTech/OpenLogi/pull/557))
 
 ## [0.6.25] - 2026-08-10
 
 ### Added
 
-- per-device capture with plan-driven sessions ([#419](https://github.com/AprilNEA/OpenLogi/pull/419))
-- *(hid)* recognise Lightspeed nano receivers (G-series, e.g. G305) ([#388](https://github.com/AprilNEA/OpenLogi/pull/388))
-- add MX Master 2S (3S) thumb wheel bindings ([#525](https://github.com/AprilNEA/OpenLogi/pull/525))
+- per-device capture with plan-driven sessions ([#419](https://github.com/WillkTech/OpenLogi/pull/419))
+- *(hid)* recognise Lightspeed nano receivers (G-series, e.g. G305) ([#388](https://github.com/WillkTech/OpenLogi/pull/388))
+- add MX Master 2S (3S) thumb wheel bindings ([#525](https://github.com/WillkTech/OpenLogi/pull/525))
 
 ### Fixed
 
-- *(i18n)* add camera permission locale keys ([#554](https://github.com/AprilNEA/OpenLogi/pull/554))
-- *(hook)* capture keyboard events on windows ([#548](https://github.com/AprilNEA/OpenLogi/pull/548))
-- *(gui,camera,xtask)* make Camera permission grantable on macOS ([#550](https://github.com/AprilNEA/OpenLogi/pull/550))
-- *(ci)* merge Crowdin downloads into locale catalogs ([#553](https://github.com/AprilNEA/OpenLogi/pull/553))
-- *(i18n)* skip Crowdin English fill-in and restore locale parity ([#551](https://github.com/AprilNEA/OpenLogi/pull/551))
-- *(hidpp)* retry lost feature-table reads during enumeration ([#469](https://github.com/AprilNEA/OpenLogi/pull/469))
-- *(gui,assets)* fit the Keys tab to legacy keyboard assets (G513) ([#544](https://github.com/AprilNEA/OpenLogi/pull/544))
+- *(i18n)* add camera permission locale keys ([#554](https://github.com/WillkTech/OpenLogi/pull/554))
+- *(hook)* capture keyboard events on windows ([#548](https://github.com/WillkTech/OpenLogi/pull/548))
+- *(gui,camera,xtask)* make Camera permission grantable on macOS ([#550](https://github.com/WillkTech/OpenLogi/pull/550))
+- *(ci)* merge Crowdin downloads into locale catalogs ([#553](https://github.com/WillkTech/OpenLogi/pull/553))
+- *(i18n)* skip Crowdin English fill-in and restore locale parity ([#551](https://github.com/WillkTech/OpenLogi/pull/551))
+- *(hidpp)* retry lost feature-table reads during enumeration ([#469](https://github.com/WillkTech/OpenLogi/pull/469))
+- *(gui,assets)* fit the Keys tab to legacy keyboard assets (G513) ([#544](https://github.com/WillkTech/OpenLogi/pull/544))
 
 ## [0.6.24] - 2026-08-10
 
 ### Added
 
-- *(hid)* recognize Lightspeed receiver (046d:c539) as Unifying-compatible ([#510](https://github.com/AprilNEA/OpenLogi/pull/510))
-- add function key remapper ([#344](https://github.com/AprilNEA/OpenLogi/pull/344))
-- *(hid)* add standalone Litra light support ([#513](https://github.com/AprilNEA/OpenLogi/pull/513))
-- keyboard F-row key remapping and fn-lock over HID++ ([#395](https://github.com/AprilNEA/OpenLogi/pull/395))
-- *(hook)* Wayland frontmost-window backends (wlroots + GNOME Shell) ([#191](https://github.com/AprilNEA/OpenLogi/pull/191))
-- *(camera)* add Logitech webcam support ([#531](https://github.com/AprilNEA/OpenLogi/pull/531))
-- *(backlight)* support HID++ 0x1982 ([#470](https://github.com/AprilNEA/OpenLogi/pull/470))
-- *(battery)* support legacy 0x1000 BatteryStatus and its charging quirk ([#312](https://github.com/AprilNEA/OpenLogi/pull/312))
+- *(hid)* recognize Lightspeed receiver (046d:c539) as Unifying-compatible ([#510](https://github.com/WillkTech/OpenLogi/pull/510))
+- add function key remapper ([#344](https://github.com/WillkTech/OpenLogi/pull/344))
+- *(hid)* add standalone Litra light support ([#513](https://github.com/WillkTech/OpenLogi/pull/513))
+- keyboard F-row key remapping and fn-lock over HID++ ([#395](https://github.com/WillkTech/OpenLogi/pull/395))
+- *(hook)* Wayland frontmost-window backends (wlroots + GNOME Shell) ([#191](https://github.com/WillkTech/OpenLogi/pull/191))
+- *(camera)* add Logitech webcam support ([#531](https://github.com/WillkTech/OpenLogi/pull/531))
+- *(backlight)* support HID++ 0x1982 ([#470](https://github.com/WillkTech/OpenLogi/pull/470))
+- *(battery)* support legacy 0x1000 BatteryStatus and its charging quirk ([#312](https://github.com/WillkTech/OpenLogi/pull/312))
 
 ### Fixed
 
-- *(agent-core)* retry volatile DPI re-apply on cold boot ([#449](https://github.com/AprilNEA/OpenLogi/pull/449))
-- *(agent)* prefer online device for input capture ([#453](https://github.com/AprilNEA/OpenLogi/pull/453))
-- *(hidpp)* keep events when a field carries an unknown enum value ([#432](https://github.com/AprilNEA/OpenLogi/pull/432))
-- *(agent)* rearm control capture after device reconnect ([#450](https://github.com/AprilNEA/OpenLogi/pull/450))
-- *(linux)* grant uaccess on Logitech input event nodes ([#530](https://github.com/AprilNEA/OpenLogi/pull/530))
-- *(agent)* reapply volatile settings after macOS resume ([#506](https://github.com/AprilNEA/OpenLogi/pull/506))
-- *(hook)* never wedge system pointer input ([#534](https://github.com/AprilNEA/OpenLogi/pull/534))
-- *(agent)* route hardware operations through inventory channels ([#532](https://github.com/AprilNEA/OpenLogi/pull/532))
-- *(agent)* reuse inventory channels for input capture ([#522](https://github.com/AprilNEA/OpenLogi/pull/522))
-- *(i18n)* complete Crowdin synchronization ([#508](https://github.com/AprilNEA/OpenLogi/pull/508))
+- *(agent-core)* retry volatile DPI re-apply on cold boot ([#449](https://github.com/WillkTech/OpenLogi/pull/449))
+- *(agent)* prefer online device for input capture ([#453](https://github.com/WillkTech/OpenLogi/pull/453))
+- *(hidpp)* keep events when a field carries an unknown enum value ([#432](https://github.com/WillkTech/OpenLogi/pull/432))
+- *(agent)* rearm control capture after device reconnect ([#450](https://github.com/WillkTech/OpenLogi/pull/450))
+- *(linux)* grant uaccess on Logitech input event nodes ([#530](https://github.com/WillkTech/OpenLogi/pull/530))
+- *(agent)* reapply volatile settings after macOS resume ([#506](https://github.com/WillkTech/OpenLogi/pull/506))
+- *(hook)* never wedge system pointer input ([#534](https://github.com/WillkTech/OpenLogi/pull/534))
+- *(agent)* route hardware operations through inventory channels ([#532](https://github.com/WillkTech/OpenLogi/pull/532))
+- *(agent)* reuse inventory channels for input capture ([#522](https://github.com/WillkTech/OpenLogi/pull/522))
+- *(i18n)* complete Crowdin synchronization ([#508](https://github.com/WillkTech/OpenLogi/pull/508))
 
-## [0.6.23](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.22...openlogi-core-v0.6.23) - 2026-08-02
+## [0.6.23](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.22...openlogi-core-v0.6.23) - 2026-08-02
 
 ### Fixed
 
-- *(hook)* grab only relative pointer devices, never touchpads or pointing sticks ([#401](https://github.com/AprilNEA/OpenLogi/pull/401))
+- *(hook)* grab only relative pointer devices, never touchpads or pointing sticks ([#401](https://github.com/WillkTech/OpenLogi/pull/401))
 
-## [0.6.22](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.21...openlogi-core-v0.6.22) - 2026-07-21
+## [0.6.22](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.21...openlogi-core-v0.6.22) - 2026-07-21
 
 ### Added
 
@@ -382,7 +382,7 @@ observable behaviour, so they do not belong in a patch release.
 
 - *(core)* describe selected asset source
 
-## [0.6.21](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.20...openlogi-core-v0.6.21) - 2026-07-19
+## [0.6.21](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.20...openlogi-core-v0.6.21) - 2026-07-19
 
 ### Added
 
@@ -390,19 +390,19 @@ observable behaviour, so they do not belong in a patch release.
 
 ### Fixed
 
-- *(hid)* make one-shot enumerate retry transport-agnostic so Unifying partial drains recover ([#287](https://github.com/AprilNEA/OpenLogi/pull/287))
+- *(hid)* make one-shot enumerate retry transport-agnostic so Unifying partial drains recover ([#287](https://github.com/WillkTech/OpenLogi/pull/287))
 
 ### Other
 
-- *(core)* add hires_wheel to the inventory equality test helper ([#417](https://github.com/AprilNEA/OpenLogi/pull/417))
+- *(core)* add hires_wheel to the inventory equality test helper ([#417](https://github.com/WillkTech/OpenLogi/pull/417))
 
-## [0.6.20](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.19...openlogi-core-v0.6.20) - 2026-07-18
+## [0.6.20](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.19...openlogi-core-v0.6.20) - 2026-07-18
 
 ### Fixed
 
 - *(core)* preserve hash-prefixed lighting colors
 - *(core,gui,agent,cli)* validate the lighting color once as a typed Rgb
-- *(smartshift)* stop runaway free-spin scroll and control snap-back ([#333](https://github.com/AprilNEA/OpenLogi/pull/333))
+- *(smartshift)* stop runaway free-spin scroll and control snap-back ([#333](https://github.com/WillkTech/OpenLogi/pull/333))
 
 ### Other
 
@@ -414,14 +414,14 @@ observable behaviour, so they do not belong in a patch release.
 - *(core)* split config.rs into settings and device submodules
 - *(core)* drop fs4 in favor of std File::try_lock
 
-## [0.6.19](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.18...openlogi-core-v0.6.19) - 2026-07-04
+## [0.6.19](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.18...openlogi-core-v0.6.19) - 2026-07-04
 
 ### Added
 
-- *(windows)* notification-area tray icon for the agent ([#347](https://github.com/AprilNEA/OpenLogi/pull/347))
-- *(windows)* bundle and package the background agent ([#347](https://github.com/AprilNEA/OpenLogi/pull/347))
+- *(windows)* notification-area tray icon for the agent ([#347](https://github.com/WillkTech/OpenLogi/pull/347))
+- *(windows)* bundle and package the background agent ([#347](https://github.com/WillkTech/OpenLogi/pull/347))
 
-## [0.6.18](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.17...openlogi-core-v0.6.18) - 2026-06-29
+## [0.6.18](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.17...openlogi-core-v0.6.18) - 2026-06-29
 
 ### Added
 
@@ -429,15 +429,15 @@ observable behaviour, so they do not belong in a patch release.
 
 ### Other
 
-- Clarify MX Master 4 gesture control semantics ([#325](https://github.com/AprilNEA/OpenLogi/pull/325))
+- Clarify MX Master 4 gesture control semantics ([#325](https://github.com/WillkTech/OpenLogi/pull/325))
 
-## [0.6.17](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.16...openlogi-core-v0.6.17) - 2026-06-24
+## [0.6.17](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.16...openlogi-core-v0.6.17) - 2026-06-24
 
 ### Added
 
-- add Capture Region to Clipboard button action ([#296](https://github.com/AprilNEA/OpenLogi/pull/296))
+- add Capture Region to Clipboard button action ([#296](https://github.com/WillkTech/OpenLogi/pull/296))
 
-## [0.6.16](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.15...openlogi-core-v0.6.16) - 2026-06-22
+## [0.6.16](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.15...openlogi-core-v0.6.16) - 2026-06-22
 
 ### Fixed
 
@@ -449,23 +449,23 @@ observable behaviour, so they do not belong in a patch release.
 - *(config)* key settings by physical device
 - *(infra)* use crates for paths and language matching
 
-## [0.6.15](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.14...openlogi-core-v0.6.15) - 2026-06-21
+## [0.6.15](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.14...openlogi-core-v0.6.15) - 2026-06-21
 
 ### Added
 
-- *(scroll)* per-device inverted scrolling ([#126](https://github.com/AprilNEA/OpenLogi/pull/126))
+- *(scroll)* per-device inverted scrolling ([#126](https://github.com/WillkTech/OpenLogi/pull/126))
 
-## [0.6.14](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.13...openlogi-core-v0.6.14) - 2026-06-15
+## [0.6.14](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.13...openlogi-core-v0.6.14) - 2026-06-15
 
 ### Fixed
 
-- *(hid)* solid keyboard colour via 0x8070 effect ([#205](https://github.com/AprilNEA/OpenLogi/pull/205))
+- *(hid)* solid keyboard colour via 0x8070 effect ([#205](https://github.com/WillkTech/OpenLogi/pull/205))
 
 ### Other
 
-- *(core)* extract the OS input-injection layer into openlogi-inject ([#240](https://github.com/AprilNEA/OpenLogi/pull/240))
+- *(core)* extract the OS input-injection layer into openlogi-inject ([#240](https://github.com/WillkTech/OpenLogi/pull/240))
 
-## [0.6.13](https://github.com/AprilNEA/OpenLogi/compare/openlogi-hidpp-v0.6.12...openlogi-hidpp-v0.6.13) - 2026-06-15
+## [0.6.13](https://github.com/WillkTech/OpenLogi/compare/openlogi-hidpp-v0.6.12...openlogi-hidpp-v0.6.13) - 2026-06-15
 
 ### Other
 
@@ -473,20 +473,20 @@ observable behaviour, so they do not belong in a patch release.
 - *(hidpp)* fold per-feature request framing into FeatureEndpoint
 - *(hidpp)* express the feature registry as a data macro
 
-## [0.6.12](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.11...openlogi-core-v0.6.12) - 2026-06-13
+## [0.6.12](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.11...openlogi-core-v0.6.12) - 2026-06-13
 
 ### Fixed
 
 - *(gui)* keep asleep devices and their panels in the device list
 - *(agent)* persist DPI/SmartShift per device and reapply volatile settings on reconnect
 
-## [0.6.11](https://github.com/AprilNEA/OpenLogi/compare/openlogi-hid-v0.6.10...openlogi-hid-v0.6.11) - 2026-06-13
+## [0.6.11](https://github.com/WillkTech/OpenLogi/compare/openlogi-hid-v0.6.10...openlogi-hid-v0.6.11) - 2026-06-13
 
 ### Fixed
 
-- *(hid)* replay a node's last inventory through transient probe failures ([#222](https://github.com/AprilNEA/OpenLogi/pull/222))
+- *(hid)* replay a node's last inventory through transient probe failures ([#222](https://github.com/WillkTech/OpenLogi/pull/222))
 
-## [0.6.10](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.9...openlogi-core-v0.6.10) - 2026-06-13
+## [0.6.10](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.9...openlogi-core-v0.6.10) - 2026-06-13
 
 ### Added
 
@@ -494,53 +494,53 @@ observable behaviour, so they do not belong in a patch release.
 
 ### Fixed
 
-- *(gui)* keep the diagnostics report truthful across agent restarts ([#230](https://github.com/AprilNEA/OpenLogi/pull/230))
+- *(gui)* keep the diagnostics report truthful across agent restarts ([#230](https://github.com/WillkTech/OpenLogi/pull/230))
 
-## [0.6.9](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.8...openlogi-core-v0.6.9) - 2026-06-12
-
-### Added
-
-- *(gui)* add a Copy Diagnostics button to the About window ([#206](https://github.com/AprilNEA/OpenLogi/pull/206))
-
-## [0.6.8](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.7...openlogi-core-v0.6.8) - 2026-06-12
+## [0.6.9](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.8...openlogi-core-v0.6.9) - 2026-06-12
 
 ### Added
 
-- *(linux)* launch_at_login + input device access permission check ([#172](https://github.com/AprilNEA/OpenLogi/pull/172))
-- add mouse button 4 and 5 options ([#96](https://github.com/AprilNEA/OpenLogi/pull/96))
+- *(gui)* add a Copy Diagnostics button to the About window ([#206](https://github.com/WillkTech/OpenLogi/pull/206))
 
-## [0.6.7](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.6...openlogi-core-v0.6.7) - 2026-06-12
+## [0.6.8](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.7...openlogi-core-v0.6.8) - 2026-06-12
+
+### Added
+
+- *(linux)* launch_at_login + input device access permission check ([#172](https://github.com/WillkTech/OpenLogi/pull/172))
+- add mouse button 4 and 5 options ([#96](https://github.com/WillkTech/OpenLogi/pull/96))
+
+## [0.6.7](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.6...openlogi-core-v0.6.7) - 2026-06-12
 
 ### Fixed
 
-- *(core)* post macOS volume and media keys as NX system-defined events ([#184](https://github.com/AprilNEA/OpenLogi/pull/184))
+- *(core)* post macOS volume and media keys as NX system-defined events ([#184](https://github.com/WillkTech/OpenLogi/pull/184))
 
 ### Other
 
 - *(ipc)* pin the wire format with golden bytes and mark wire types
 
-## [0.6.6](https://github.com/AprilNEA/OpenLogi/compare/openlogi-hidpp-v0.6.5...openlogi-hidpp-v0.6.6) - 2026-06-10
+## [0.6.6](https://github.com/WillkTech/OpenLogi/compare/openlogi-hidpp-v0.6.5...openlogi-hidpp-v0.6.6) - 2026-06-10
 
 ### Fixed
 
-- *(hidpp)* bound device-controlled name lengths in Bolt parsing ([#200](https://github.com/AprilNEA/OpenLogi/pull/200))
+- *(hidpp)* bound device-controlled name lengths in Bolt parsing ([#200](https://github.com/WillkTech/OpenLogi/pull/200))
 
-## [0.6.5](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.4...openlogi-core-v0.6.5) - 2026-06-10
+## [0.6.5](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.4...openlogi-core-v0.6.5) - 2026-06-10
 
 ### Other
 
-- collapse nested ifs flagged by current stable clippy ([#197](https://github.com/AprilNEA/OpenLogi/pull/197))
+- collapse nested ifs flagged by current stable clippy ([#197](https://github.com/WillkTech/OpenLogi/pull/197))
 
-## [0.6.4](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.3...openlogi-core-v0.6.4) - 2026-06-10
+## [0.6.4](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.3...openlogi-core-v0.6.4) - 2026-06-10
 
 ### Added
 
 - *(core)* complete the macOS->Windows CustomShortcut keycode map
 - *(windows)* native input + HID++ leaf support
-- *(openlogi-gui)* expand UI to 19 fully-translated locales ([#24](https://github.com/AprilNEA/OpenLogi/pull/24))
-- *(gui)* glow keyboard card in lighting colour ([#185](https://github.com/AprilNEA/OpenLogi/pull/185))
+- *(openlogi-gui)* expand UI to 19 fully-translated locales ([#24](https://github.com/WillkTech/OpenLogi/pull/24))
+- *(gui)* glow keyboard card in lighting colour ([#185](https://github.com/WillkTech/OpenLogi/pull/185))
 
-## [0.6.3](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.6.2...openlogi-core-v0.6.3) - 2026-06-09
+## [0.6.3](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.6.2...openlogi-core-v0.6.3) - 2026-06-09
 
 ### Added
 
@@ -550,24 +550,24 @@ observable behaviour, so they do not belong in a patch release.
 
 - *(core)* harden gesture Binding defaults, migration, and projection
 
-## [0.6.2](https://github.com/AprilNEA/OpenLogi/compare/v0.6.1...v0.6.2) - 2026-06-08
+## [0.6.2](https://github.com/WillkTech/OpenLogi/compare/v0.6.1...v0.6.2) - 2026-06-08
 
 ### Added
 
-- *(i18n)* integrate Crowdin localization workflow ([#174](https://github.com/AprilNEA/OpenLogi/pull/174))
+- *(i18n)* integrate Crowdin localization workflow ([#174](https://github.com/WillkTech/OpenLogi/pull/174))
 
 ### Other
 
-- switch release notes generation to Codex ([#177](https://github.com/AprilNEA/OpenLogi/pull/177))
+- switch release notes generation to Codex ([#177](https://github.com/WillkTech/OpenLogi/pull/177))
 - add code of conduct
 
-## [0.6.1](https://github.com/AprilNEA/OpenLogi/compare/openlogi-cli-v0.6.0...openlogi-cli-v0.6.1) - 2026-06-08
+## [0.6.1](https://github.com/WillkTech/OpenLogi/compare/openlogi-cli-v0.6.0...openlogi-cli-v0.6.1) - 2026-06-08
 
 ### Fixed
 
-- *(cli)* diag selects a device that exposes the feature under test ([#150](https://github.com/AprilNEA/OpenLogi/pull/150))
+- *(cli)* diag selects a device that exposes the feature under test ([#150](https://github.com/WillkTech/OpenLogi/pull/150))
 
-## [0.6.0](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.5.3...openlogi-core-v0.6.0) - 2026-06-07
+## [0.6.0](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.5.3...openlogi-core-v0.6.0) - 2026-06-07
 
 ### Added
 
@@ -582,7 +582,7 @@ observable behaviour, so they do not belong in a patch release.
 
 - Merge origin/master into feat/agent-daemon-split
 
-## [0.5.3](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.5.2...openlogi-core-v0.5.3) - 2026-06-06
+## [0.5.3](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.5.2...openlogi-core-v0.5.3) - 2026-06-06
 
 ### Fixed
 
@@ -592,14 +592,14 @@ observable behaviour, so they do not belong in a patch release.
 
 - gate config panels on HID++ capabilities, not device kind
 
-## [0.5.2](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.5.1...openlogi-core-v0.5.2) - 2026-06-05
+## [0.5.2](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.5.1...openlogi-core-v0.5.2) - 2026-06-05
 
 ### Added
 
 - *(core)* LockScreen and media actions via D-Bus on Linux
 - *(core)* expose action_device_path for evtest attachment
 - *(core)* implement Action::execute on Linux via uinput
-- enable Thumb Wheel Up/Down mapping, "Do Nothing" action, and native scroll sensitivity ([#125](https://github.com/AprilNEA/OpenLogi/pull/125))
+- enable Thumb Wheel Up/Down mapping, "Do Nothing" action, and native scroll sensitivity ([#125](https://github.com/WillkTech/OpenLogi/pull/125))
 
 ### Fixed
 
@@ -613,7 +613,7 @@ observable behaviour, so they do not belong in a patch release.
 
 ### Other
 
-- run clippy on Windows instead of bare cargo check ([#146](https://github.com/AprilNEA/OpenLogi/pull/146))
+- run clippy on Windows instead of bare cargo check ([#146](https://github.com/WillkTech/OpenLogi/pull/146))
 - *(core)* simplify D-Bus helpers and add -v flag to inject_action
 - *(core)* simplify inject_action parsing, guard --delay
 - *(core)* extract KEY_CAPABILITIES const, drop too_many_lines allow
@@ -623,7 +623,7 @@ observable behaviour, so they do not belong in a patch release.
 - *(core)* simplify Linux execute helpers and doc fixes
 - *(core)* add vk_mapping tests and inject_action example
 
-## [0.5.1](https://github.com/AprilNEA/OpenLogi/compare/openlogi-assets-v0.5.0...openlogi-assets-v0.5.1) - 2026-06-05
+## [0.5.1](https://github.com/WillkTech/OpenLogi/compare/openlogi-assets-v0.5.0...openlogi-assets-v0.5.1) - 2026-06-05
 
 ### Fixed
 
@@ -633,13 +633,13 @@ observable behaviour, so they do not belong in a patch release.
 
 - *(assets)* lock the index.json modelIds schema contract
 
-## [0.5.0](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.4.1...openlogi-core-v0.5.0) - 2026-06-05
+## [0.5.0](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.4.1...openlogi-core-v0.5.0) - 2026-06-05
 
 ### Added
 
-- add wired G-series keyboard RGB control ([#29](https://github.com/AprilNEA/OpenLogi/pull/29))
+- add wired G-series keyboard RGB control ([#29](https://github.com/WillkTech/OpenLogi/pull/29))
 
-## [0.4.1](https://github.com/AprilNEA/OpenLogi/compare/openlogi-v0.4.0...openlogi-v0.4.1) - 2026-06-03
+## [0.4.1](https://github.com/WillkTech/OpenLogi/compare/openlogi-v0.4.0...openlogi-v0.4.1) - 2026-06-03
 
 ### Added
 
@@ -651,17 +651,17 @@ observable behaviour, so they do not belong in a patch release.
 
 - route issue-chooser questions to GitHub Discussions
 - update Telegram invite link to the new channel
-- *(release)* disable homebrew-tap dispatch (openlogi moved to homebrew-cask) ([#105](https://github.com/AprilNEA/OpenLogi/pull/105))
-- add GitHub issue form templates ([#102](https://github.com/AprilNEA/OpenLogi/pull/102))
+- *(release)* disable homebrew-tap dispatch (openlogi moved to homebrew-cask) ([#105](https://github.com/WillkTech/OpenLogi/pull/105))
+- add GitHub issue form templates ([#102](https://github.com/WillkTech/OpenLogi/pull/102))
 - configure release-plz branch prefix
 
-## [0.4.0](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.3.4...openlogi-core-v0.4.0) - 2026-06-02
+## [0.4.0](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.3.4...openlogi-core-v0.4.0) - 2026-06-02
 
 ### Added
 
-- *(i18n)* add zh-TW (Traditional Chinese, Taiwan) locale ([#57](https://github.com/AprilNEA/OpenLogi/pull/57))
+- *(i18n)* add zh-TW (Traditional Chinese, Taiwan) locale ([#57](https://github.com/WillkTech/OpenLogi/pull/57))
 
-## [0.3.4](https://github.com/AprilNEA/OpenLogi/compare/openlogi-hidpp-v0.3.3...openlogi-hidpp-v0.3.4) - 2026-06-01
+## [0.3.4](https://github.com/WillkTech/OpenLogi/compare/openlogi-hidpp-v0.3.3...openlogi-hidpp-v0.3.4) - 2026-06-01
 
 ### Added
 
@@ -675,48 +675,48 @@ observable behaviour, so they do not belong in a patch release.
 
 - *(hidpp)* up-convert short→long inside the channel for long-only BLE
 
-## [0.3.3](https://github.com/AprilNEA/OpenLogi/compare/openlogi-assets-v0.3.2...openlogi-assets-v0.3.3) - 2026-06-01
+## [0.3.3](https://github.com/WillkTech/OpenLogi/compare/openlogi-assets-v0.3.2...openlogi-assets-v0.3.3) - 2026-06-01
 
 ### Fixed
 
 - *(assets)* match devices by displayName when no PID lookup hits
 
-## [0.3.2](https://github.com/AprilNEA/OpenLogi/compare/v0.3.1...v0.3.2) - 2026-06-01
+## [0.3.2](https://github.com/WillkTech/OpenLogi/compare/v0.3.1...v0.3.2) - 2026-06-01
 
 ### Other
 
 - simplify format
 
-## [0.3.1](https://github.com/AprilNEA/OpenLogi/compare/v0.3.0...v0.3.1) - 2026-06-01
+## [0.3.1](https://github.com/WillkTech/OpenLogi/compare/v0.3.0...v0.3.1) - 2026-06-01
 
 ### Added
 
-- *(updater)* use static R2 manifest ([#43](https://github.com/AprilNEA/OpenLogi/pull/43))
+- *(updater)* use static R2 manifest ([#43](https://github.com/WillkTech/OpenLogi/pull/43))
 
-## [0.3.0](https://github.com/AprilNEA/OpenLogi/compare/openlogi-core-v0.2.0...openlogi-core-v0.3.0) - 2026-06-01
+## [0.3.0](https://github.com/WillkTech/OpenLogi/compare/openlogi-core-v0.2.0...openlogi-core-v0.3.0) - 2026-06-01
 
 ### Added
 
-- *(openlogi-gui)* add Russian localization and language select ([#38](https://github.com/AprilNEA/OpenLogi/pull/38))
+- *(openlogi-gui)* add Russian localization and language select ([#38](https://github.com/WillkTech/OpenLogi/pull/38))
 
 ### Fixed
 
-- *(gui)* stabilize device tab ordering ([#37](https://github.com/AprilNEA/OpenLogi/pull/37))
+- *(gui)* stabilize device tab ordering ([#37](https://github.com/WillkTech/OpenLogi/pull/37))
 
-## [0.2.0](https://github.com/AprilNEA/OpenLogi/compare/openlogi-hid-v0.1.4...openlogi-hid-v0.2.0) - 2026-05-31
+## [0.2.0](https://github.com/WillkTech/OpenLogi/compare/openlogi-hid-v0.1.4...openlogi-hid-v0.2.0) - 2026-05-31
 
 ### Added
 
-- *(openlogi-hid)* route HID++ writes to directly-attached devices ([#5](https://github.com/AprilNEA/OpenLogi/pull/5))
+- *(openlogi-hid)* route HID++ writes to directly-attached devices ([#5](https://github.com/WillkTech/OpenLogi/pull/5))
 
-## [0.1.4](https://github.com/AprilNEA/OpenLogi/compare/v0.1.3...v0.1.4) - 2026-05-31
+## [0.1.4](https://github.com/WillkTech/OpenLogi/compare/v0.1.3...v0.1.4) - 2026-05-31
 
 ### Other
 
 - update workflow actions for Node 24
 - *(release-plz)* fail loudly when a release silently stalls
 
-## [0.1.3](https://github.com/AprilNEA/OpenLogi/compare/v0.1.2...v0.1.3) - 2026-05-31
+## [0.1.3](https://github.com/WillkTech/OpenLogi/compare/v0.1.2...v0.1.3) - 2026-05-31
 
 ### Added
 
@@ -729,7 +729,7 @@ observable behaviour, so they do not belong in a patch release.
 
 - Use the real Xcode toolchain for GUI builds and build the installer DMG correctly
 
-## [0.1.2](https://github.com/AprilNEA/OpenLogi/compare/v0.1.1...v0.1.2) - 2026-05-31
+## [0.1.2](https://github.com/WillkTech/OpenLogi/compare/v0.1.1...v0.1.2) - 2026-05-31
 
 ### Added
 
@@ -737,7 +737,7 @@ observable behaviour, so they do not belong in a patch release.
 - One opt-in update check on launch, with a first-run prompt to enable it
 - Live download progress, and a clickable version that links to its GitHub release
 
-## [0.1.1](https://github.com/AprilNEA/OpenLogi/compare/v0.1.0...v0.1.1) - 2026-05-30
+## [0.1.1](https://github.com/WillkTech/OpenLogi/compare/v0.1.0...v0.1.1) - 2026-05-30
 
 ### Other
 

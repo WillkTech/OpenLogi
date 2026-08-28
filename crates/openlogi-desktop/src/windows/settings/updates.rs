@@ -199,7 +199,7 @@ fn update_source(cx: &App) -> gpui::Div {
                                 .text_caption()
                                 .text_color(pal.text_muted)
                                 .truncate()
-                                .child("github.com/AprilNEA/OpenLogi/releases"),
+                                .child("github.com/WillkTech/OpenLogi/releases"),
                         ),
                 )
                 .child(

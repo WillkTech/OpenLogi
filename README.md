@@ -11,20 +11,19 @@
 <p align="center"><strong>⚡️ A native, local-first alternative to Logitech Options+, written in Rust 🦀<br/>Unlock the full capabilities of Logitech mice, keyboards, and webcams over HID++ and UVC</strong></p>
 
 <div align="center">
-    <a href="https://twitter.com/AprilNEA" target="_blank">
-    <img alt="twitter" src="https://img.shields.io/badge/follow-AprilNEA-green?style=social&logo=Twitter"></a>
+    <a href="https://twitter.com/WillkTech" target="_blank">
+    <img alt="twitter" src="https://img.shields.io/badge/follow-WillkTech-green?style=social&logo=Twitter"></a>
     <a href="https://t.me/+VDtkR5OSAT04NzVh" target="_blank">
     <img alt="telegram" src="https://img.shields.io/badge/chat-telegram-blueviolet?style=flat&logo=Telegram"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/releases" target="_blank">
-    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/AprilNEA/OpenLogi/total.svg?style=flat"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/commits" target="_blank">
-    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/AprilNEA/OpenLogi?style=flat"></a>
-    <img alt="Hits" src="https://hits.aprilnea.com/hits?url=https://github.com/aprilnea/openlogi">
+    <a href="https://github.com/WillkTech/OpenLogi/releases" target="_blank">
+    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/WillkTech/OpenLogi/total.svg?style=flat"></a>
+    <a href="https://github.com/WillkTech/OpenLogi/commits" target="_blank">
+    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/WillkTech/OpenLogi?style=flat"></a>
 </div>
 
 <p align="center">
     <a href="https://trendshift.io/repositories/42303" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/42303" alt="AprilNEA%2FOpenLogi | Trendshift" width="250" height="55"/></a>
+    <img src="https://trendshift.io/api/badge/repositories/42303" alt="WillkTech%2FOpenLogi | Trendshift" width="250" height="55"/></a>
     <a href="https://www.producthunt.com/products/openlogi?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-openlogi" target="_blank" rel="noopener noreferrer">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=openlogi&amp;theme=dark&amp;period=daily">
@@ -88,7 +87,7 @@ Things OpenLogi does that Options+ won't:
 
 Requires macOS 13 or later.
 
-Download the signed, notarized `.dmg` from the [latest release](https://github.com/AprilNEA/OpenLogi/releases/latest) and drag `OpenLogi.app` to `/Applications`.
+Download the signed, notarized `.dmg` from the [latest release](https://github.com/WillkTech/OpenLogi/releases/latest) and drag `OpenLogi.app` to `/Applications`.
 
 Or install via [Homebrew](https://brew.sh):
 
@@ -97,11 +96,11 @@ brew install --cask openlogi
 ```
 
 The official Homebrew cask is the default installation path. To explicitly
-track the latest GitHub release from `aprilnea/tap` instead:
+track the latest GitHub release from `willktech/tap` instead:
 
 ```sh
-brew tap aprilnea/tap
-brew install --cask aprilnea/tap/openlogi@latest
+brew tap willktech/tap
+brew install --cask willktech/tap/openlogi@latest
 ```
 
 `openlogi@latest` is maintained by OpenLogi's release workflow and may update
@@ -111,7 +110,7 @@ before the official cask autobump lands. Install either `openlogi` or
 ### Linux
 
 Download the package for your distribution from the
-[latest release](https://github.com/AprilNEA/OpenLogi/releases/latest):
+[latest release](https://github.com/WillkTech/OpenLogi/releases/latest):
 
 ```sh
 # Debian / Ubuntu
@@ -134,7 +133,7 @@ package and udev rules and starts the agent with the graphical session:
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.openlogi = {
-    url = "github:AprilNEA/OpenLogi";
+    url = "github:WillkTech/OpenLogi";
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -174,7 +173,7 @@ Windows support has been validated end-to-end on Windows 11 with real
 hardware (a wired keyboard and a Unifying-receiver mouse), including
 install, in-place upgrade, and uninstall of the MSI. It is newer than the
 macOS build, so if you hit a rough edge please
-[report it](https://github.com/AprilNEA/OpenLogi/issues). The agent shows a
+[report it](https://github.com/WillkTech/OpenLogi/issues). The agent shows a
 system-tray icon (Show Main Window / Quit) so the app stays reachable after
 the main window is closed. To disable it on Windows, set
 `show_in_menu_bar = false` in the TOML `[app_settings]` block and restart the

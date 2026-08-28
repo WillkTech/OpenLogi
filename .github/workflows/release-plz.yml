@@ -119,9 +119,9 @@ jobs:
           commit_message: "chore(release): write whole-repo changelog"
           file_pattern: CHANGELOG.md
           repository: release-pr
-          commit_user_name: "aprilnea[bot]"
+          commit_user_name: "willktech[bot]"
           commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
-          commit_author: "aprilnea[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          commit_author: "willktech[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
       # OpenLogi's whole-repo changelog is the release PR body.
       - name: Replace release PR body with changelog
         if: steps.open_release_pr.outputs.number != ''

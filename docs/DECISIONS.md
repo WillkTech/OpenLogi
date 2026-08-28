@@ -171,7 +171,7 @@ mature crates (`tempfile`, `which`, `plist`, `walkdir`, `xshell`, `sysinfo`,
 
 An instrumented `CGEventTap` probe during the function-key remapper design
 (the spec lived in `docs/superpowers/` until 2026-08; full text at
-[91fe5d80](https://github.com/AprilNEA/OpenLogi/blob/91fe5d80f3a2c16cf16061b3abb5a01d47fc8637/docs/superpowers/specs/2026-06-30-function-key-remapper-design.md))
+[91fe5d80](https://github.com/WillkTech/OpenLogi/blob/91fe5d80f3a2c16cf16061b3abb5a01d47fc8637/docs/superpowers/specs/2026-06-30-function-key-remapper-design.md))
 settled why the Fn modifier cannot join the keyboard-remap trigger vocabulary:
 
 - F1 arrives as keycode 122 **with** the `SecondaryFn` flag, but plain `Q` and

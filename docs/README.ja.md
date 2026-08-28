@@ -12,20 +12,19 @@
 
 
 <div align="center">
-    <a href="https://twitter.com/AprilNEA" target="_blank">
-    <img alt="twitter" src="https://img.shields.io/badge/follow-AprilNEA-green?style=social&logo=Twitter"></a>
+    <a href="https://twitter.com/WillkTech" target="_blank">
+    <img alt="twitter" src="https://img.shields.io/badge/follow-WillkTech-green?style=social&logo=Twitter"></a>
     <a href="https://t.me/+VDtkR5OSAT04NzVh" target="_blank">
     <img alt="telegram" src="https://img.shields.io/badge/chat-telegram-blueviolet?style=flat&logo=Telegram"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/releases" target="_blank">
-    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/AprilNEA/OpenLogi/total.svg?style=flat"></a>
-    <a href="https://github.com/AprilNEA/OpenLogi/commits" target="_blank">
-    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/AprilNEA/OpenLogi?style=flat"></a>
-    <img alt="Hits" src="https://hits.aprilnea.com/hits?url=https://github.com/aprilnea/openlogi">
+    <a href="https://github.com/WillkTech/OpenLogi/releases" target="_blank">
+    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/WillkTech/OpenLogi/total.svg?style=flat"></a>
+    <a href="https://github.com/WillkTech/OpenLogi/commits" target="_blank">
+    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/WillkTech/OpenLogi?style=flat"></a>
 </div>
 
 <p align="center">
     <a href="https://trendshift.io/repositories/42303" target="_blank">
-    <img src="https://trendshift.io/api/badge/trendshift/repositories/42303/daily?language=Rust" alt="AprilNEA%2FOpenLogi | Trendshift" width="250" height="55"/></a>
+    <img src="https://trendshift.io/api/badge/trendshift/repositories/42303/daily?language=Rust" alt="WillkTech%2FOpenLogi | Trendshift" width="250" height="55"/></a>
 </p>
 
 > **Options+ にうんざり？OpenLogi をどうぞ。**
@@ -83,7 +82,7 @@ OpenLogi にできて Options+ にできないこと：
 
 macOS 13 以降が必要です。
 
-[最新リリース](https://github.com/AprilNEA/OpenLogi/releases/latest)から署名・公証済みの `.dmg` をダウンロードし、`OpenLogi.app` を `/Applications` にドラッグします。
+[最新リリース](https://github.com/WillkTech/OpenLogi/releases/latest)から署名・公証済みの `.dmg` をダウンロードし、`OpenLogi.app` を `/Applications` にドラッグします。
 
 または [Homebrew](https://brew.sh) で：
 
@@ -91,18 +90,18 @@ macOS 13 以降が必要です。
 brew install --cask openlogi
 ```
 
-公式 Homebrew cask が標準のインストール経路です。代わりに `aprilnea/tap` で GitHub の最新リリースを明示的に追うには：
+公式 Homebrew cask が標準のインストール経路です。代わりに `willktech/tap` で GitHub の最新リリースを明示的に追うには：
 
 ```sh
-brew tap aprilnea/tap
-brew install --cask aprilnea/tap/openlogi@latest
+brew tap willktech/tap
+brew install --cask willktech/tap/openlogi@latest
 ```
 
 `openlogi@latest` は OpenLogi のリリースワークフローが管理しており、公式 cask の autobump より先に更新されることがあります。`openlogi` か `openlogi@latest` のどちらか一方だけをインストールしてください。
 
 ### Linux
 
-[最新リリース](https://github.com/AprilNEA/OpenLogi/releases/latest)から `.deb` または `.rpm` をダウンロード：
+[最新リリース](https://github.com/WillkTech/OpenLogi/releases/latest)から `.deb` または `.rpm` をダウンロード：
 
 ```sh
 # Debian / Ubuntu
@@ -129,7 +128,7 @@ systemctl --user enable --now openlogi-agent.service
 
 各リリースには署名済みポータブル `.zip` とユーザー単位の `.msi` インストーラー（x86_64 / arm64）が付属します。どちらも GUI（`OpenLogi.exe`）と、すべてのデバイス I/O を所有するバックグラウンド agent（`openlogi-agent.exe`）を同梱します。ポータブル zip では 2 ファイルを同じ場所に置いてください。そうしないと GUI は接続先を失います。
 
-Windows サポートは動作しており、有線キーボードと Unifying レシーバー接続のマウスを使い、MSI のインストール、インプレースアップグレード、アンインストールを含めて Windows 11 実機でエンドツーエンド検証済みです。macOS 版より新しいため、問題があれば[報告](https://github.com/AprilNEA/OpenLogi/issues)してください。agent はシステムトレイアイコン（メインウィンドウを表示 / 終了）を表示し、メインウィンドウを閉じてもアプリを開けます。Windows で無効にするには TOML の `[app_settings]` ブロックで `show_in_menu_bar = false` を設定し、agent を再起動してください。GUI の切り替えは現在 macOS 専用です。
+Windows サポートは動作しており、有線キーボードと Unifying レシーバー接続のマウスを使い、MSI のインストール、インプレースアップグレード、アンインストールを含めて Windows 11 実機でエンドツーエンド検証済みです。macOS 版より新しいため、問題があれば[報告](https://github.com/WillkTech/OpenLogi/issues)してください。agent はシステムトレイアイコン（メインウィンドウを表示 / 終了）を表示し、メインウィンドウを閉じてもアプリを開けます。Windows で無効にするには TOML の `[app_settings]` ブロックで `show_in_menu_bar = false` を設定し、agent を再起動してください。GUI の切り替えは現在 macOS 専用です。
 
 ソースからのビルドは [DEVELOPMENT.md](DEVELOPMENT.md) を参照。
 

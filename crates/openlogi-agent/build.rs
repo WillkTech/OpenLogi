@@ -48,7 +48,7 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "CompanyName", "AprilNEA"
+            VALUE "CompanyName", "WillkTech"
             VALUE "FileDescription", "OpenLogi Background Agent"
             VALUE "FileVersion", "{version}"
             VALUE "InternalName", "openlogi-agent"

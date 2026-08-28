@@ -8,11 +8,11 @@
 //! touches one file instead of three.
 
 /// The OpenLogi GitHub repository.
-pub const REPO_URL: &str = "https://github.com/AprilNEA/OpenLogi";
+pub const REPO_URL: &str = "https://github.com/WillkTech/OpenLogi";
 /// The README, used as the in-app "Help" link.
-pub const HELP_URL: &str = "https://github.com/AprilNEA/OpenLogi#readme";
+pub const HELP_URL: &str = "https://github.com/WillkTech/OpenLogi#readme";
 /// The "latest release" page.
-pub const RELEASES_URL: &str = "https://github.com/AprilNEA/OpenLogi/releases/latest";
+pub const RELEASES_URL: &str = "https://github.com/WillkTech/OpenLogi/releases/latest";
 
 /// The application identifier: the Wayland xdg-toplevel `app_id` (and X11
 /// `WM_CLASS`) the GUI advertises, the root of the macOS bundle-id family

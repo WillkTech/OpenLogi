@@ -28,7 +28,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # macOS: full Xcode 26+ with the Metal Toolchain (not only Command Line Tools)
 # Linux: see system libraries under Toolchain above
 # optional helpers: brew install cmake create-dmg sccache
-git clone https://github.com/AprilNEA/OpenLogi
+git clone https://github.com/WillkTech/OpenLogi
 cd OpenLogi
 cargo run -p openlogi --release -- list
 cargo run -p openlogi-desktop --release

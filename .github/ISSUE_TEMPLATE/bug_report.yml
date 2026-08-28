@@ -18,9 +18,9 @@ body:
     attributes:
       label: Pre-flight checklist
       options:
-        - label: I searched [existing issues](https://github.com/AprilNEA/OpenLogi/issues?q=is%3Aissue) and this is not a duplicate.
+        - label: I searched [existing issues](https://github.com/WillkTech/OpenLogi/issues?q=is%3Aissue) and this is not a duplicate.
           required: true
-        - label: I am on the [latest release](https://github.com/AprilNEA/OpenLogi/releases/latest) or a recent `master` build.
+        - label: I am on the [latest release](https://github.com/WillkTech/OpenLogi/releases/latest) or a recent `master` build.
           required: true
         - label: I quit **Logi Options+** before running OpenLogi (the two apps fight over HID++ access and only one can own a receiver at a time).
           required: true
