@@ -26,6 +26,10 @@ use crate::ui::action_composer::toggle_modifier_in_text;
 use crate::ui::components::{MenuRow, control_input};
 use crate::ui::theme::{self, Palette, Typography as _};
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "renders full action ring library panel"
+)]
 pub(super) fn action_library(
     slot: ActionRingSlot,
     current: Option<&ActionRingEntry>,
@@ -210,7 +214,7 @@ fn composer_section(
                             .into_iter()
                             .map(|mod_name| {
                                 let input = shortcut_input.clone();
-                                Button::new(format!("ring-mod-{}", mod_name))
+                                Button::new(format!("ring-mod-{mod_name}"))
                                     .compact()
                                     .label(mod_name)
                                     .on_click(move |_, window, cx| {
@@ -268,6 +272,10 @@ fn composer_section(
         )
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "iterates all action catalog sections"
+)]
 fn action_sections(
     slot: ActionRingSlot,
     current: Option<&Action>,

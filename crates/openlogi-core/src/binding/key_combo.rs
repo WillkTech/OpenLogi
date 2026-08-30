@@ -223,9 +223,6 @@ impl KeyCombo {
             parts.push("Meta".to_string());
         }
         if self.has_command() {
-            #[cfg(target_os = "macos")]
-            parts.push("⌘".to_string());
-            #[cfg(not(target_os = "macos"))]
             parts.push("Cmd".to_string());
         }
         if self.has_control() {

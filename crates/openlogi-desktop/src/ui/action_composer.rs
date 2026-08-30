@@ -1,7 +1,10 @@
 //! Shared ActionComposer GPUI component for configuring shortcuts and application launch targets
 //! with bi-directional modifier token synchronization, live preview, and icon selection.
 
-use gpui::{prelude::FluentBuilder as _, *};
+use gpui::{
+    App, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render, Styled as _,
+    Subscription, Window, div, prelude::FluentBuilder as _, px, rgb,
+};
 use gpui_component::{
     Icon, Selectable as _,
     button::{Button, ButtonVariants as _},
@@ -25,7 +28,7 @@ pub enum ComposerTargetMode {
 
 pub fn parse_modifiers_from_text(text: &str) -> (bool, bool, bool, bool, bool, bool) {
     let lower = text.to_lowercase();
-    let tokens: Vec<&str> = lower.split('+').map(|s| s.trim()).collect();
+    let tokens: Vec<&str> = lower.split('+').map(str::trim).collect();
 
     let win = tokens
         .iter()
@@ -33,7 +36,7 @@ pub fn parse_modifiers_from_text(text: &str) -> (bool, bool, bool, bool, bool, b
     let cmd = tokens.iter().any(|&t| t == "cmd" || t == "command");
     let ctrl = tokens.iter().any(|&t| t == "ctrl" || t == "control");
     let alt = tokens.iter().any(|&t| t == "alt" || t == "option");
-    let shift = tokens.iter().any(|&t| t == "shift");
+    let shift = tokens.contains(&"shift");
     let fn_key = tokens.iter().any(|&t| t == "fn" || t == "globe");
 
     (win, cmd, ctrl, alt, shift, fn_key)
@@ -43,7 +46,7 @@ pub fn toggle_modifier_in_text(text: &str, modifier: &str) -> String {
     let lower_mod = modifier.to_lowercase();
     let mut tokens: Vec<&str> = text
         .split('+')
-        .map(|s| s.trim())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
         .collect();
 
@@ -83,6 +86,10 @@ pub fn toggle_modifier_in_text(text: &str, modifier: &str) -> String {
     tokens.join(" + ")
 }
 
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "tracks active states of 6 modifier keys plus legend"
+)]
 pub struct ActionComposer {
     pub mode: ComposerTargetMode,
     pub key_input: Entity<InputState>,
@@ -202,6 +209,10 @@ impl ActionComposer {
 }
 
 impl Render for ActionComposer {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "renders full interactive ActionComposer view"
+    )]
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let pal = theme::palette(cx);
         let current_combo_res = self.build_combo(cx);

@@ -8,7 +8,8 @@ use super::{
 use openlogi_core::app::ForegroundApp;
 use openlogi_core::binding::{Action, Binding, ButtonId};
 use openlogi_core::config::{
-    Config, DeviceConfig, LightSettings, LinkConfig, ScrollResolution, VerticalScrollSensitivity,
+    Config, CurvePreset, DeviceConfig, LightSettings, LinkConfig, ScrollResolution,
+    VerticalScrollSensitivity,
 };
 use openlogi_core::device::{
     Capabilities, DeviceInventory, DeviceKind, DeviceModelInfo, DeviceTransports,
@@ -808,7 +809,9 @@ fn config_reload_keeps_manual_override_for_parameter_edits() {
 
 #[test]
 fn config_reload_publishes_scroll_preferences_without_restarting_the_hook() {
-    let mut orch = orchestrator(Config::default());
+    let mut default_config = Config::default();
+    default_config.app_settings.vertical_curve_preset = CurvePreset::None;
+    let mut orch = orchestrator(default_config);
     let preferences = Arc::clone(&orch.shared.scroll_preferences);
     assert!(!preferences.smooth_scroll_enabled());
     assert_eq!(
@@ -817,8 +820,8 @@ fn config_reload_publishes_scroll_preferences_without_restarting_the_hook() {
     );
 
     let mut config = Config::default();
-    config.app_settings.smooth_scroll = true;
-    config.app_settings.vertical_scroll_sensitivity =
+    config.app_settings.vertical_curve_preset = CurvePreset::Smooth;
+    config.app_settings.vertical_scroll_baseline =
         VerticalScrollSensitivity::try_new(7).expect("valid sensitivity");
     orch.reload_config(config);
 

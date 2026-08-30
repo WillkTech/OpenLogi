@@ -45,16 +45,16 @@ fn read_only_config_rolls_back_mutations_and_does_not_reload_agent() {
     );
 
     state.set_thumbwheel_sensitivity(ThumbwheelSensitivity::from_rounded(50.0));
-    state.set_smooth_scroll(true);
+    state.set_smooth_scroll(false);
     state.set_vertical_scroll_sensitivity(VerticalScrollSensitivity::from_rounded(7.0));
 
     assert_eq!(
-        state.app_settings().thumbwheel_sensitivity,
+        state.app_settings().horizontal_scroll_baseline,
         ThumbwheelSensitivity::DEFAULT
     );
-    assert!(!state.app_settings().smooth_scroll);
+    assert!(state.app_settings().smooth_scroll());
     assert_eq!(
-        state.app_settings().vertical_scroll_sensitivity,
+        state.app_settings().vertical_scroll_baseline,
         VerticalScrollSensitivity::DEFAULT
     );
     assert_eq!(state.config_issue(), Some("invalid config"));
@@ -75,15 +75,15 @@ fn smooth_scroll_change_reloads_the_agent_once() {
         commands,
     );
 
-    state.set_smooth_scroll(true);
+    state.set_smooth_scroll(false);
 
-    assert!(state.app_settings().smooth_scroll);
+    assert!(!state.app_settings().smooth_scroll());
     assert!(matches!(
         receiver.try_recv(),
         Ok(crate::services::ipc::Command::ReloadConfig)
     ));
 
-    state.set_smooth_scroll(true);
+    state.set_smooth_scroll(false);
     assert!(receiver.try_recv().is_err());
 }
 
@@ -1738,4 +1738,34 @@ fn a_failed_save_keeps_the_forgotten_device() {
             .edit(|config| config.device_identity("2b034").is_some()),
         "the persisted entry must survive the failed save"
     );
+}
+
+#[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "settings multipliers are exact step-grid floating-point values"
+)]
+fn scroll_multiplier_updates_and_resets_work() {
+    let mut state = state_with_a_known_mouse();
+
+    // Default values
+    assert_eq!(state.app_settings().effective_vertical_multiplier(), 2.5);
+    assert_eq!(state.app_settings().effective_horizontal_multiplier(), 2.0);
+
+    // Update vertical multiplier
+    state.set_vertical_multiplier(3.5);
+    assert_eq!(state.app_settings().effective_vertical_multiplier(), 3.5);
+
+    // Update horizontal multiplier
+    state.set_horizontal_multiplier(4.0);
+    assert_eq!(state.app_settings().effective_horizontal_multiplier(), 4.0);
+
+    // Reset vertical
+    state.reset_vertical_acceleration();
+    assert_eq!(state.app_settings().effective_vertical_multiplier(), 2.5);
+    assert_eq!(state.app_settings().effective_horizontal_multiplier(), 4.0);
+
+    // Reset horizontal
+    state.reset_horizontal_acceleration();
+    assert_eq!(state.app_settings().effective_horizontal_multiplier(), 2.0);
 }

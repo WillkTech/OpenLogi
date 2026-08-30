@@ -32,9 +32,10 @@ pub use identity::canonical_device_key;
 pub use key_trigger::{KeyModifiers, KeyTrigger, KeyboardConfig, ParseTriggerError};
 pub use settings::LightSettings;
 pub use settings::{
-    AppIcon, AppSettings, Appearance, AssetSourcePreference, CameraControls, DeviceViewMode,
-    Lighting, SMARTSHIFT_AUTO_DISENGAGE_DEFAULT, SMARTSHIFT_MIN_AUTO_DISENGAGE, ScrollResolution,
-    SmartShift, ThumbwheelSensitivity, UiScale, VerticalScrollSensitivity, WheelMode,
+    AppIcon, AppSettings, Appearance, AssetSourcePreference, CameraControls, CurvePreset,
+    DeviceViewMode, HorizontalScrollBaseline, Lighting, SMARTSHIFT_AUTO_DISENGAGE_DEFAULT,
+    SMARTSHIFT_MIN_AUTO_DISENGAGE, ScrollResolution, SmartShift, ThumbwheelSensitivity, UiScale,
+    VerticalScrollBaseline, VerticalScrollSensitivity, WheelMode,
 };
 
 use crate::binding::{
@@ -1003,7 +1004,7 @@ impl Config {
         self.devices
             .get(device_key)
             .and_then(|d| d.thumbwheel_sensitivity)
-            .unwrap_or(self.app_settings.thumbwheel_sensitivity)
+            .unwrap_or(self.app_settings.horizontal_scroll_baseline)
     }
 
     /// Set (or clear, with `None`) `device_key`'s thumb-wheel sensitivity

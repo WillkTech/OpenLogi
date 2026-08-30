@@ -5,7 +5,7 @@
 
 use std::time::{Duration, Instant};
 
-use openlogi_core::math;
+use openlogi_core::math::{self, CurvePreset, ScrollLut, UNITY_GAIN_FIXED};
 
 /// Time without wheel input after which acceleration state decays/resets.
 const IDLE_TIMEOUT: Duration = Duration::from_millis(250);
@@ -16,12 +16,18 @@ const ALPHA: f32 = 0.4;
 /// Per-axis acceleration parameters.
 #[derive(Debug, Clone, Copy)]
 pub struct AxisAccelerationParams {
-    /// Whether acceleration is enabled for the axis.
-    pub enabled: bool,
-    /// Acceleration strength factor.
-    pub factor: f32,
-    /// Upper bound on the gain multiplier.
-    pub max_gain: f32,
+    /// Curve preset for the axis.
+    pub preset: CurvePreset,
+    /// Multiplier determines the maximum gain at peak scroll rate.
+    pub multiplier: f32,
+}
+
+impl AxisAccelerationParams {
+    /// Whether acceleration/smoothing is active for this axis.
+    #[must_use]
+    pub const fn is_enabled(&self) -> bool {
+        self.preset.is_enabled()
+    }
 }
 
 /// Stateful acceleration tracker for a single scroll axis.
@@ -49,16 +55,14 @@ impl AxisAcceleration {
         &mut self,
         delta_ticks: f32,
         at: Instant,
-        enabled: bool,
-        acceleration_factor: f32,
-        max_gain: f32,
+        preset: CurvePreset,
+        multiplier: f32,
     ) -> f32 {
-        if !enabled
-            || max_gain <= 1.0
+        if !preset.is_enabled()
+            || multiplier <= 1.0
             || delta_ticks == 0.0
             || !delta_ticks.is_finite()
-            || !acceleration_factor.is_finite()
-            || acceleration_factor <= 0.0
+            || !multiplier.is_finite()
         {
             self.reset();
             return 1.0;
@@ -92,6 +96,7 @@ impl AxisAcceleration {
                 let instantaneous_rate = abs_delta / dt_secs;
                 if instantaneous_rate.is_finite() {
                     if self.estimated_rate == 0.0 {
+                        // Tick 2: instant rate seeding to eliminate EMA ramp-up lag
                         self.estimated_rate = instantaneous_rate;
                     } else {
                         self.estimated_rate =
@@ -107,7 +112,75 @@ impl AxisAcceleration {
         self.last_direction = dir;
         self.last_event_time = Some(at);
 
-        math::gain_at_rate(self.estimated_rate, enabled, acceleration_factor, max_gain)
+        math::gain_at_rate_preset(self.estimated_rate, preset, multiplier)
+    }
+
+    /// Calculate gain using precomputed LUT in fixed point.
+    #[must_use]
+    #[expect(
+        clippy::float_cmp,
+        reason = "dir and last_direction are signum values (+1.0, -1.0, 0.0)"
+    )]
+    pub fn compute_gain_fixed(
+        &mut self,
+        delta_ticks: f32,
+        at: Instant,
+        lut: &ScrollLut,
+        preset: CurvePreset,
+    ) -> i32 {
+        if !preset.is_enabled() || delta_ticks == 0.0 || !delta_ticks.is_finite() {
+            self.reset();
+            return UNITY_GAIN_FIXED;
+        }
+
+        let dir = delta_ticks.signum();
+
+        // Direction reversal check
+        if self.last_direction != 0.0 && dir != self.last_direction {
+            self.reset();
+            self.last_direction = dir;
+            self.last_event_time = Some(at);
+            return UNITY_GAIN_FIXED;
+        }
+
+        let abs_delta = delta_ticks.abs();
+
+        if let Some(last_time) = self.last_event_time {
+            let dt = at.saturating_duration_since(last_time);
+            let dt_secs = dt.as_secs_f32();
+
+            if dt >= IDLE_TIMEOUT {
+                self.reset();
+                self.last_direction = dir;
+                self.last_event_time = Some(at);
+                return UNITY_GAIN_FIXED;
+            }
+
+            if dt_secs > 0.0 {
+                let instantaneous_rate = abs_delta / dt_secs;
+                if instantaneous_rate.is_finite() {
+                    if self.estimated_rate == 0.0 {
+                        self.estimated_rate = instantaneous_rate;
+                    } else {
+                        self.estimated_rate =
+                            (1.0 - ALPHA) * self.estimated_rate + ALPHA * instantaneous_rate;
+                    }
+                }
+            }
+        } else {
+            self.estimated_rate = 0.0;
+        }
+
+        self.last_direction = dir;
+        self.last_event_time = Some(at);
+
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "rate is clamped to 0..255"
+        )]
+        let rate_bin = self.estimated_rate.clamp(0.0, 255.0).round() as usize;
+        lut.lookup(rate_bin).max(UNITY_GAIN_FIXED)
     }
 }
 
@@ -130,20 +203,38 @@ impl ScrollAccelerationEngine {
         vertical: AxisAccelerationParams,
         horizontal: AxisAccelerationParams,
     ) -> (f32, f32) {
-        let gain_x = self.horizontal.compute_gain(
-            x_ticks,
-            at,
-            horizontal.enabled,
-            horizontal.factor,
-            horizontal.max_gain,
-        );
-        let gain_y = self.vertical.compute_gain(
-            y_ticks,
-            at,
-            vertical.enabled,
-            vertical.factor,
-            vertical.max_gain,
-        );
+        let gain_x =
+            self.horizontal
+                .compute_gain(x_ticks, at, horizontal.preset, horizontal.multiplier);
+        let gain_y = self
+            .vertical
+            .compute_gain(y_ticks, at, vertical.preset, vertical.multiplier);
+        (gain_x, gain_y)
+    }
+
+    /// Compute accelerated (x, y) scaling factors in fixed point using active LUTs.
+    ///
+    /// Returns `(gain_x_fixed, gain_y_fixed)`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "per-axis fixed-point LUT lookup requires both presets and precomputed tables"
+    )]
+    pub fn compute_gains_fixed(
+        &mut self,
+        x_ticks: f32,
+        y_ticks: f32,
+        at: Instant,
+        vertical_preset: CurvePreset,
+        vertical_lut: &ScrollLut,
+        horizontal_preset: CurvePreset,
+        horizontal_lut: &ScrollLut,
+    ) -> (i32, i32) {
+        let gain_x =
+            self.horizontal
+                .compute_gain_fixed(x_ticks, at, horizontal_lut, horizontal_preset);
+        let gain_y = self
+            .vertical
+            .compute_gain_fixed(y_ticks, at, vertical_lut, vertical_preset);
         (gain_x, gain_y)
     }
 
@@ -159,19 +250,16 @@ mod tests {
     use super::*;
 
     const V: AxisAccelerationParams = AxisAccelerationParams {
-        enabled: true,
-        factor: 1.0,
-        max_gain: 2.5,
+        preset: CurvePreset::Smooth,
+        multiplier: 2.5,
     };
     const H: AxisAccelerationParams = AxisAccelerationParams {
-        enabled: false,
-        factor: 1.0,
-        max_gain: 2.0,
+        preset: CurvePreset::None,
+        multiplier: 2.0,
     };
     const H_ON: AxisAccelerationParams = AxisAccelerationParams {
-        enabled: true,
-        factor: 1.0,
-        max_gain: 2.0,
+        preset: CurvePreset::Smooth,
+        multiplier: 2.0,
     };
 
     #[test]
@@ -187,7 +275,7 @@ mod tests {
             1.0,
             now,
             AxisAccelerationParams {
-                enabled: false,
+                preset: CurvePreset::None,
                 ..V
             },
             H,
@@ -361,5 +449,22 @@ mod tests {
         // NaN / Infinite inputs
         let (_gx_nan, gy_nan) = engine.compute_gains(0.0, f32::NAN, now, V, H);
         assert_eq!(gy_nan, 1.0);
+    }
+
+    #[test]
+    fn test_compute_gain_fixed_with_lut() {
+        let mut axis = AxisAcceleration::default();
+        let lut = ScrollLut::generate(CurvePreset::Smooth, 2.5);
+        let start = Instant::now();
+
+        // First tick
+        let g1 = axis.compute_gain_fixed(1.0, start, &lut, CurvePreset::Smooth);
+        assert_eq!(g1, UNITY_GAIN_FIXED);
+
+        // Fast tick at 20ms (50 ticks/sec)
+        let t2 = start + Duration::from_millis(20);
+        let g2 = axis.compute_gain_fixed(1.0, t2, &lut, CurvePreset::Smooth);
+        assert!(g2 > UNITY_GAIN_FIXED);
+        assert_eq!(g2, 2500);
     }
 }

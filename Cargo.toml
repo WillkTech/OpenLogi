@@ -28,7 +28,7 @@ members = [
 default-members = ["crates/openlogi"]
 
 [workspace.package]
-version = "0.8.2"
+version = "0.8.3"
 edition = "2024"
 # Tracks current stable rather than trailing it. OpenLogi ships as an app —
 # prebuilt installers, and no crate here has an external reverse dependency —

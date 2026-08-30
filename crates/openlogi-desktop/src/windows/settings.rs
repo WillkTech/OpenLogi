@@ -120,10 +120,8 @@ pub struct SettingsView {
     asset_source_select: Entity<SelectState<Vec<assets::AssetSourceOption>>>,
     thumbwheel_sensitivity_slider: Entity<SliderState>,
     vertical_scroll_sensitivity_slider: Entity<SliderState>,
-    v_accel_slider: Entity<SliderState>,
-    v_max_gain_slider: Entity<SliderState>,
-    h_accel_slider: Entity<SliderState>,
-    h_max_gain_slider: Entity<SliderState>,
+    v_multiplier_slider: Entity<SliderState>,
+    h_multiplier_slider: Entity<SliderState>,
     v_preset_select: Entity<SelectState<Vec<general::PresetOption>>>,
     h_preset_select: Entity<SelectState<Vec<general::PresetOption>>>,
     /// Shared app-wide updater, surfaced on the Updates page. A launch-time
@@ -206,49 +204,35 @@ impl SettingsView {
         let vertical_scroll_sensitivity_slider =
             Self::vertical_scroll_sensitivity_slider(window, cx);
 
-        // Per acceleration axis: an Acceleration slider, a Multiplier slider,
-        // and a preset select seeded on the preset matching the stored state
-        // (None when the axis is disabled, Custom when it matches no preset).
-        let (v_enabled, v_factor, v_gain, h_enabled, h_factor, h_gain) =
-            if let Some(state) = AppState::try_read(cx) {
-                let app = state.app_settings();
-                (
-                    app.vertical_acceleration_enabled,
-                    app.vertical_acceleration,
-                    app.vertical_max_gain,
-                    app.horizontal_acceleration_enabled,
-                    app.horizontal_acceleration,
-                    app.horizontal_max_gain,
-                )
-            } else {
-                let defaults = AppSettings::default();
-                (
-                    defaults.vertical_acceleration_enabled,
-                    defaults.vertical_acceleration,
-                    defaults.vertical_max_gain,
-                    defaults.horizontal_acceleration_enabled,
-                    defaults.horizontal_acceleration,
-                    defaults.horizontal_max_gain,
-                )
-            };
-        let v_accel_slider = Self::acceleration_slider(cx, 0.2, 4.0, 0.05, v_factor);
-        cx.subscribe_in(&v_accel_slider, window, Self::on_v_accel_slider)
+        // Per acceleration axis: a Multiplier slider and a preset select
+        // seeded on the preset matching the stored state.
+        let (v_preset, v_mult, h_preset, h_mult) = if let Some(state) = AppState::try_read(cx) {
+            let app = state.app_settings();
+            (
+                app.effective_vertical_preset(),
+                app.effective_vertical_multiplier(),
+                app.effective_horizontal_preset(),
+                app.effective_horizontal_multiplier(),
+            )
+        } else {
+            let defaults = AppSettings::default();
+            (
+                defaults.effective_vertical_preset(),
+                defaults.effective_vertical_multiplier(),
+                defaults.effective_horizontal_preset(),
+                defaults.effective_horizontal_multiplier(),
+            )
+        };
+        let v_multiplier_slider = Self::acceleration_slider(cx, 1.0, 5.0, 0.1, v_mult);
+        cx.subscribe_in(&v_multiplier_slider, window, Self::on_v_multiplier_slider)
             .detach();
-        let v_max_gain_slider = Self::acceleration_slider(cx, 1.0, 5.0, 0.1, v_gain);
-        cx.subscribe_in(&v_max_gain_slider, window, Self::on_v_max_gain_slider)
+        let h_multiplier_slider = Self::acceleration_slider(cx, 1.0, 5.0, 0.1, h_mult);
+        cx.subscribe_in(&h_multiplier_slider, window, Self::on_h_multiplier_slider)
             .detach();
-        let h_accel_slider = Self::acceleration_slider(cx, 0.2, 4.0, 0.05, h_factor);
-        cx.subscribe_in(&h_accel_slider, window, Self::on_h_accel_slider)
-            .detach();
-        let h_max_gain_slider = Self::acceleration_slider(cx, 1.0, 5.0, 0.1, h_gain);
-        cx.subscribe_in(&h_max_gain_slider, window, Self::on_h_max_gain_slider)
-            .detach();
-        let v_preset_select =
-            Self::acceleration_preset_select(window, cx, v_enabled, v_factor, v_gain, true);
+        let v_preset_select = Self::acceleration_preset_select(window, cx, v_preset);
         cx.subscribe_in(&v_preset_select, window, Self::on_v_preset_select)
             .detach();
-        let h_preset_select =
-            Self::acceleration_preset_select(window, cx, h_enabled, h_factor, h_gain, false);
+        let h_preset_select = Self::acceleration_preset_select(window, cx, h_preset);
         cx.subscribe_in(&h_preset_select, window, Self::on_h_preset_select)
             .detach();
 
@@ -298,10 +282,8 @@ impl SettingsView {
             asset_source_select,
             thumbwheel_sensitivity_slider,
             vertical_scroll_sensitivity_slider,
-            v_accel_slider,
-            v_max_gain_slider,
-            h_accel_slider,
-            h_max_gain_slider,
+            v_multiplier_slider,
+            h_multiplier_slider,
             v_preset_select,
             h_preset_select,
             updater,
@@ -319,7 +301,7 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> Entity<SliderState> {
         let current = AppState::try_read(cx).map_or(ThumbwheelSensitivity::DEFAULT, |state| {
-            state.app_settings().thumbwheel_sensitivity
+            state.app_settings().horizontal_scroll_baseline
         });
         let slider = cx.new(|_| {
             SliderState::new()
@@ -337,7 +319,7 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> Entity<SliderState> {
         let current = AppState::try_read(cx).map_or(VerticalScrollSensitivity::DEFAULT, |state| {
-            state.app_settings().vertical_scroll_sensitivity
+            state.app_settings().vertical_scroll_baseline
         });
         let slider = cx.new(|_| {
             SliderState::new()
@@ -390,7 +372,7 @@ impl SettingsView {
             let committed = AppState::update(cx, |state, cx| {
                 state.set_vertical_scroll_sensitivity(sensitivity);
                 cx.emit(StateEvent::SettingsChanged);
-                state.app_settings().vertical_scroll_sensitivity
+                state.app_settings().vertical_scroll_baseline
             });
             // A failed write restores AppState's persisted configuration. Re-seat
             // this independently owned slider so it cannot keep presenting the
@@ -422,119 +404,85 @@ impl SettingsView {
     }
 
     /// Create the preset select for one acceleration axis, pre-seeded on the
-    /// preset matching the stored state — None when the axis is disabled,
-    /// Custom when it matches no preset.
+    /// preset matching the stored state.
     fn acceleration_preset_select(
         window: &mut Window,
         cx: &mut Context<Self>,
-        enabled: bool,
-        factor: f32,
-        max_gain: f32,
-        is_vertical: bool,
+        preset: openlogi_core::config::CurvePreset,
     ) -> Entity<SelectState<Vec<general::PresetOption>>> {
-        let preset =
-            general::AccelerationPreset::from_values(enabled, factor, max_gain, is_vertical);
         let options = general::preset_options();
         let selected = general::selected_preset_index(preset);
         cx.new(|cx| SelectState::new(options, Some(selected), window, cx))
     }
 
-    /// Commit the vertical acceleration-strength slider on release.
-    fn on_v_accel_slider(
+    /// Commit the vertical multiplier slider on release.
+    #[expect(
+        clippy::unused_self,
+        reason = "gpui subscription handlers must take &mut self"
+    )]
+    fn on_v_multiplier_slider(
         &mut self,
         slider: &Entity<SliderState>,
         event: &SliderEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.commit_acceleration_slider(slider, event, window, cx, true, true);
+        Self::commit_multiplier_slider(slider, event, window, cx, true);
     }
 
-    /// Commit the vertical maximum-speed slider on release.
-    fn on_v_max_gain_slider(
+    /// Commit the horizontal multiplier slider on release.
+    #[expect(
+        clippy::unused_self,
+        reason = "gpui subscription handlers must take &mut self"
+    )]
+    fn on_h_multiplier_slider(
         &mut self,
         slider: &Entity<SliderState>,
         event: &SliderEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.commit_acceleration_slider(slider, event, window, cx, true, false);
+        Self::commit_multiplier_slider(slider, event, window, cx, false);
     }
 
-    /// Commit the horizontal acceleration-strength slider on release.
-    fn on_h_accel_slider(
-        &mut self,
-        slider: &Entity<SliderState>,
-        event: &SliderEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.commit_acceleration_slider(slider, event, window, cx, false, true);
-    }
-
-    /// Commit the horizontal maximum-speed slider on release.
-    fn on_h_max_gain_slider(
-        &mut self,
-        slider: &Entity<SliderState>,
-        event: &SliderEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.commit_acceleration_slider(slider, event, window, cx, false, false);
-    }
-
-    /// Commit one acceleration slider: snap the released value onto its step
-    /// grid, persist it (a failed write rolls the config back, so the slider
-    /// is re-seated on the committed value), and flip the axis' preset select
-    /// to Custom when the pair no longer matches a preset.
-    fn commit_acceleration_slider(
-        &mut self,
+    /// Commit one multiplier slider: snap the released value onto its step
+    /// grid and persist it.
+    fn commit_multiplier_slider(
         slider: &Entity<SliderState>,
         event: &SliderEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
         is_vertical: bool,
-        is_strength: bool,
     ) {
         if let SliderEvent::Release(value) = event {
-            // Snap on integer grids (5% / 0.1×) in f32 so the stored value is
-            // exact; the slider's own float stepping can drift a ulp.
             let raw = value.start();
-            let snapped = if is_strength {
-                (raw * 100.0 / 5.0).round() * 5.0 / 100.0
-            } else {
-                (raw * 10.0).round() / 10.0
-            };
-            let (factor, max_gain) = AppState::update(cx, |state, cx| {
+            let snapped = (raw * 10.0).round() / 10.0;
+            let mult = AppState::update(cx, |state, cx| {
                 if is_vertical {
-                    if is_strength {
-                        state.set_vertical_acceleration(snapped);
-                    } else {
-                        state.set_vertical_max_gain(snapped);
-                    }
-                } else if is_strength {
-                    state.set_horizontal_acceleration(snapped);
+                    state.set_vertical_multiplier(snapped);
                 } else {
-                    state.set_horizontal_max_gain(snapped);
+                    state.set_horizontal_multiplier(snapped);
                 }
                 cx.emit(StateEvent::SettingsChanged);
                 let app = state.app_settings();
                 if is_vertical {
-                    (app.vertical_acceleration, app.vertical_max_gain)
+                    app.effective_vertical_multiplier()
                 } else {
-                    (app.horizontal_acceleration, app.horizontal_max_gain)
+                    app.effective_horizontal_multiplier()
                 }
             });
             slider.update(cx, |slider, cx| {
-                let committed = if is_strength { factor } else { max_gain };
-                slider.set_value(slider_f32(committed), window, cx);
+                slider.set_value(slider_f32(mult), window, cx);
             });
-            self.sync_preset_select(is_vertical, factor, max_gain, window, cx);
         }
         cx.notify();
     }
 
     /// Apply the preset chosen for the vertical acceleration axis.
+    #[expect(
+        clippy::unused_self,
+        reason = "gpui subscription handlers must take &mut self"
+    )]
     fn on_v_preset_select(
         &mut self,
         _: &Entity<SelectState<Vec<general::PresetOption>>>,
@@ -542,10 +490,14 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.apply_acceleration_preset(event, window, cx, true);
+        Self::apply_acceleration_preset(event, window, cx, true);
     }
 
     /// Apply the preset chosen for the horizontal acceleration axis.
+    #[expect(
+        clippy::unused_self,
+        reason = "gpui subscription handlers must take &mut self"
+    )]
     fn on_h_preset_select(
         &mut self,
         _: &Entity<SelectState<Vec<general::PresetOption>>>,
@@ -553,17 +505,13 @@ impl SettingsView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.apply_acceleration_preset(event, window, cx, false);
+        Self::apply_acceleration_preset(event, window, cx, false);
     }
 
-    /// Apply the preset chosen for an acceleration axis. None disables the
-    /// axis (the worker's hook gate then stops accelerating it); every other
-    /// preset enables it, and all but Custom hydrate their own values so a
-    /// disabled axis never revives stale slider state.
+    /// Apply the preset chosen for an acceleration axis.
     fn apply_acceleration_preset(
-        &mut self,
         event: &SelectEvent<Vec<general::PresetOption>>,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
         is_vertical: bool,
     ) {
@@ -571,75 +519,16 @@ impl SettingsView {
             cx.notify();
             return;
         };
+        let preset = *preset;
         AppState::update(cx, |state, cx| {
-            if *preset == general::AccelerationPreset::None {
-                if is_vertical {
-                    state.set_vertical_acceleration_enabled(false);
-                } else {
-                    state.set_horizontal_acceleration_enabled(false);
-                }
-            } else if is_vertical {
-                state.set_vertical_acceleration_enabled(true);
-                if let Some((factor, max_gain)) = preset.values(is_vertical) {
-                    state.set_vertical_acceleration(factor);
-                    state.set_vertical_max_gain(max_gain);
-                }
+            if is_vertical {
+                state.set_vertical_curve_preset(preset);
             } else {
-                state.set_horizontal_acceleration_enabled(true);
-                if let Some((factor, max_gain)) = preset.values(is_vertical) {
-                    state.set_horizontal_acceleration(factor);
-                    state.set_horizontal_max_gain(max_gain);
-                }
+                state.set_horizontal_curve_preset(preset);
             }
             cx.emit(StateEvent::SettingsChanged);
         });
-        // Re-seat the sliders on whatever is now stored. For None the block
-        // collapses anyway; for Custom nothing changed and this is a no-op.
-        let app = AppState::try_read(cx).map(|s| s.app_settings().clone());
-        if let Some(app) = app {
-            let (factor, max_gain) = if is_vertical {
-                (app.vertical_acceleration, app.vertical_max_gain)
-            } else {
-                (app.horizontal_acceleration, app.horizontal_max_gain)
-            };
-            let (accel_slider, max_gain_slider) = if is_vertical {
-                (&self.v_accel_slider, &self.v_max_gain_slider)
-            } else {
-                (&self.h_accel_slider, &self.h_max_gain_slider)
-            };
-            accel_slider.update(cx, |slider, cx| {
-                slider.set_value(slider_f32(factor), window, cx);
-            });
-            max_gain_slider.update(cx, |slider, cx| {
-                slider.set_value(slider_f32(max_gain), window, cx);
-            });
-        }
         cx.notify();
-    }
-
-    /// Re-seat an axis' preset select after its stored state changed: the
-    /// select mirrors the (enabled, strength, multiplier) triple, so a slider
-    /// move away from a preset flips it to Custom.
-    fn sync_preset_select(
-        &mut self,
-        is_vertical: bool,
-        factor: f32,
-        max_gain: f32,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let preset = general::AccelerationPreset::from_values(true, factor, max_gain, is_vertical);
-        let select = if is_vertical {
-            &self.v_preset_select
-        } else {
-            &self.h_preset_select
-        };
-        let selected = general::selected_preset_index(preset);
-        select.update(cx, |select, cx| {
-            if select.selected_index(cx) != Some(selected) {
-                select.set_selected_index(Some(selected), window, cx);
-            }
-        });
     }
 
     fn on_language_select(
@@ -745,10 +634,8 @@ impl Render for SettingsView {
             .page(general::general_page(
                 &self.vertical_scroll_sensitivity_slider,
                 &self.thumbwheel_sensitivity_slider,
-                &self.v_accel_slider,
-                &self.v_max_gain_slider,
-                &self.h_accel_slider,
-                &self.h_max_gain_slider,
+                &self.v_multiplier_slider,
+                &self.h_multiplier_slider,
                 &self.v_preset_select,
                 &self.h_preset_select,
             ))

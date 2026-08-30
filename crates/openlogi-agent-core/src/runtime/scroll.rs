@@ -332,22 +332,17 @@ impl ScrollEngine {
             return;
         }
 
-        let mut inline_due = [const { None }; 4];
+        let mut inline_due = [const { None }; 8];
         let mut count = 0;
-        let mut overflow_due = Vec::new();
 
         for (source, motion) in &self.active {
-            if motion.next_frame <= at {
-                if count < 4 {
-                    inline_due[count] = Some(source.clone());
-                    count += 1;
-                } else {
-                    overflow_due.push(source.clone());
-                }
+            if motion.next_frame <= at && count < 8 {
+                inline_due[count] = Some(source.clone());
+                count += 1;
             }
         }
 
-        for source in inline_due.into_iter().flatten().chain(overflow_due) {
+        for source in inline_due.into_iter().flatten() {
             let Some(update) = self
                 .active
                 .get_mut(&source)

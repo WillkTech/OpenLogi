@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(zed.dev)"
+    ]
+  },
+  "$version": 4
+}

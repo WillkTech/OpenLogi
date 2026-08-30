@@ -141,6 +141,10 @@ pub(crate) fn action_rows(
 }
 
 /// Build action rows filtered by localized action or category name.
+#[expect(
+    clippy::too_many_lines,
+    reason = "filters and renders action catalog picker rows"
+)]
 pub(crate) fn action_rows_matching(
     id_prefix: &'static str,
     current: Option<&Action>,

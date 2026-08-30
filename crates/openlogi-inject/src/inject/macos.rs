@@ -512,9 +512,7 @@ mod tests {
     use super::{combo, held_key_event, hid_usage_to_macos};
     use crate::inject::{HeldKey, HeldModifiers, KeyPhase};
 
-    use super::{
-        DOUBLE_CLICK_DISTANCE_THRESHOLD, DOUBLE_CLICK_THRESHOLD, record_left_click_state_at_time,
-    };
+    use super::{DOUBLE_CLICK_DISTANCE_THRESHOLD, record_left_click_state_at_time};
     use core_graphics::geometry::CGPoint;
     use std::time::{Duration, Instant};
 

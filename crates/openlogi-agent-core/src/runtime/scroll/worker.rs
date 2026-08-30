@@ -8,40 +8,61 @@ use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use openlogi_core::config::VerticalScrollSensitivity;
+use crossbeam_queue::ArrayQueue;
+use openlogi_core::config::{
+    AppSettings, CurvePreset, HorizontalScrollBaseline, VerticalScrollBaseline,
+    VerticalScrollSensitivity,
+};
+use openlogi_core::math::ScrollLut;
 use openlogi_core::scroll::ScrollDelta;
 use tracing::warn;
 
-use super::{AxisAccelerationParams, ScrollEngine, ScrollFrame, ScrollSource, WheelDelta};
+use super::{FRAME_INTERVAL, ScrollEngine, ScrollFrame, ScrollSource, WheelDelta};
 use crate::runtime::HidppSessionId;
 
 /// OS-hook callbacks must fail open rather than wait for the worker.
-const INPUT_QUEUE_CAPACITY: usize = 128;
+const INPUT_QUEUE_CAPACITY: usize = 256;
 /// Bounds graceful process shutdown if platform injection stops returning.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+
+/// Atomic snapshot of scroll preferences with precomputed LUT tables.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollPreferenceSnapshot {
-    pub smooth_scroll: bool,
-    pub vertical_sensitivity: VerticalScrollSensitivity,
-    pub vertical_acceleration_enabled: bool,
-    pub vertical_acceleration: f32,
-    pub vertical_max_gain: f32,
-    pub horizontal_acceleration_enabled: bool,
-    pub horizontal_acceleration: f32,
-    pub horizontal_max_gain: f32,
+    /// Vertical baseline distance.
+    pub vertical_baseline: VerticalScrollBaseline,
+    /// Horizontal baseline distance.
+    pub horizontal_baseline: HorizontalScrollBaseline,
+    /// Vertical curve preset.
+    pub vertical_preset: CurvePreset,
+    /// Horizontal curve preset.
+    pub horizontal_preset: CurvePreset,
+    /// Vertical multiplier.
+    pub vertical_multiplier: f32,
+    /// Horizontal multiplier.
+    pub horizontal_multiplier: f32,
+    /// Precomputed vertical lookup table.
+    pub vertical_lut: ScrollLut,
+    /// Precomputed horizontal lookup table.
+    pub horizontal_lut: ScrollLut,
 }
 
-impl From<&openlogi_core::config::AppSettings> for ScrollPreferenceSnapshot {
-    fn from(settings: &openlogi_core::config::AppSettings) -> Self {
+impl From<&AppSettings> for ScrollPreferenceSnapshot {
+    fn from(settings: &AppSettings) -> Self {
+        let vertical_preset = settings.effective_vertical_preset();
+        let horizontal_preset = settings.effective_horizontal_preset();
+        let vertical_multiplier = settings.effective_vertical_multiplier();
+        let horizontal_multiplier = settings.effective_horizontal_multiplier();
+        let vertical_lut = ScrollLut::generate(vertical_preset, vertical_multiplier);
+        let horizontal_lut = ScrollLut::generate(horizontal_preset, horizontal_multiplier);
         Self {
-            smooth_scroll: settings.smooth_scroll,
-            vertical_sensitivity: settings.vertical_scroll_sensitivity,
-            vertical_acceleration_enabled: settings.vertical_acceleration_enabled,
-            vertical_acceleration: settings.vertical_acceleration,
-            vertical_max_gain: settings.vertical_max_gain,
-            horizontal_acceleration_enabled: settings.horizontal_acceleration_enabled,
-            horizontal_acceleration: settings.horizontal_acceleration,
-            horizontal_max_gain: settings.horizontal_max_gain,
+            vertical_baseline: settings.vertical_scroll_baseline,
+            horizontal_baseline: settings.horizontal_scroll_baseline,
+            vertical_preset,
+            horizontal_preset,
+            vertical_multiplier,
+            horizontal_multiplier,
+            vertical_lut,
+            horizontal_lut,
         }
     }
 }
@@ -55,7 +76,7 @@ pub struct ScrollPreferences {
 impl ScrollPreferences {
     /// Create live scroll settings from full app settings.
     #[must_use]
-    pub fn from_app_settings(settings: &openlogi_core::config::AppSettings) -> Self {
+    pub fn from_app_settings(settings: &AppSettings) -> Self {
         Self {
             snapshot: std::sync::RwLock::new(ScrollPreferenceSnapshot::from(settings)),
         }
@@ -64,17 +85,22 @@ impl ScrollPreferences {
     /// Create a live settings cell from validated config values.
     #[must_use]
     pub fn new(smooth_scroll: bool, vertical_sensitivity: VerticalScrollSensitivity) -> Self {
-        let mut snapshot =
-            ScrollPreferenceSnapshot::from(&openlogi_core::config::AppSettings::default());
-        snapshot.smooth_scroll = smooth_scroll;
-        snapshot.vertical_sensitivity = vertical_sensitivity;
+        let settings = AppSettings {
+            vertical_curve_preset: if smooth_scroll {
+                CurvePreset::Smooth
+            } else {
+                CurvePreset::None
+            },
+            vertical_scroll_baseline: vertical_sensitivity,
+            ..AppSettings::default()
+        };
         Self {
-            snapshot: std::sync::RwLock::new(snapshot),
+            snapshot: std::sync::RwLock::new(ScrollPreferenceSnapshot::from(&settings)),
         }
     }
 
     /// Publish updated settings snapshot from AppSettings.
-    pub fn publish_app_settings(&self, settings: &openlogi_core::config::AppSettings) {
+    pub fn publish_app_settings(&self, settings: &AppSettings) {
         if let Ok(mut lock) = self.snapshot.write() {
             *lock = ScrollPreferenceSnapshot::from(settings);
         }
@@ -83,8 +109,13 @@ impl ScrollPreferences {
     /// Publish smooth_scroll and vertical_sensitivity.
     pub fn publish(&self, smooth_scroll: bool, vertical_sensitivity: VerticalScrollSensitivity) {
         if let Ok(mut lock) = self.snapshot.write() {
-            lock.smooth_scroll = smooth_scroll;
-            lock.vertical_sensitivity = vertical_sensitivity;
+            lock.vertical_preset = if smooth_scroll {
+                CurvePreset::Smooth
+            } else {
+                CurvePreset::None
+            };
+            lock.vertical_baseline = vertical_sensitivity;
+            lock.vertical_lut = ScrollLut::generate(lock.vertical_preset, lock.vertical_multiplier);
         }
     }
 
@@ -101,13 +132,13 @@ impl ScrollPreferences {
     /// Whether finite smooth scrolling is currently enabled.
     #[must_use]
     pub fn smooth_scroll_enabled(&self) -> bool {
-        self.load().smooth_scroll
+        self.load().vertical_preset == CurvePreset::Smooth
     }
 
     /// The current traditional vertical wheel sensitivity.
     #[must_use]
     pub fn vertical_sensitivity(&self) -> VerticalScrollSensitivity {
-        self.load().vertical_sensitivity
+        self.load().vertical_baseline
     }
 }
 
@@ -127,7 +158,6 @@ struct ScrollInput {
 enum ScrollCommand {
     Input(ScrollInput),
     CancelSource(ScrollSource),
-    Wake,
 }
 
 struct ShutdownRequest {
@@ -146,8 +176,9 @@ enum ScrollControl {
 /// source-appropriate direct-output fallback.
 #[derive(Clone)]
 pub struct ScrollInputHandle {
-    commands: mpsc::SyncSender<ScrollCommand>,
+    commands: Arc<ArrayQueue<ScrollCommand>>,
     controls: mpsc::Sender<ScrollControl>,
+    worker_thread: Arc<std::sync::Mutex<Option<thread::Thread>>>,
     generation: Arc<AtomicU64>,
     accepting: Arc<AtomicBool>,
     preferences: Arc<ScrollPreferences>,
@@ -157,9 +188,7 @@ impl ScrollInputHandle {
     /// Queue one ordinary wheel impulse from the current OS-hook thread.
     ///
     /// Pixel input, zero/non-finite distance, a full queue, or an unavailable
-    /// worker are rejected so the callback fails open. With smoothing disabled,
-    /// only a changed vertical distance is accepted; the worker emits that
-    /// distance directly and the callback remains injection-free.
+    /// worker are rejected so the callback fails open.
     #[must_use]
     pub fn try_hook_scroll(&self, delta: ScrollDelta) -> bool {
         if !self.accepting.load(Ordering::Acquire) {
@@ -170,11 +199,13 @@ impl ScrollInputHandle {
         };
         let preferences = self.preferences.load();
         let vertical_scaled = impulse.y != 0.0
-            && (preferences.vertical_sensitivity != VerticalScrollSensitivity::DEFAULT
-                || preferences.vertical_acceleration_enabled);
-        let horizontal_scaled = impulse.x != 0.0 && preferences.horizontal_acceleration_enabled;
+            && (preferences.vertical_baseline != VerticalScrollBaseline::DEFAULT
+                || preferences.vertical_preset.is_enabled());
+        let horizontal_scaled = impulse.x != 0.0
+            && (preferences.horizontal_baseline != HorizontalScrollBaseline::DEFAULT
+                || preferences.horizontal_preset.is_enabled());
 
-        let output = if preferences.smooth_scroll {
+        let output = if preferences.vertical_preset == CurvePreset::Smooth {
             ScrollOutputMode::Smooth { at: Instant::now() }
         } else if vertical_scaled || horizontal_scaled {
             ScrollOutputMode::Direct
@@ -215,16 +246,12 @@ impl ScrollInputHandle {
             impulse,
             output,
         };
-        match self.commands.try_send(ScrollCommand::Input(input)) {
-            Ok(()) => true,
-            Err(mpsc::TrySendError::Full(_)) => {
-                warn!("scroll output queue full — input rejected");
-                false
-            }
-            Err(mpsc::TrySendError::Disconnected(_)) => {
-                warn!("scroll output worker unavailable — input rejected");
-                false
-            }
+        if self.commands.push(ScrollCommand::Input(input)).is_ok() {
+            self.wake();
+            true
+        } else {
+            warn!("scroll output queue full — input rejected");
+            false
         }
     }
 
@@ -236,20 +263,17 @@ impl ScrollInputHandle {
     /// Cancel output belonging to one HID++ capture-session incarnation.
     pub(crate) fn cancel_hidpp_session(&self, session: &HidppSessionId) {
         let source = ScrollSource::Hidpp(session.clone());
-        match self
+        let pushed_ring = self
             .commands
-            .try_send(ScrollCommand::CancelSource(source.clone()))
-        {
-            Ok(()) | Err(mpsc::TrySendError::Disconnected(_)) => {}
-            Err(mpsc::TrySendError::Full(_)) => {
-                if self
-                    .controls
-                    .send(ScrollControl::CancelOverflowSource(source))
-                    .is_ok()
-                {
-                    self.wake();
-                }
-            }
+            .push(ScrollCommand::CancelSource(source.clone()))
+            .is_ok();
+        let sent_control = (!pushed_ring)
+            && self
+                .controls
+                .send(ScrollControl::CancelOverflowSource(source))
+                .is_ok();
+        if pushed_ring || sent_control {
+            self.wake();
         }
     }
 
@@ -259,7 +283,11 @@ impl ScrollInputHandle {
     }
 
     fn wake(&self) {
-        let _ = self.commands.try_send(ScrollCommand::Wake);
+        if let Ok(guard) = self.worker_thread.lock()
+            && let Some(t) = &*guard
+        {
+            t.unpark();
+        }
     }
 
     fn stop_accepting(&self) {
@@ -286,21 +314,27 @@ impl ScrollRuntime {
         mut emit_smooth: impl FnMut(ScrollFrame) + Send + 'static,
         mut emit_direct: impl FnMut(WheelDelta) + Send + 'static,
     ) -> io::Result<Self> {
-        let (commands, command_rx) = mpsc::sync_channel(INPUT_QUEUE_CAPACITY);
+        let commands = Arc::new(ArrayQueue::new(INPUT_QUEUE_CAPACITY));
         let (controls, control_rx) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(0));
+        let worker_thread = Arc::new(std::sync::Mutex::new(None));
         let input = ScrollInputHandle {
-            commands,
+            commands: Arc::clone(&commands),
             controls: controls.clone(),
+            worker_thread: Arc::clone(&worker_thread),
             generation: Arc::clone(&generation),
             accepting: Arc::new(AtomicBool::new(true)),
             preferences: Arc::clone(&preferences),
         };
+        let thread_slot = Arc::clone(&worker_thread);
         let worker = thread::Builder::new()
             .name("openlogi-scroll".into())
             .spawn(move || {
+                if let Ok(mut slot) = thread_slot.lock() {
+                    *slot = Some(thread::current());
+                }
                 run_worker(
-                    &command_rx,
+                    &commands,
                     &control_rx,
                     &generation,
                     &preferences,
@@ -340,8 +374,6 @@ impl ScrollRuntime {
             let _ = worker.join();
             return false;
         }
-        // Send the wake only after the shutdown request is visible. Otherwise
-        // an idle worker could consume it first and block again on `commands`.
         self.input.wake();
         if wait.recv_timeout(timeout).is_err() {
             warn!("smooth-scroll worker did not shut down before the deadline");
@@ -362,7 +394,7 @@ impl Drop for ScrollRuntime {
 }
 
 fn run_worker(
-    commands: &mpsc::Receiver<ScrollCommand>,
+    commands: &ArrayQueue<ScrollCommand>,
     controls: &mpsc::Receiver<ScrollControl>,
     shared_generation: &AtomicU64,
     preferences: &ScrollPreferences,
@@ -371,8 +403,6 @@ fn run_worker(
 ) {
     let mut engine = ScrollEngine::default();
     let mut accel_engine = super::ScrollAccelerationEngine::default();
-    // An overflow-cancelled incarnation stays tombstoned so accepted input that
-    // was already queued when control overtook the saturated queue is ignored.
     let mut overflow_cancelled_sources = HashSet::new();
     let mut generation = shared_generation.load(Ordering::Acquire);
     loop {
@@ -396,71 +426,71 @@ fn run_worker(
             generation = current_generation;
         }
 
-        let command = engine.next_deadline().map_or_else(
-            || {
-                commands
-                    .recv()
-                    .map_err(|_| mpsc::RecvTimeoutError::Disconnected)
-            },
-            |deadline| commands.recv_timeout(deadline.saturating_duration_since(Instant::now())),
-        );
-        match command {
-            Ok(ScrollCommand::Input(input))
-                if input.generation == generation
-                    && !overflow_cancelled_sources.contains(&input.source) =>
-            {
-                let prefs = preferences.load();
-                let at = match input.output {
-                    ScrollOutputMode::Smooth { at } => at,
-                    ScrollOutputMode::Direct => Instant::now(),
-                };
-                let (gain_x, gain_y) = accel_engine.compute_gains(
-                    input.impulse.x,
-                    input.impulse.y,
-                    at,
-                    AxisAccelerationParams {
-                        enabled: prefs.vertical_acceleration_enabled,
-                        factor: prefs.vertical_acceleration,
-                        max_gain: prefs.vertical_max_gain,
-                    },
-                    AxisAccelerationParams {
-                        enabled: prefs.horizontal_acceleration_enabled,
-                        factor: prefs.horizontal_acceleration,
-                        max_gain: prefs.horizontal_max_gain,
-                    },
-                );
-                let scaled_impulse = WheelDelta {
-                    x: input.impulse.x * gain_x,
-                    y: input.impulse.y * prefs.vertical_sensitivity.scroll_multiplier() * gain_y,
-                };
-
-                if scaled_impulse.x.is_finite()
-                    && scaled_impulse.y.is_finite()
-                    && !scaled_impulse.is_zero()
+        let mut had_command = false;
+        while let Some(command) = commands.pop() {
+            had_command = true;
+            match command {
+                ScrollCommand::Input(input)
+                    if input.generation == generation
+                        && !overflow_cancelled_sources.contains(&input.source) =>
                 {
-                    match input.output {
-                        ScrollOutputMode::Smooth { .. } if prefs.smooth_scroll => {
-                            engine.impulse(input.source, scaled_impulse, at, emit_smooth);
+                    let prefs = preferences.load();
+                    let at = match input.output {
+                        ScrollOutputMode::Smooth { at } => at,
+                        ScrollOutputMode::Direct => Instant::now(),
+                    };
+                    let (h_gain_fixed, v_gain_fixed) = accel_engine.compute_gains_fixed(
+                        input.impulse.x,
+                        input.impulse.y,
+                        at,
+                        prefs.vertical_preset,
+                        &prefs.vertical_lut,
+                        prefs.horizontal_preset,
+                        &prefs.horizontal_lut,
+                    );
+                    let gain_x = openlogi_core::math::fixed_to_f32(h_gain_fixed);
+                    let gain_y = openlogi_core::math::fixed_to_f32(v_gain_fixed);
+                    let scaled_impulse = WheelDelta {
+                        x: input.impulse.x * prefs.horizontal_baseline.scroll_multiplier() * gain_x,
+                        y: input.impulse.y * prefs.vertical_baseline.scroll_multiplier() * gain_y,
+                    };
+
+                    if scaled_impulse.x.is_finite()
+                        && scaled_impulse.y.is_finite()
+                        && !scaled_impulse.is_zero()
+                    {
+                        match input.output {
+                            ScrollOutputMode::Smooth { .. }
+                                if prefs.vertical_preset == CurvePreset::Smooth =>
+                            {
+                                engine.impulse(input.source, scaled_impulse, at, emit_smooth);
+                            }
+                            ScrollOutputMode::Direct | ScrollOutputMode::Smooth { .. } => {
+                                engine.cancel_source(&input.source, emit_smooth);
+                                emit_direct(scaled_impulse);
+                            }
                         }
-                        ScrollOutputMode::Direct => {
-                            engine.cancel_source(&input.source, emit_smooth);
-                            emit_direct(scaled_impulse);
-                        }
-                        ScrollOutputMode::Smooth { .. } => {}
                     }
                 }
+                ScrollCommand::CancelSource(source) => {
+                    engine.cancel_source(&source, emit_smooth);
+                }
+                ScrollCommand::Input(_) => {}
             }
-            Ok(ScrollCommand::CancelSource(source)) => {
-                engine.cancel_source(&source, emit_smooth);
+        }
+
+        // Advance active motions
+        let now = Instant::now();
+        engine.advance_due(now, emit_smooth);
+
+        // Adaptive parking: sleep until deadline or park indefinitely when idle
+        if let Some(deadline) = engine.next_deadline() {
+            let timeout = deadline.saturating_duration_since(Instant::now());
+            if !timeout.is_zero() {
+                thread::park_timeout(timeout.min(FRAME_INTERVAL));
             }
-            Ok(ScrollCommand::Input(_) | ScrollCommand::Wake) => {}
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                engine.advance_due(Instant::now(), emit_smooth);
-            }
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                engine.cancel_all(emit_smooth);
-                return;
-            }
+        } else if !had_command {
+            thread::park();
         }
     }
 }
@@ -474,15 +504,17 @@ mod tests {
     }
 
     fn preferences(smooth_scroll: bool, sensitivity: u8) -> Arc<ScrollPreferences> {
-        Arc::new(ScrollPreferences::from_app_settings(
-            &openlogi_core::config::AppSettings {
-                smooth_scroll,
-                vertical_scroll_sensitivity: self::sensitivity(sensitivity),
-                vertical_acceleration_enabled: false,
-                horizontal_acceleration_enabled: false,
-                ..Default::default()
-            },
-        ))
+        let mut settings = openlogi_core::config::AppSettings {
+            vertical_scroll_baseline: self::sensitivity(sensitivity),
+            ..Default::default()
+        };
+        settings.vertical_curve_preset = if smooth_scroll {
+            CurvePreset::Smooth
+        } else {
+            CurvePreset::None
+        };
+        settings.horizontal_curve_preset = CurvePreset::None;
+        Arc::new(ScrollPreferences::from_app_settings(&settings))
     }
 
     fn standalone_input(
@@ -490,27 +522,28 @@ mod tests {
         preferences: Arc<ScrollPreferences>,
     ) -> (
         ScrollInputHandle,
-        mpsc::Receiver<ScrollCommand>,
+        Arc<ArrayQueue<ScrollCommand>>,
         mpsc::Receiver<ScrollControl>,
     ) {
-        let (commands, receiver) = mpsc::sync_channel(capacity);
+        let commands = Arc::new(ArrayQueue::new(capacity));
         let (controls, control_rx) = mpsc::channel();
         (
             ScrollInputHandle {
-                commands,
+                commands: Arc::clone(&commands),
                 controls,
+                worker_thread: Arc::new(std::sync::Mutex::new(None)),
                 generation: Arc::new(AtomicU64::new(0)),
                 accepting: Arc::new(AtomicBool::new(true)),
                 preferences,
             },
-            receiver,
+            commands,
             control_rx,
         )
     }
 
-    fn queued_input(receiver: &mpsc::Receiver<ScrollCommand>) -> ScrollInput {
-        let ScrollCommand::Input(input) = receiver.recv().expect("queued input") else {
-            panic!("expected scroll input");
+    fn queued_input(commands: &ArrayQueue<ScrollCommand>) -> ScrollInput {
+        let Some(ScrollCommand::Input(input)) = commands.pop() else {
+            panic!("expected scroll input in queue");
         };
         input
     }
@@ -590,8 +623,7 @@ mod tests {
         let session = HidppSessionId::new("mouse-a", 7);
         input.cancel_hidpp_session(&session);
 
-        let ScrollCommand::CancelSource(ScrollSource::Hidpp(cancelled)) =
-            commands.recv().expect("queued cancellation")
+        let Some(ScrollCommand::CancelSource(ScrollSource::Hidpp(cancelled))) = commands.pop()
         else {
             panic!("expected HID++ source cancellation");
         };
@@ -617,9 +649,14 @@ mod tests {
 
         let generation = Arc::clone(&input.generation);
         let (emitted, frames) = mpsc::channel();
+        let commands_ref = Arc::clone(&commands);
+        let thread_slot = Arc::clone(&input.worker_thread);
         let worker = thread::spawn(move || {
+            if let Ok(mut slot) = thread_slot.lock() {
+                *slot = Some(thread::current());
+            }
             run_worker(
-                &commands,
+                &commands_ref,
                 &controls,
                 &generation,
                 &preferences,

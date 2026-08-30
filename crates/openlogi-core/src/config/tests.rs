@@ -878,31 +878,56 @@ fn app_settings_launch_at_login_roundtrips() {
 }
 
 #[test]
-fn app_settings_smooth_scroll_is_opt_in_and_roundtrips() {
-    let default: Config = toml::from_str("schema_version = 5").expect("parse defaults");
-    assert!(!default.app_settings.smooth_scroll);
-
-    let mut cfg = Config::default();
-    cfg.app_settings.smooth_scroll = true;
-    let parsed = write_and_read(&cfg);
-    assert!(parsed.app_settings.smooth_scroll);
-}
-
-#[test]
-fn app_settings_vertical_scroll_sensitivity_defaults_and_roundtrips() {
+fn app_settings_curve_preset_and_legacy_smooth_scroll_compatibility() {
     let default: Config = toml::from_str("schema_version = 5").expect("parse defaults");
     assert_eq!(
-        default.app_settings.vertical_scroll_sensitivity,
-        VerticalScrollSensitivity::DEFAULT
+        default.app_settings.vertical_curve_preset,
+        CurvePreset::Smooth
     );
 
     let mut cfg = Config::default();
-    cfg.app_settings.vertical_scroll_sensitivity =
-        VerticalScrollSensitivity::try_new(7).expect("valid sensitivity");
+    cfg.app_settings.vertical_curve_preset = CurvePreset::Cubic;
     let parsed = write_and_read(&cfg);
     assert_eq!(
-        parsed.app_settings.vertical_scroll_sensitivity,
-        VerticalScrollSensitivity::try_new(7).expect("valid sensitivity")
+        parsed.app_settings.vertical_curve_preset,
+        CurvePreset::Cubic
+    );
+
+    // Test legacy smooth_scroll = true deserialization
+    let legacy: Config = toml::from_str(
+        "schema_version = 5\n[app_settings]\nsmooth_scroll = true\nvertical_curve_preset = \"none\"",
+    )
+    .expect("parse legacy smooth_scroll");
+    assert_eq!(
+        legacy.app_settings.effective_vertical_preset(),
+        CurvePreset::Smooth
+    );
+}
+
+#[test]
+fn app_settings_vertical_scroll_baseline_defaults_and_roundtrips() {
+    let default: Config = toml::from_str("schema_version = 5").expect("parse defaults");
+    assert_eq!(
+        default.app_settings.vertical_scroll_baseline,
+        VerticalScrollBaseline::DEFAULT
+    );
+
+    let mut cfg = Config::default();
+    cfg.app_settings.vertical_scroll_baseline =
+        VerticalScrollBaseline::try_new(7).expect("valid baseline");
+    let parsed = write_and_read(&cfg);
+    assert_eq!(
+        parsed.app_settings.vertical_scroll_baseline,
+        VerticalScrollBaseline::try_new(7).expect("valid baseline")
+    );
+
+    // Test legacy vertical_scroll_sensitivity alias deserialization
+    let legacy: Config =
+        toml::from_str("schema_version = 5\n[app_settings]\nvertical_scroll_sensitivity = 7")
+            .expect("parse legacy vertical_scroll_sensitivity");
+    assert_eq!(
+        legacy.app_settings.vertical_scroll_baseline,
+        VerticalScrollBaseline::try_new(7).expect("valid baseline")
     );
 }
 

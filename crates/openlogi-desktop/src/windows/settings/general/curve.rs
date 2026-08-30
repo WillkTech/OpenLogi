@@ -7,6 +7,8 @@ use gpui::{
 
 use crate::ui::theme::{self, Palette};
 
+use openlogi_core::config::CurvePreset;
+
 /// Lightweight curve preview component for mouse-wheel acceleration.
 ///
 /// X axis: Wheel speed (Slow → Fast, 0 to 40 ticks/sec).
@@ -14,31 +16,22 @@ use crate::ui::theme::{self, Palette};
 /// as the floor so low-multiplier curves keep a readable scale).
 #[derive(IntoElement)]
 pub(crate) struct AccelerationCurveGraph {
-    enabled: bool,
-    acceleration_factor: f32,
-    max_gain: f32,
+    preset: CurvePreset,
+    multiplier: f32,
 }
 
 impl AccelerationCurveGraph {
-    pub(crate) fn new(enabled: bool, acceleration_factor: f32, max_gain: f32) -> Self {
-        Self {
-            enabled,
-            acceleration_factor,
-            max_gain,
-        }
+    pub(crate) fn new(preset: CurvePreset, multiplier: f32) -> Self {
+        Self { preset, multiplier }
     }
 }
 
 const SAMPLE_COUNT: usize = 30;
 
-fn compute_curve_samples(
-    enabled: bool,
-    factor: f32,
-    max_gain: f32,
-) -> [(f32, f32); SAMPLE_COUNT + 1] {
+fn compute_curve_samples(preset: CurvePreset, multiplier: f32) -> [(f32, f32); SAMPLE_COUNT + 1] {
     let min_y_val = 1.0f32;
-    let max_y_val = max_gain.max(3.0);
-    let range = max_y_val - min_y_val;
+    let max_y_val = multiplier.max(3.0);
+    let range = (max_y_val - min_y_val).max(f32::EPSILON);
 
     let mut samples = [(0.0f32, 0.0f32); SAMPLE_COUNT + 1];
 
@@ -48,8 +41,8 @@ fn compute_curve_samples(
             reason = "sample index and count are small bounded constants"
         )]
         let t = i as f32 / SAMPLE_COUNT as f32;
-        let rate = t * 40.0;
-        let gain = openlogi_core::math::gain_at_rate(rate, enabled, factor, max_gain);
+        let rate = t * openlogi_core::math::MAX_RATE;
+        let gain = openlogi_core::math::gain_at_rate_preset(rate, preset, multiplier);
         let norm_x = t;
         let norm_y = (gain - min_y_val) / range;
         *sample = (norm_x, norm_y);
@@ -61,10 +54,10 @@ fn compute_curve_samples(
 impl RenderOnce for AccelerationCurveGraph {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let pal = theme::palette(cx);
-        let enabled = self.enabled;
-        let factor = self.acceleration_factor;
-        let max_gain = self.max_gain;
-        let samples = compute_curve_samples(enabled, factor, max_gain);
+        let preset = self.preset;
+        let enabled = preset.is_enabled();
+        let multiplier = self.multiplier;
+        let samples = compute_curve_samples(preset, multiplier);
 
         gpui::div()
             .flex_none()
@@ -80,9 +73,9 @@ impl RenderOnce for AccelerationCurveGraph {
             .p_2()
             .child(
                 canvas(
-                    move |_, _, _| (enabled, max_gain, samples, pal),
-                    move |bounds, (enabled, max_gain, samples, pal), window, _| {
-                        paint_graph(bounds, enabled, max_gain, samples, pal, window);
+                    move |_, _, _| (enabled, multiplier, samples, pal),
+                    move |bounds, (enabled, multiplier, samples, pal), window, _| {
+                        paint_graph(bounds, enabled, multiplier, samples, pal, window);
                     },
                 )
                 .size_full(),

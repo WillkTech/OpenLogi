@@ -122,6 +122,10 @@ impl Focusable for ActionRingPanel {
 }
 
 impl Render for ActionRingPanel {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "renders action ring panel layout and controls"
+    )]
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let pal = theme::palette(cx);
         let ring = AppState::try_read(cx)

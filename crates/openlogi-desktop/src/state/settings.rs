@@ -3,8 +3,8 @@
 use super::AppState;
 use gpui::App;
 use openlogi_core::config::{
-    AppIcon, AppSettings, Appearance, AssetSourcePreference, DeviceViewMode, ThumbwheelSensitivity,
-    UiScale, VerticalScrollSensitivity,
+    AppIcon, AppSettings, Appearance, AssetSourcePreference, CurvePreset, DeviceViewMode,
+    ThumbwheelSensitivity, UiScale, VerticalScrollBaseline, VerticalScrollSensitivity,
 };
 
 impl AppState {
@@ -216,8 +216,8 @@ impl AppState {
         key: &str,
         sensitivity: ThumbwheelSensitivity,
     ) {
-        let override_value =
-            (sensitivity != self.config.app_settings.thumbwheel_sensitivity).then_some(sensitivity);
+        let override_value = (sensitivity != self.config.app_settings.horizontal_scroll_baseline)
+            .then_some(sensitivity);
         let stored = self
             .config
             .devices
@@ -232,151 +232,132 @@ impl AppState {
         self.persist_and_reload("device thumbwheel sensitivity");
     }
 
-    /// Set the app-wide default thumb-wheel sensitivity and persist it —
+    /// Set the app-wide default thumb-wheel baseline and persist it —
     /// devices without a per-device override follow it
     /// through the reloaded capture plans. No-op when unchanged. Disk failures
     /// restore the persisted value and surface a configuration error.
     pub fn set_thumbwheel_sensitivity(&mut self, sensitivity: ThumbwheelSensitivity) {
-        if self.config.app_settings.thumbwheel_sensitivity == sensitivity {
+        if self.config.app_settings.horizontal_scroll_baseline == sensitivity {
             return;
         }
         self.config
-            .edit(|config| config.app_settings.thumbwheel_sensitivity = sensitivity);
+            .edit(|config| config.app_settings.horizontal_scroll_baseline = sensitivity);
         self.persist_and_reload("thumbwheel sensitivity");
+    }
+    /// Set the vertical scroll curve preset and persist it.
+    pub fn set_vertical_curve_preset(&mut self, preset: CurvePreset) {
+        if self.config.app_settings.vertical_curve_preset == preset {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.vertical_curve_preset = preset);
+        self.persist_and_reload("vertical curve preset");
+    }
+    /// Set the horizontal scroll curve preset and persist it.
+    pub fn set_horizontal_curve_preset(&mut self, preset: CurvePreset) {
+        if self.config.app_settings.horizontal_curve_preset == preset {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.horizontal_curve_preset = preset);
+        self.persist_and_reload("horizontal curve preset");
     }
     /// Toggle finite animation for traditional mouse-wheel input and persist
     /// it. The agent publishes the change to the scroll worker on config
-    /// reload. No-op when unchanged; disk failures restore the persisted value.
+    /// Legacy toggle for smooth scrolling (maps to CurvePreset::Smooth / CurvePreset::None).
+    #[cfg(test)]
     pub fn set_smooth_scroll(&mut self, enabled: bool) {
-        if self.config.app_settings.smooth_scroll == enabled {
-            return;
-        }
-        self.config
-            .edit(|config| config.app_settings.smooth_scroll = enabled);
-        self.persist_and_reload("smooth scroll");
+        let preset = if enabled {
+            CurvePreset::Smooth
+        } else {
+            CurvePreset::None
+        };
+        self.set_vertical_curve_preset(preset);
     }
-    /// Set traditional vertical mouse-wheel sensitivity and persist it. The
+    /// Set traditional vertical mouse-wheel baseline and persist it. The
     /// agent publishes the value to its scroll worker on config reload. No-op
     /// when unchanged; disk failures restore the persisted value.
+    pub fn set_vertical_scroll_baseline(&mut self, baseline: VerticalScrollBaseline) {
+        if self.config.app_settings.vertical_scroll_baseline == baseline {
+            return;
+        }
+        self.config
+            .edit(|config| config.app_settings.vertical_scroll_baseline = baseline);
+        self.persist_and_reload("vertical scroll baseline");
+    }
+    /// Legacy alias for `set_vertical_scroll_baseline`.
     pub fn set_vertical_scroll_sensitivity(&mut self, sensitivity: VerticalScrollSensitivity) {
-        if self.config.app_settings.vertical_scroll_sensitivity == sensitivity {
-            return;
-        }
-        self.config
-            .edit(|config| config.app_settings.vertical_scroll_sensitivity = sensitivity);
-        self.persist_and_reload("vertical scroll sensitivity");
+        self.set_vertical_scroll_baseline(sensitivity);
     }
-    /// Toggle vertical mouse-wheel acceleration and persist it.
-    pub fn set_vertical_acceleration_enabled(&mut self, enabled: bool) {
-        if self.config.app_settings.vertical_acceleration_enabled == enabled {
-            return;
-        }
-        self.config
-            .edit(|config| config.app_settings.vertical_acceleration_enabled = enabled);
-        self.persist_and_reload("vertical acceleration enabled");
-    }
-    /// Toggle horizontal mouse-wheel acceleration and persist it.
-    pub fn set_horizontal_acceleration_enabled(&mut self, enabled: bool) {
-        if self.config.app_settings.horizontal_acceleration_enabled == enabled {
-            return;
-        }
-        self.config
-            .edit(|config| config.app_settings.horizontal_acceleration_enabled = enabled);
-        self.persist_and_reload("horizontal acceleration enabled");
-    }
-    /// Set vertical acceleration strength and persist it. No-op when
-    /// unchanged; disk failures restore the persisted value.
+    /// Set vertical acceleration multiplier and persist it.
     #[expect(
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
-    pub fn set_vertical_acceleration(&mut self, factor: f32) {
-        if self.config.app_settings.vertical_acceleration == factor {
+    pub fn set_vertical_multiplier(&mut self, multiplier: f32) {
+        if self.config.app_settings.vertical_multiplier == multiplier
+            && self.config.app_settings.legacy_vertical_cap.is_none()
+        {
             return;
         }
-        self.config
-            .edit(|config| config.app_settings.vertical_acceleration = factor);
-        self.persist_and_reload("vertical acceleration strength");
+        self.config.edit(|config| {
+            config.app_settings.vertical_multiplier = multiplier;
+            config.app_settings.legacy_vertical_cap = None;
+        });
+        self.persist_and_reload("vertical multiplier");
     }
-    /// Set the vertical acceleration gain ceiling and persist it.
+    /// Set horizontal acceleration multiplier and persist it.
     #[expect(
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
-    pub fn set_vertical_max_gain(&mut self, max_gain: f32) {
-        if self.config.app_settings.vertical_max_gain == max_gain {
+    pub fn set_horizontal_multiplier(&mut self, multiplier: f32) {
+        if self.config.app_settings.horizontal_multiplier == multiplier
+            && self.config.app_settings.legacy_horizontal_cap.is_none()
+        {
             return;
         }
-        self.config
-            .edit(|config| config.app_settings.vertical_max_gain = max_gain);
-        self.persist_and_reload("vertical acceleration maximum speed");
+        self.config.edit(|config| {
+            config.app_settings.horizontal_multiplier = multiplier;
+            config.app_settings.legacy_horizontal_cap = None;
+        });
+        self.persist_and_reload("horizontal multiplier");
     }
-    /// Set horizontal acceleration strength and persist it.
-    #[expect(
-        clippy::float_cmp,
-        reason = "stored values are snapped onto an exact step grid before comparison"
-    )]
-    pub fn set_horizontal_acceleration(&mut self, factor: f32) {
-        if self.config.app_settings.horizontal_acceleration == factor {
-            return;
-        }
-        self.config
-            .edit(|config| config.app_settings.horizontal_acceleration = factor);
-        self.persist_and_reload("horizontal acceleration strength");
-    }
-    /// Set the horizontal acceleration gain ceiling and persist it.
-    #[expect(
-        clippy::float_cmp,
-        reason = "stored values are snapped onto an exact step grid before comparison"
-    )]
-    pub fn set_horizontal_max_gain(&mut self, max_gain: f32) {
-        if self.config.app_settings.horizontal_max_gain == max_gain {
-            return;
-        }
-        self.config
-            .edit(|config| config.app_settings.horizontal_max_gain = max_gain);
-        self.persist_and_reload("horizontal acceleration maximum speed");
-    }
-    /// Reset the vertical axis' strength and gain ceiling to the defaults and
-    /// persist both in one write.
+    /// Reset the vertical axis' multiplier to the default and persist it.
     #[expect(
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
     pub fn reset_vertical_acceleration(&mut self) {
         let defaults = AppSettings::default();
-        if self.config.app_settings.vertical_acceleration == defaults.vertical_acceleration
-            && self.config.app_settings.vertical_max_gain == defaults.vertical_max_gain
+        if self.config.app_settings.vertical_multiplier == defaults.vertical_multiplier
+            && self.config.app_settings.legacy_vertical_cap.is_none()
         {
             return;
         }
-        let (factor, max_gain) = (defaults.vertical_acceleration, defaults.vertical_max_gain);
+        let multiplier = defaults.vertical_multiplier;
         self.config.edit(|config| {
-            config.app_settings.vertical_acceleration = factor;
-            config.app_settings.vertical_max_gain = max_gain;
+            config.app_settings.vertical_multiplier = multiplier;
+            config.app_settings.legacy_vertical_cap = None;
         });
         self.persist_and_reload("vertical acceleration reset");
     }
-    /// Reset the horizontal axis' strength and gain ceiling to the defaults
-    /// and persist both in one write.
+    /// Reset the horizontal axis' multiplier to the default and persist it.
     #[expect(
         clippy::float_cmp,
         reason = "stored values are snapped onto an exact step grid before comparison"
     )]
     pub fn reset_horizontal_acceleration(&mut self) {
         let defaults = AppSettings::default();
-        if self.config.app_settings.horizontal_acceleration == defaults.horizontal_acceleration
-            && self.config.app_settings.horizontal_max_gain == defaults.horizontal_max_gain
+        if self.config.app_settings.horizontal_multiplier == defaults.horizontal_multiplier
+            && self.config.app_settings.legacy_horizontal_cap.is_none()
         {
             return;
         }
-        let (factor, max_gain) = (
-            defaults.horizontal_acceleration,
-            defaults.horizontal_max_gain,
-        );
+        let multiplier = defaults.horizontal_multiplier;
         self.config.edit(|config| {
-            config.app_settings.horizontal_acceleration = factor;
-            config.app_settings.horizontal_max_gain = max_gain;
+            config.app_settings.horizontal_multiplier = multiplier;
+            config.app_settings.legacy_horizontal_cap = None;
         });
         self.persist_and_reload("horizontal acceleration reset");
     }
