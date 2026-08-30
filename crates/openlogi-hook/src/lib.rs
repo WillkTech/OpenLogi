@@ -58,13 +58,33 @@ pub struct EventDevice {
     pub product_name: Option<String>,
 }
 
+fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if haystack.len() < needle.len() {
+        return false;
+    }
+    haystack
+        .as_bytes()
+        .windows(needle.len())
+        .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
+}
+
+fn starts_with_ignore_ascii_case(haystack: &str, prefix: &str) -> bool {
+    haystack
+        .get(..prefix.len())
+        .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+}
+
 impl EventDevice {
     /// Whether this looks like a trackpad/touchpad (must never be remapped).
     #[must_use]
     pub fn is_trackpad_like(&self) -> bool {
         self.product_name.as_deref().is_some_and(|n| {
-            let n = n.to_ascii_lowercase();
-            n.contains("trackpad") || n.contains("touchpad") || n.contains("touch pad")
+            contains_ignore_ascii_case(n, "trackpad")
+                || contains_ignore_ascii_case(n, "touchpad")
+                || contains_ignore_ascii_case(n, "touch pad")
         })
     }
 
@@ -75,8 +95,7 @@ impl EventDevice {
             return true;
         }
         self.product_name.as_deref().is_some_and(|n| {
-            let n = n.to_ascii_lowercase();
-            n.contains("logitech") || n.starts_with("logi ")
+            contains_ignore_ascii_case(n, "logitech") || starts_with_ignore_ascii_case(n, "logi ")
         })
     }
 }

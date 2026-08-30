@@ -7,6 +7,7 @@
 //! cannot be mixed with wheel ticks.
 
 pub(crate) mod acceleration;
+pub(crate) mod display_link;
 mod worker;
 
 pub use acceleration::{AxisAcceleration, AxisAccelerationParams, ScrollAccelerationEngine};

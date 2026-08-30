@@ -1,3 +1,5 @@
+#![expect(unsafe_code, reason = "mach_absolute_time FFI for latency measurement")]
+
 use std::time::{Duration, Instant};
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -107,10 +109,51 @@ fn bench_lut_generation(c: &mut Criterion) {
     });
 }
 
+#[cfg(target_os = "macos")]
+#[link(name = "System", kind = "dylib")]
+unsafe extern "C" {
+    fn mach_absolute_time() -> u64;
+}
+
+fn bench_dispatch_latency(c: &mut Criterion) {
+    c.bench_function("dispatch_latency_end_to_end", |b| {
+        let mut engine = ScrollAccelerationEngine::default();
+        let v_lut = ScrollLut::generate(CurvePreset::Smooth, 2.5);
+        let h_lut = ScrollLut::generate(CurvePreset::None, 1.0);
+        let mut step = 0u64;
+
+        b.iter(|| {
+            step += 1;
+            #[cfg(target_os = "macos")]
+            // SAFETY: mach_absolute_time is a standard Darwin libSystem timer function.
+            let _t_start = unsafe { mach_absolute_time() };
+            let at = Instant::now();
+
+            let (h_gain, v_gain) = engine.compute_gains_fixed(
+                0.0,
+                1.0,
+                at,
+                CurvePreset::Smooth,
+                &v_lut,
+                CurvePreset::None,
+                &h_lut,
+            );
+            let gain_y = openlogi_core::math::fixed_to_f32(v_gain);
+            let scaled_y = 1.0 * gain_y;
+
+            #[cfg(target_os = "macos")]
+            // SAFETY: mach_absolute_time is a standard Darwin libSystem timer function.
+            let _t_end = unsafe { mach_absolute_time() };
+            (h_gain, scaled_y)
+        });
+    });
+}
+
 criterion_group!(
     benches,
     bench_gain_at_rate,
     bench_compute_gains,
-    bench_lut_generation
+    bench_lut_generation,
+    bench_dispatch_latency,
 );
 criterion_main!(benches);

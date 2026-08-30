@@ -66,6 +66,13 @@ type IOHIDEventRef = *mut std::ffi::c_void;
 // registry id of the producing service. These are undocumented but long-stable
 // symbols (Mac Mouse Fix / Karabiner use them) — the only reliable way to tell a
 // hi-res mouse wheel from a trackpad, which carry identical CGEvent phase flags.
+const QOS_CLASS_USER_INTERACTIVE: u32 = 0x21;
+
+#[link(name = "System", kind = "dylib")]
+unsafe extern "C" {
+    fn pthread_set_qos_class_self_np(qos_class: u32, relative_priority: i32) -> i32;
+}
+
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
     fn CGEventCopyIOHIDEvent(event: *const std::ffi::c_void) -> IOHIDEventRef;
@@ -192,15 +199,15 @@ fn sender_device_info(sender_id: u64) -> SenderDeviceInfo {
                         .and_then(|n| u32::try_from(n).ok())
                 };
                 let product_name = string_prop("Product");
+                let event_device = EventDevice {
+                    vendor_id: num_prop("VendorID").or_else(|| num_prop("idVendor")),
+                    product_id: num_prop("ProductID").or_else(|| num_prop("idProduct")),
+                    product_name,
+                };
+                let is_trackpad = event_device.is_trackpad_like();
                 let info = SenderDeviceInfo {
-                    is_trackpad: product_name
-                        .as_deref()
-                        .is_some_and(|p| p.to_lowercase().contains("trackpad")),
-                    event_device: EventDevice {
-                        vendor_id: num_prop("VendorID").or_else(|| num_prop("idVendor")),
-                        product_id: num_prop("ProductID").or_else(|| num_prop("idProduct")),
-                        product_name,
-                    },
+                    event_device,
+                    is_trackpad,
                 };
                 // SAFETY: `service` is a live io_object_t we own.
                 unsafe { IOObjectRelease(service) };
@@ -943,6 +950,13 @@ fn thread_main(
     rl_tx: mpsc::Sender<CFRunLoop>,
     signals: Arc<WatchdogSignals>,
 ) {
+    // Elevate the event tap thread to USER_INTERACTIVE QoS priority
+    // to match Windows 11 hardware input responsiveness.
+    // SAFETY: pthread_set_qos_class_self_np is a standard Darwin libSystem API.
+    unsafe {
+        pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    }
+
     // Declared first so it drops last, after the tap, callback, source, and run
     // loop locals have unwound. The lifecycle watchdog treats this notification
     // as proof that an explicit stop has completed, not merely been requested.
@@ -958,12 +972,16 @@ fn thread_main(
     // Latched by the callback when the OS disables the tap, consumed by the
     // run-loop slice that decides whether to re-arm it.
     let tap_disabled = Arc::new(AtomicBool::new(false));
+    let tap_port = Arc::new(std::sync::atomic::AtomicPtr::<std::ffi::c_void>::new(
+        std::ptr::null_mut(),
+    ));
 
     let tap_result = {
         let callback_signals = Arc::clone(&signals);
         let in_callback = Arc::clone(&in_callback);
         let entered_at_ms = Arc::clone(&entered_at_ms);
         let tap_disabled = Arc::clone(&tap_disabled);
+        let tap_port_cb = Arc::clone(&tap_port);
         CGEventTap::new(
             CGEventTapLocation::HID,
             CGEventTapPlacement::HeadInsertEventTap,
@@ -975,6 +993,12 @@ fn thread_main(
                     CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
                 ) {
                     tap_disabled.store(true, Ordering::Release);
+                    let port = tap_port_cb.load(Ordering::Acquire);
+                    if !port.is_null() {
+                        // Immediately re-enable the tap so WindowServer does not suspend input processing
+                        // SAFETY: port is a valid CFMachPortRef owned by tap for the runloop duration.
+                        unsafe { CGEventTapEnable(port.cast(), true) };
+                    }
                 }
                 entered_at_ms.store(callback_signals.now_millis(), Ordering::Relaxed);
                 in_callback.store(true, Ordering::Release);
@@ -991,6 +1015,10 @@ fn thread_main(
         // which we surface as MacOsTap.
         return;
     };
+    tap_port.store(
+        tap.mach_port().as_concrete_TypeRef().cast(),
+        Ordering::Release,
+    );
     signals.mark_tap_progress();
 
     let Ok(loop_source) = tap.mach_port().create_runloop_source(0) else {

@@ -19,12 +19,26 @@ use super::{
     HeldKey, HeldModifiers, KeyPhase, QuantizedScroll, ScrollQuantizer, SmoothScrollPhase,
 };
 
+use std::cell::RefCell;
+
 static LINE_SCROLL_QUANTIZER: LazyLock<Mutex<ScrollQuantizer>> =
     LazyLock::new(|| Mutex::new(ScrollQuantizer::default()));
 static PIXEL_SCROLL_QUANTIZER: LazyLock<Mutex<ScrollQuantizer>> =
     LazyLock::new(|| Mutex::new(ScrollQuantizer::default()));
 static SMOOTH_SCROLL_QUANTIZER: LazyLock<Mutex<ScrollQuantizer>> =
     LazyLock::new(|| Mutex::new(ScrollQuantizer::default()));
+
+thread_local! {
+    /// Cached `CGEventSource` in `kCGEventSourceStateHIDSystemState` per thread
+    /// to eliminate kernel object allocation overhead per input dispatch.
+    static THREAD_EVENT_SOURCE: RefCell<Option<CGEventSource>> = RefCell::new(
+        CGEventSource::new(CGEventSourceStateID::HIDSystemState).ok()
+    );
+}
+
+fn event_source() -> Option<CGEventSource> {
+    THREAD_EVENT_SOURCE.with_borrow(Clone::clone)
+}
 
 // `core-graphics` 0.25 does not expose these `CGEventTypes.h` fields.
 const SCROLL_PHASE: u32 = 99; // kCGScrollWheelEventScrollPhase
@@ -240,8 +254,8 @@ fn record_left_click_state(location: CGPoint, explicit_count: Option<i64>) -> i6
 /// Post a mouse-down + mouse-up pair for `button` at the cursor's current
 /// location, setting `EventField::MOUSE_EVENT_CLICK_STATE`.
 fn post_click_state(button: CGMouseButton, explicit_click_state: Option<i64>) {
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed for click");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable for click");
         return;
     };
     let location =
@@ -280,8 +294,8 @@ fn post_click(button: CGMouseButton) {
 /// buttons ≥ 3. Tagged via [`tag_synthetic`] so OpenLogi's own event tap
 /// ignores it instead of re-translating it into a Back/Forward press.
 fn post_other_button(button_number: i64) {
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed for extra mouse button");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable for extra mouse button");
         return;
     };
     let location =
@@ -315,8 +329,8 @@ fn tag_synthetic(ev: &CGEvent) {
 
 /// Post one keyboard edge for `vk` with `flags` set.
 fn post_key_phase(vk: u16, flags: CGEventFlags, phase: KeyPhase) {
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable");
         return;
     };
     let down = phase == KeyPhase::Down;
@@ -337,8 +351,8 @@ fn post_key(vk: u16, flags: CGEventFlags) {
 /// Type an arbitrary unicode string by emitting one key event per character,
 /// each carrying its unicode payload via `CGEventKeyboardSetUnicodeString`.
 fn post_unicode(text: &str) {
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed for post_unicode");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable for post_unicode");
         return;
     };
     for ch in text.chars() {
@@ -720,8 +734,8 @@ fn sleep_system() {
 /// direction (-1/0/1) scaled by the fixed "one tick" pixel magnitude the
 /// four `Scroll*`/`HorizontalScroll*` actions have always used.
 fn dispatch_scroll(dx: i8, dy: i8) {
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed for scroll");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable for scroll");
         return;
     };
     let v = i32::from(dy) * 3;
@@ -749,8 +763,8 @@ pub(super) fn post_scroll(delta: ScrollDelta) {
         return;
     }
 
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed for precise scroll");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable for precise scroll");
         return;
     };
     let Ok(ev) = CGEvent::new_scroll_event(src, unit, 2, delta.y, delta.x, 0) else {
@@ -759,6 +773,8 @@ pub(super) fn post_scroll(delta: ScrollDelta) {
     };
     if unit == ScrollEventUnit::PIXEL {
         set_continuous_scroll_fields(&ev, delta);
+    } else {
+        set_discrete_scroll_fields(&ev, delta);
     }
     tag_synthetic(&ev);
     ev.post(CGEventTapLocation::HID);
@@ -778,8 +794,8 @@ pub(super) fn post_smooth_scroll(delta: ScrollDelta, phase: SmoothScrollPhase) {
     let delta = quantizer.quantize(delta, units_per_input);
     drop(quantizer);
 
-    let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-        tracing::warn!("CGEventSource::new failed for smooth scroll");
+    let Some(src) = event_source() else {
+        tracing::warn!("CGEventSource unavailable for smooth scroll");
         return;
     };
     let Ok(ev) = CGEvent::new_scroll_event(src, ScrollEventUnit::PIXEL, 2, delta.y, delta.x, 0)
@@ -801,6 +817,27 @@ const fn scroll_phase_value(phase: SmoothScrollPhase) -> i64 {
         SmoothScrollPhase::Ended => 4,
         SmoothScrollPhase::Cancelled => 8,
     }
+}
+
+fn set_discrete_scroll_fields(event: &CGEvent, delta: QuantizedScroll) {
+    const FIXED_POINT_SCALE: i64 = 1 << 16;
+    event.set_integer_value_field(EventField::SCROLL_WHEEL_EVENT_IS_CONTINUOUS, 0);
+    event.set_integer_value_field(
+        EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1,
+        i64::from(delta.y),
+    );
+    event.set_integer_value_field(
+        EventField::SCROLL_WHEEL_EVENT_FIXED_POINT_DELTA_AXIS_1,
+        i64::from(delta.y) * FIXED_POINT_SCALE,
+    );
+    event.set_integer_value_field(
+        EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_2,
+        i64::from(delta.x),
+    );
+    event.set_integer_value_field(
+        EventField::SCROLL_WHEEL_EVENT_FIXED_POINT_DELTA_AXIS_2,
+        i64::from(delta.x) * FIXED_POINT_SCALE,
+    );
 }
 
 fn set_continuous_scroll_fields(event: &CGEvent, delta: QuantizedScroll) {
@@ -1369,7 +1406,6 @@ mod symbolic_hotkey {
     use std::ffi::{c_int, c_uint, c_ushort, c_void};
 
     use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
-    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
     use super::app_services_symbol;
 
@@ -1436,8 +1472,8 @@ mod symbolic_hotkey {
     }
 
     fn post_key(vk: u16, modifiers: u32) {
-        let Ok(src) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) else {
-            tracing::warn!("CGEventSource::new failed for symbolic hotkey");
+        let Some(src) = super::event_source() else {
+            tracing::warn!("CGEventSource unavailable for symbolic hotkey");
             return;
         };
         let Ok(down) = CGEvent::new_keyboard_event(src.clone(), vk, true) else {

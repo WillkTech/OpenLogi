@@ -338,6 +338,7 @@ impl ScrollRuntime {
                     &control_rx,
                     &generation,
                     &preferences,
+                    Arc::clone(&thread_slot),
                     &mut emit_smooth,
                     &mut emit_direct,
                 );
@@ -398,11 +399,13 @@ fn run_worker(
     controls: &mpsc::Receiver<ScrollControl>,
     shared_generation: &AtomicU64,
     preferences: &ScrollPreferences,
+    worker_thread: Arc<std::sync::Mutex<Option<thread::Thread>>>,
     emit_smooth: &mut impl FnMut(ScrollFrame),
     emit_direct: &mut impl FnMut(WheelDelta),
 ) {
     let mut engine = ScrollEngine::default();
     let mut accel_engine = super::ScrollAccelerationEngine::default();
+    let mut display_sync = super::display_link::DisplaySync::new(worker_thread);
     let mut overflow_cancelled_sources = HashSet::new();
     let mut generation = shared_generation.load(Ordering::Acquire);
     loop {
@@ -413,6 +416,7 @@ fn run_worker(
                     overflow_cancelled_sources.insert(source);
                 }
                 ScrollControl::Shutdown(request) => {
+                    display_sync.stop();
                     engine.cancel_all(emit_smooth);
                     let _ = request.done.send(());
                     return;
@@ -483,14 +487,18 @@ fn run_worker(
         let now = Instant::now();
         engine.advance_due(now, emit_smooth);
 
-        // Adaptive parking: sleep until deadline or park indefinitely when idle
+        // Adaptive display synchronization and parking:
         if let Some(deadline) = engine.next_deadline() {
+            display_sync.start();
             let timeout = deadline.saturating_duration_since(Instant::now());
             if !timeout.is_zero() {
                 thread::park_timeout(timeout.min(FRAME_INTERVAL));
             }
-        } else if !had_command {
-            thread::park();
+        } else {
+            display_sync.stop();
+            if !had_command {
+                thread::park();
+            }
         }
     }
 }
@@ -651,6 +659,7 @@ mod tests {
         let (emitted, frames) = mpsc::channel();
         let commands_ref = Arc::clone(&commands);
         let thread_slot = Arc::clone(&input.worker_thread);
+        let worker_thread_arg = Arc::clone(&input.worker_thread);
         let worker = thread::spawn(move || {
             if let Ok(mut slot) = thread_slot.lock() {
                 *slot = Some(thread::current());
@@ -660,6 +669,7 @@ mod tests {
                 &controls,
                 &generation,
                 &preferences,
+                worker_thread_arg,
                 &mut |frame| {
                     emitted.send(frame).expect("frame receiver remains open");
                 },
