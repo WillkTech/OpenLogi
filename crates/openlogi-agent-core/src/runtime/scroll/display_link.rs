@@ -1,13 +1,10 @@
 //! Display vsync synchronization for smooth scroll decay on macOS (`CVDisplayLink`).
 
 #[cfg(all(target_os = "macos", not(test)))]
-#[expect(
-    unsafe_code,
-    reason = "CoreVideo CVDisplayLink C APIs require raw FFI"
-)]
+#[expect(unsafe_code, reason = "CoreVideo CVDisplayLink C APIs require raw FFI")]
 mod imp {
     use std::ffi::c_void;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     use std::thread::Thread;
 
     type CVDisplayLinkRef = *mut c_void;
@@ -70,13 +67,9 @@ mod imp {
         context: *mut c_void,
     ) -> CVReturn {
         if !context.is_null() {
-            // SAFETY: context points to the live Arc<Mutex<Option<Thread>>> stored in DisplaySync.
-            let thread_slot = unsafe { &*(context as *const Mutex<Option<Thread>>) };
-            if let Ok(guard) = thread_slot.lock()
-                && let Some(t) = &*guard
-            {
-                t.unpark();
-            }
+            // SAFETY: context points to the live Thread in Arc<Thread> stored in DisplaySync.
+            let thread = unsafe { &*(context as *const Thread) };
+            thread.unpark();
         }
         0
     }
@@ -84,13 +77,14 @@ mod imp {
     /// macOS VSync synchronizer using `CVDisplayLink` to drive sub-pixel easing frames.
     pub struct DisplaySync {
         state: Option<DisplayLinkState>,
-        _worker_thread: Arc<Mutex<Option<Thread>>>,
+        _worker_thread: Arc<Thread>,
     }
 
     impl DisplaySync {
         /// Create a new `DisplaySync` associated with the worker thread.
         #[must_use]
-        pub fn new(worker_thread: Arc<Mutex<Option<Thread>>>) -> Self {
+        pub fn new(worker_thread: Thread) -> Self {
+            let worker_thread = Arc::new(worker_thread);
             let mut link: CVDisplayLinkRef = std::ptr::null_mut();
             // SAFETY: CVDisplayLinkCreateWithActiveCGDisplays is a standard CoreVideo API.
             let ret = unsafe { CVDisplayLinkCreateWithActiveCGDisplays(&raw mut link) };
@@ -162,7 +156,6 @@ mod imp {
 
 #[cfg(any(not(target_os = "macos"), test))]
 mod imp {
-    use std::sync::{Arc, Mutex};
     use std::thread::Thread;
 
     /// Non-macOS no-op display sync fallback.
@@ -170,7 +163,7 @@ mod imp {
 
     impl DisplaySync {
         #[must_use]
-        pub fn new(_worker_thread: Arc<Mutex<Option<Thread>>>) -> Self {
+        pub fn new(_worker_thread: Thread) -> Self {
             Self
         }
 

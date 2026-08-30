@@ -56,6 +56,10 @@ impl CurvePreset {
     pub const ALL: [Self; 13] = [
         Self::None,
         Self::Smooth,
+        Self::Sigmoid,
+        Self::EaseInOut,
+        Self::EaseIn,
+        Self::EaseOut,
         Self::Linear,
         Self::Exponential,
         Self::Logarithmic,
@@ -63,10 +67,6 @@ impl CurvePreset {
         Self::Cubic,
         Self::Quartic,
         Self::SquareRoot,
-        Self::Sigmoid,
-        Self::EaseIn,
-        Self::EaseOut,
-        Self::EaseInOut,
     ];
 
     /// User-facing label key for translation.

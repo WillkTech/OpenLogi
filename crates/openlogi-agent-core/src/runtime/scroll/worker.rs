@@ -26,7 +26,7 @@ const INPUT_QUEUE_CAPACITY: usize = 256;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// Atomic snapshot of scroll preferences with precomputed LUT tables.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ScrollPreferenceSnapshot {
     /// Vertical baseline distance.
     pub vertical_baseline: VerticalScrollBaseline,
@@ -41,9 +41,9 @@ pub struct ScrollPreferenceSnapshot {
     /// Horizontal multiplier.
     pub horizontal_multiplier: f32,
     /// Precomputed vertical lookup table.
-    pub vertical_lut: ScrollLut,
+    pub vertical_lut: Arc<ScrollLut>,
     /// Precomputed horizontal lookup table.
-    pub horizontal_lut: ScrollLut,
+    pub horizontal_lut: Arc<ScrollLut>,
 }
 
 impl From<&AppSettings> for ScrollPreferenceSnapshot {
@@ -52,8 +52,11 @@ impl From<&AppSettings> for ScrollPreferenceSnapshot {
         let horizontal_preset = settings.effective_horizontal_preset();
         let vertical_multiplier = settings.effective_vertical_multiplier();
         let horizontal_multiplier = settings.effective_horizontal_multiplier();
-        let vertical_lut = ScrollLut::generate(vertical_preset, vertical_multiplier);
-        let horizontal_lut = ScrollLut::generate(horizontal_preset, horizontal_multiplier);
+        let vertical_lut = Arc::new(ScrollLut::generate(vertical_preset, vertical_multiplier));
+        let horizontal_lut = Arc::new(ScrollLut::generate(
+            horizontal_preset,
+            horizontal_multiplier,
+        ));
         Self {
             vertical_baseline: settings.vertical_scroll_baseline,
             horizontal_baseline: settings.horizontal_scroll_baseline,
@@ -115,7 +118,10 @@ impl ScrollPreferences {
                 CurvePreset::None
             };
             lock.vertical_baseline = vertical_sensitivity;
-            lock.vertical_lut = ScrollLut::generate(lock.vertical_preset, lock.vertical_multiplier);
+            lock.vertical_lut = Arc::new(ScrollLut::generate(
+                lock.vertical_preset,
+                lock.vertical_multiplier,
+            ));
         }
     }
 
@@ -124,8 +130,8 @@ impl ScrollPreferences {
     #[must_use]
     pub fn load(&self) -> ScrollPreferenceSnapshot {
         match self.snapshot.read() {
-            Ok(lock) => *lock,
-            Err(poisoned) => *poisoned.into_inner(),
+            Ok(lock) => lock.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
         }
     }
 
@@ -178,7 +184,7 @@ enum ScrollControl {
 pub struct ScrollInputHandle {
     commands: Arc<ArrayQueue<ScrollCommand>>,
     controls: mpsc::Sender<ScrollControl>,
-    worker_thread: Arc<std::sync::Mutex<Option<thread::Thread>>>,
+    worker_thread: thread::Thread,
     generation: Arc<AtomicU64>,
     accepting: Arc<AtomicBool>,
     preferences: Arc<ScrollPreferences>,
@@ -283,11 +289,7 @@ impl ScrollInputHandle {
     }
 
     fn wake(&self) {
-        if let Ok(guard) = self.worker_thread.lock()
-            && let Some(t) = &*guard
-        {
-            t.unpark();
-        }
+        self.worker_thread.unpark();
     }
 
     fn stop_accepting(&self) {
@@ -317,32 +319,31 @@ impl ScrollRuntime {
         let commands = Arc::new(ArrayQueue::new(INPUT_QUEUE_CAPACITY));
         let (controls, control_rx) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(0));
-        let worker_thread = Arc::new(std::sync::Mutex::new(None));
-        let input = ScrollInputHandle {
-            commands: Arc::clone(&commands),
-            controls: controls.clone(),
-            worker_thread: Arc::clone(&worker_thread),
-            generation: Arc::clone(&generation),
-            accepting: Arc::new(AtomicBool::new(true)),
-            preferences: Arc::clone(&preferences),
-        };
-        let thread_slot = Arc::clone(&worker_thread);
+        let worker_commands = Arc::clone(&commands);
+        let worker_generation = Arc::clone(&generation);
+        let worker_preferences = Arc::clone(&preferences);
         let worker = thread::Builder::new()
             .name("openlogi-scroll".into())
             .spawn(move || {
-                if let Ok(mut slot) = thread_slot.lock() {
-                    *slot = Some(thread::current());
-                }
+                let current_thread = thread::current();
                 run_worker(
-                    &commands,
+                    &worker_commands,
                     &control_rx,
-                    &generation,
-                    &preferences,
-                    Arc::clone(&thread_slot),
+                    &worker_generation,
+                    &worker_preferences,
+                    current_thread,
                     &mut emit_smooth,
                     &mut emit_direct,
                 );
             })?;
+        let input = ScrollInputHandle {
+            commands: Arc::clone(&commands),
+            controls: controls.clone(),
+            worker_thread: worker.thread().clone(),
+            generation: Arc::clone(&generation),
+            accepting: Arc::new(AtomicBool::new(true)),
+            preferences,
+        };
         Ok(Self {
             input,
             controls,
@@ -399,7 +400,7 @@ fn run_worker(
     controls: &mpsc::Receiver<ScrollControl>,
     shared_generation: &AtomicU64,
     preferences: &ScrollPreferences,
-    worker_thread: Arc<std::sync::Mutex<Option<thread::Thread>>>,
+    worker_thread: thread::Thread,
     emit_smooth: &mut impl FnMut(ScrollFrame),
     emit_direct: &mut impl FnMut(WheelDelta),
 ) {
@@ -539,7 +540,7 @@ mod tests {
             ScrollInputHandle {
                 commands: Arc::clone(&commands),
                 controls,
-                worker_thread: Arc::new(std::sync::Mutex::new(None)),
+                worker_thread: thread::current(),
                 generation: Arc::new(AtomicU64::new(0)),
                 accepting: Arc::new(AtomicBool::new(true)),
                 preferences,
@@ -642,7 +643,7 @@ mod tests {
     #[test]
     fn cancellation_overtakes_a_full_queue_without_discarding_another_source() {
         let preferences = preferences(true, 14);
-        let (input, commands, controls) = standalone_input(2, Arc::clone(&preferences));
+        let (mut input, commands, controls) = standalone_input(2, Arc::clone(&preferences));
         let cancelled = HidppSessionId::new("mouse-a", 7);
         let survivor = HidppSessionId::new("mouse-b", 3);
         assert!(input.try_hidpp_scroll(&cancelled, ScrollDelta::wheel_ticks(1.0, 0.0)));
@@ -658,24 +659,22 @@ mod tests {
         let generation = Arc::clone(&input.generation);
         let (emitted, frames) = mpsc::channel();
         let commands_ref = Arc::clone(&commands);
-        let thread_slot = Arc::clone(&input.worker_thread);
-        let worker_thread_arg = Arc::clone(&input.worker_thread);
+        let worker_prefs = Arc::clone(&preferences);
         let worker = thread::spawn(move || {
-            if let Ok(mut slot) = thread_slot.lock() {
-                *slot = Some(thread::current());
-            }
+            let current_thread = thread::current();
             run_worker(
                 &commands_ref,
                 &controls,
                 &generation,
-                &preferences,
-                worker_thread_arg,
+                &worker_prefs,
+                current_thread,
                 &mut |frame| {
                     emitted.send(frame).expect("frame receiver remains open");
                 },
                 &mut |_| {},
             );
         });
+        input.worker_thread = worker.thread().clone();
 
         let mut output = Vec::new();
         loop {

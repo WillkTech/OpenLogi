@@ -27,7 +27,7 @@ use crate::runtime::HidppSessionId;
 const ANIMATION_DURATION: Duration = Duration::from_millis(100);
 /// Output cadence. Position is evaluated from absolute time, so delayed wakes
 /// do not slow or lengthen the animation.
-const FRAME_INTERVAL: Duration = Duration::from_millis(8);
+const FRAME_INTERVAL: Duration = Duration::from_millis(4);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct WheelDelta {

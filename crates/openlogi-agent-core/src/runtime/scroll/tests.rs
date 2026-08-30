@@ -149,11 +149,12 @@ fn synthetic_delayed_frames_use_absolute_time_not_frame_count() {
     dense.impulse(source(), wheel(0.0, 1.0), base, &mut |frame| {
         dense_frames.push(frame);
     });
-    for millis in (8..=80).step_by(8) {
+    for millis in (4..=80).step_by(4) {
         dense.advance_due(base + Duration::from_millis(millis), &mut |frame| {
             dense_frames.push(frame);
         });
     }
+    assert_eq!(dense_frames.len(), 20);
 
     let mut delayed = ScrollEngine::default();
     let mut delayed_frames = Vec::new();
