@@ -1769,3 +1769,35 @@ fn scroll_multiplier_updates_and_resets_work() {
     state.reset_horizontal_acceleration();
     assert_eq!(state.app_settings().effective_horizontal_multiplier(), 2.0);
 }
+
+#[test]
+fn targeted_app_profile_removal_removes_profile_without_disrupting_other_open_profile() {
+    let mut state = state_with_a_known_mouse();
+    let mouse_key = KNOWN_MOUSE_KEY;
+
+    // Create two app profiles with overrides
+    state.commit_binding(ButtonId::Forward, Action::Copy);
+    state.set_editing_app(Some("com.apple.Safari".into()));
+    state.commit_binding(ButtonId::Forward, Action::Paste);
+
+    state.set_editing_app(Some("com.google.Chrome".into()));
+    state.commit_binding(ButtonId::Forward, Action::Undo);
+
+    assert_eq!(state.editing_app(), Some("com.google.Chrome"));
+    assert_eq!(state.app_profiles().count(), 2);
+
+    // Remove Safari profile while Chrome profile is currently being edited
+    state.remove_app_profile("com.apple.Safari");
+
+    // Chrome profile remains open and editing
+    assert_eq!(state.editing_app(), Some("com.google.Chrome"));
+    let remaining_profiles: Vec<&str> = state.app_profiles().map(|(app, _)| app).collect();
+    assert_eq!(remaining_profiles, vec!["com.google.Chrome"]);
+
+    // Now remove Chrome profile (the currently edited profile)
+    state.remove_app_profile("com.google.Chrome");
+
+    // Should fall back to Default profile (None)
+    assert_eq!(state.editing_app(), None);
+    assert_eq!(state.app_profiles().count(), 0);
+}
