@@ -965,6 +965,7 @@ fn open_remove_confirmation(window: &mut Window, cx: &mut App, profile: &Profile
         ),
     };
     window.open_alert_dialog(cx, move |alert, _, _| {
+        let app = app_id.clone();
         alert
             .title(question.clone())
             .description(tr!(
@@ -978,7 +979,6 @@ fn open_remove_confirmation(window: &mut Window, cx: &mut App, profile: &Profile
                     .show_cancel(true),
             )
             .on_ok(move |_event, _window, cx| {
-                let app = app_id.clone();
                 AppState::update_bindings(cx, |state| {
                     state.remove_app_profile(&app);
                 });
