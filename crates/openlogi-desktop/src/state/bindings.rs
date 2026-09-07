@@ -258,9 +258,9 @@ impl AppState {
         self.persist_and_reload("per-app binding");
     }
 
-    /// Delete the open per-app profile outright and fall back to editing the
-    /// device's global bindings.
-    pub fn remove_editing_app_profile(&mut self) {
+    /// Delete the targeted per-app profile `app`. If `app` is currently being edited,
+    /// falls back to editing the device's global (Default) profile.
+    pub fn remove_app_profile(&mut self, app: &str) {
         let Some(key) = self
             .current_record()
             .and_then(DeviceRecord::persistent_config_key)
@@ -268,13 +268,24 @@ impl AppState {
         else {
             return;
         };
-        let Some(app) = self.editing_app().map(str::to_string) else {
-            return;
-        };
+        let currently_editing = self.editing_app().map(str::to_string);
         self.config
-            .edit(|config| config.remove_app_profile(&key, &app));
-        self.set_editing_app(None);
+            .edit(|config| config.remove_app_profile(&key, app));
+
+        if currently_editing.as_deref() == Some(app) {
+            self.set_editing_app(None);
+        } else {
+            self.refresh_binding_projections();
+        }
         self.persist_and_reload("per-app profile");
+    }
+
+    /// Delete the open per-app profile outright and fall back to editing the
+    /// device's global bindings.
+    pub fn remove_editing_app_profile(&mut self) {
+        if let Some(app) = self.editing_app().map(str::to_string) {
+            self.remove_app_profile(&app);
+        }
     }
 
     /// The open per-app profile's overrides, so the panel can tell an override
