@@ -37,3 +37,5 @@ pub mod scroll;
 pub mod single_instance;
 #[cfg(feature = "worker")]
 pub mod worker;
+
+pub mod math;
