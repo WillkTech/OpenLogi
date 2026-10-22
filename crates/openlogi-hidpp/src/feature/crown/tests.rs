@@ -1,6 +1,6 @@
 //! Unit tests for `Crown` mode parsing and event decoding.
 
-use std::assert_matches;
+use std::matches as assert_matches;
 
 use super::event::{
     ActivityState, ButtonState, CrownEvent, CrownGesture, RotationState, decode_event,

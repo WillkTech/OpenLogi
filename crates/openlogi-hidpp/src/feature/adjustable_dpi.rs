@@ -110,7 +110,7 @@ fn parse_dpi_list_payload(bytes: &[u8]) -> Result<Vec<u16>, Hidpp20Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
+    use std::matches as assert_matches;
 
     use super::parse_dpi_list_payload;
     use crate::protocol::v20::Hidpp20Error;

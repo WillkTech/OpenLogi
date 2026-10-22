@@ -4,11 +4,13 @@
 
 use std::collections::BTreeMap;
 
+use az::SaturatingAs;
 use nutype::nutype;
 use serde::{Deserialize, Serialize};
 
 use crate::binding::ButtonId;
 use crate::color::Rgb;
+use crate::device::ChangedOnLight;
 use crate::hid::{SmartShiftAutoDisengage, SmartShiftThreshold, TunableTorque};
 
 /// Light/dark appearance preference. `System` follows the OS appearance (the
@@ -133,27 +135,44 @@ pub enum AssetSourcePreference {
     Fastly,
 }
 
+/// Which application supplies per-app mouse button bindings.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MouseProfileTarget {
+    /// Use the application under the pointer wherever it can be identified,
+    /// and the focused one elsewhere.
+    #[default]
+    Pointer,
+    /// Use the application with keyboard focus.
+    Focused,
+}
+
 /// App-wide preferences not tied to any particular device.
 ///
 /// All fields are `#[serde(default)]` so adding a new one is backward
 /// compatible — old config files just keep the default for the new field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[expect(
     clippy::struct_excessive_bools,
     reason = "independent on/off user preferences, not a state machine"
 )]
 pub struct AppSettings {
-    /// When true, a macOS `LaunchAgent` plist at
-    /// `~/Library/LaunchAgents/org.openlogi.openlogi.plist` is installed
-    /// so the app starts on login (P2.2). The plist is reconciled with
-    /// this field on every startup; flipping the flag and relaunching is
-    /// enough to install / remove it.
-    #[serde(default)]
+    /// Start the background agent at login. **On by default**: the agent is
+    /// what keeps remaps working, so a fresh install that silently died on
+    /// reboot would be broken-by-default. On macOS this is a *sunk* switch:
+    /// the `SMAppService` login item stays registered either way (visible and
+    /// revocable under System Settings › Login Items — that consent surface
+    /// is what makes the default defensible), and the agent itself reads this
+    /// value when launchd starts it — off, and with no client connecting, it
+    /// idles out instead of arming. On Linux/Windows the agent reconciles its
+    /// autostart unit / Run-key with it. A config written before the flip
+    /// keeps the value it saved.
+    #[serde(default = "default_true")]
     pub launch_at_login: bool,
     /// Opt-in update check (P2.8). **Off by default** to honour the
     /// README's "no telemetry, no auto-update poller" promise. When true,
-    /// the app makes exactly one `HEAD /repos/WillkTech/OpenLogi/releases/
+    /// the app makes exactly one `HEAD /repos/AprilNEA/OpenLogi/releases/
     /// latest` request per launch and logs whether a newer version is
     /// available — no automatic download.
     #[serde(default)]
@@ -189,64 +208,20 @@ pub struct AppSettings {
     /// Takes effect on agent restart.
     #[serde(default = "default_true")]
     pub capture_mouse_events: bool,
-    /// Baseline distance for traditional vertical mouse-wheel input.
-    /// [`VerticalScrollBaseline::DEFAULT`] means 1×; trackpad and other
+    /// Whether ordinary mouse-wheel input is replaced with a finite smooth
+    /// scroll animation. **Off by default**: while enabled the OS hook
+    /// suppresses eligible physical wheel events only after its non-blocking
+    /// scroll worker accepts them. Trackpad and other continuous pixel input
+    /// remains native. Windows' low-level hook cannot attribute wheel messages
+    /// to a device, so the preference applies to every traditional mouse-wheel
+    /// message there.
+    #[serde(default)]
+    pub smooth_scroll: bool,
+    /// Distance multiplier for traditional vertical mouse-wheel input.
+    /// [`VerticalScrollSensitivity::DEFAULT`] means 1×; trackpad and other
     /// continuous pixel input is never scaled.
-    #[serde(default, alias = "vertical_scroll_sensitivity")]
-    pub vertical_scroll_baseline: VerticalScrollBaseline,
-    /// Horizontal / thumb-wheel baseline distance.
-    /// [`HorizontalScrollBaseline::DEFAULT`] means 1× scroll speed.
-    #[serde(default, alias = "thumbwheel_sensitivity")]
-    pub horizontal_scroll_baseline: HorizontalScrollBaseline,
-    /// Vertical scroll acceleration / smoothing curve preset.
     #[serde(default)]
-    pub vertical_curve_preset: CurvePreset,
-    /// Horizontal scroll acceleration / smoothing curve preset.
-    #[serde(default)]
-    pub horizontal_curve_preset: CurvePreset,
-    /// Vertical acceleration peak multiplier.
-    #[serde(
-        default = "default_vertical_multiplier",
-        alias = "vertical_max_gain",
-        alias = "vertical_acceleration",
-        alias = "vertical_cap"
-    )]
-    pub vertical_multiplier: f32,
-    /// Horizontal acceleration peak multiplier.
-    #[serde(
-        default = "default_horizontal_multiplier",
-        alias = "horizontal_max_gain",
-        alias = "horizontal_acceleration",
-        alias = "horizontal_cap"
-    )]
-    pub horizontal_multiplier: f32,
-    /// Legacy vertical cap setting (migrated for backwards compatibility).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub legacy_vertical_cap: Option<f32>,
-    /// Legacy horizontal cap setting (migrated for backwards compatibility).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub legacy_horizontal_cap: Option<f32>,
-    /// Legacy smooth scroll toggle flag (deserialized for backwards compatibility).
-    #[serde(
-        default,
-        alias = "smooth_scroll",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub legacy_smooth_scroll: Option<bool>,
-    /// Legacy vertical acceleration enabled flag (deserialized for backwards compatibility).
-    #[serde(
-        default,
-        alias = "vertical_acceleration_enabled",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub legacy_vertical_acceleration_enabled: Option<bool>,
-    /// Legacy horizontal acceleration enabled flag (deserialized for backwards compatibility).
-    #[serde(
-        default,
-        alias = "horizontal_acceleration_enabled",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub legacy_horizontal_acceleration_enabled: Option<bool>,
+    pub vertical_scroll_sensitivity: VerticalScrollSensitivity,
     /// Which app icon the user picked. Applied at launch, and whenever it
     /// changes, by whichever process owns a surface showing one — on macOS the
     /// GUI hands the choice to the Dock and writes it onto the bundle (so the
@@ -255,11 +230,11 @@ pub struct AppSettings {
     /// Defaults to the icon the app is signed with.
     #[serde(default)]
     pub app_icon: AppIcon,
-    /// Whether the GUI automatically downloads device images from
-    /// `assets.openlogi.org` when a device appears. `true` (default) keeps
-    /// the current behavior; `false` makes no asset network requests at all
-    /// (the app falls back to bundled art and the synthetic silhouette). A
-    /// manual "Refresh assets" in Settings still fetches on demand regardless.
+    /// Whether the GUI automatically downloads device images from the selected
+    /// source when a device appears. `true` (default) keeps the current behavior;
+    /// `false` makes no asset network requests at all (the app falls back to
+    /// bundled art and the synthetic silhouette). A manual "Refresh assets" in
+    /// Settings still fetches on demand regardless.
     #[serde(default = "default_true")]
     pub auto_download_assets: bool,
     /// Preferred mirror for automatic and manual device-asset downloads.
@@ -274,6 +249,13 @@ pub struct AppSettings {
     /// survives restarts regardless of the OS setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Thumb-wheel responsiveness. It scales both the speed of the wheel's
+    /// continuous horizontal or remapped vertical scroll and how few rotation
+    /// increments a custom wheel action needs to fire.
+    /// [`ThumbwheelSensitivity::DEFAULT`] means 1× scroll speed; the wheel is
+    /// only diverted from native scrolling once this leaves the default.
+    #[serde(default)]
+    pub thumbwheel_sensitivity: ThumbwheelSensitivity,
     /// Light/dark appearance preference. Defaults to following the OS.
     #[serde(default)]
     pub appearance: Appearance,
@@ -296,19 +278,35 @@ pub struct AppSettings {
     /// `0` / `6` / `12`). `None` keeps each theme's own radius.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui_radius: Option<u8>,
+    /// Application used to select per-app mouse button bindings. Defaults to
+    /// the application under the pointer; unsupported platforms and
+    /// unidentified pointer targets use focus.
+    #[serde(default)]
+    pub mouse_profile_target: MouseProfileTarget,
+    /// Whether the overlay shows a notice when a device's battery runs low.
+    /// **On by default**, as in Logi Options+. A device announces itself once
+    /// per discharge and again only after it has been charged; see
+    /// [`BatteryInfo::needs_attention`](crate::device::BatteryInfo::needs_attention)
+    /// for what counts as low.
+    #[serde(default = "default_true")]
+    pub low_battery_notifications: bool,
+    /// Whether the overlay briefly shows a lock key a keyboard turned on or
+    /// off. **On by default.** Caps Lock shows on every platform; Num Lock
+    /// and Scroll Lock do not show on macOS, as in Logi Options+ (see
+    /// [`LockKey::is_indicated_here`](crate::device::LockKey::is_indicated_here)).
+    #[serde(default = "default_true")]
+    pub lock_key_notifications: bool,
 }
-
-pub use crate::math::CurvePreset;
 
 const SENSITIVITY_MIN: u8 = 1;
 const SENSITIVITY_MAX: u8 = 100;
 const SENSITIVITY_DEFAULT: u8 = 14;
 
-/// Traditional vertical mouse-wheel baseline responsiveness on OpenLogi's `1..=100`
+/// Traditional vertical mouse-wheel responsiveness on OpenLogi's `1..=100`
 /// scale.
 ///
-/// This is deliberately distinct from [`HorizontalScrollBaseline`]: vertical
-/// baseline changes only scroll distance and never changes a custom action
+/// This is deliberately distinct from [`ThumbwheelSensitivity`]: vertical
+/// sensitivity changes only scroll distance and never changes a custom action
 /// threshold.
 #[nutype(
     const_fn,
@@ -328,26 +326,23 @@ const SENSITIVITY_DEFAULT: u8 = 14;
         Deserialize
     )
 )]
-pub struct VerticalScrollBaseline(u8);
+pub struct VerticalScrollSensitivity(u8);
 
-/// Type alias for backward compatibility.
-pub type VerticalScrollSensitivity = VerticalScrollBaseline;
-
-impl VerticalScrollBaseline {
-    /// Lowest selectable baseline.
+impl VerticalScrollSensitivity {
+    /// Lowest selectable sensitivity.
     pub const MIN: Self = match Self::try_new(SENSITIVITY_MIN) {
         Ok(value) => value,
-        Err(_) => panic!("valid minimum vertical scroll baseline"),
+        Err(_) => panic!("valid minimum vertical scroll sensitivity"),
     };
-    /// Highest selectable baseline.
+    /// Highest selectable sensitivity.
     pub const MAX: Self = match Self::try_new(SENSITIVITY_MAX) {
         Ok(value) => value,
-        Err(_) => panic!("valid maximum vertical scroll baseline"),
+        Err(_) => panic!("valid maximum vertical scroll sensitivity"),
     };
-    /// Out-of-the-box baseline. At this value scrolling runs at 1×.
+    /// Out-of-the-box sensitivity. At this value scrolling runs at 1×.
     pub const DEFAULT: Self = match Self::try_new(SENSITIVITY_DEFAULT) {
         Ok(value) => value,
-        Err(_) => panic!("valid default vertical scroll baseline"),
+        Err(_) => panic!("valid default vertical scroll sensitivity"),
     };
 
     /// Round and clamp a floating-point slider value into the valid range.
@@ -355,34 +350,27 @@ impl VerticalScrollBaseline {
     pub fn from_rounded(value: f32) -> Self {
         let raw = rounded_sensitivity(value);
         let Ok(value) = Self::try_new(raw) else {
-            unreachable!("clamped vertical scroll baseline is always valid");
+            unreachable!("clamped vertical scroll sensitivity is always valid");
         };
         value
     }
 
     /// Vertical scroll-distance multiplier relative to [`Self::DEFAULT`].
     #[must_use]
-    pub fn scroll_multiplier(self) -> f32 {
-        f32::from(self.into_inner()) / f32::from(Self::DEFAULT.into_inner())
-    }
-
-    /// Vertical scroll-distance multiplier in fixed point (1000 = 1.000x).
-    #[must_use]
-    pub fn scroll_multiplier_fixed(self) -> i32 {
-        (i32::from(self.into_inner()) * crate::math::FIXED_POINT_SCALE)
-            / i32::from(Self::DEFAULT.into_inner())
+    pub fn scroll_multiplier(self) -> f64 {
+        f64::from(self.into_inner()) / f64::from(Self::DEFAULT.into_inner())
     }
 }
 
-impl Default for VerticalScrollBaseline {
+impl Default for VerticalScrollSensitivity {
     fn default() -> Self {
         Self::DEFAULT
     }
 }
 
-impl From<VerticalScrollBaseline> for f32 {
-    fn from(baseline: VerticalScrollBaseline) -> Self {
-        Self::from(baseline.into_inner())
+impl From<VerticalScrollSensitivity> for f32 {
+    fn from(sensitivity: VerticalScrollSensitivity) -> Self {
+        Self::from(sensitivity.into_inner())
     }
 }
 
@@ -405,27 +393,24 @@ impl From<VerticalScrollBaseline> for f32 {
         Deserialize
     )
 )]
-pub struct HorizontalScrollBaseline(u8);
+pub struct ThumbwheelSensitivity(u8);
 
-/// Type alias for backward compatibility.
-pub type ThumbwheelSensitivity = HorizontalScrollBaseline;
-
-impl HorizontalScrollBaseline {
-    /// Lowest selectable baseline.
+impl ThumbwheelSensitivity {
+    /// Lowest selectable sensitivity.
     pub const MIN: Self = match Self::try_new(SENSITIVITY_MIN) {
         Ok(value) => value,
-        Err(_) => panic!("valid minimum horizontal scroll baseline"),
+        Err(_) => panic!("valid minimum thumb-wheel sensitivity"),
     };
-    /// Highest selectable baseline.
+    /// Highest selectable sensitivity.
     pub const MAX: Self = match Self::try_new(SENSITIVITY_MAX) {
         Ok(value) => value,
-        Err(_) => panic!("valid maximum horizontal scroll baseline"),
+        Err(_) => panic!("valid maximum thumb-wheel sensitivity"),
     };
-    /// Out-of-the-box baseline. At this value scrolling runs at 1× and
+    /// Out-of-the-box sensitivity. At this value scrolling runs at 1× and
     /// remains native unless a thumb-wheel binding is customized.
     pub const DEFAULT: Self = match Self::try_new(SENSITIVITY_DEFAULT) {
         Ok(value) => value,
-        Err(_) => panic!("valid default horizontal scroll baseline"),
+        Err(_) => panic!("valid default thumb-wheel sensitivity"),
     };
 
     /// Round and clamp a floating-point slider value into the valid range.
@@ -433,22 +418,15 @@ impl HorizontalScrollBaseline {
     pub fn from_rounded(value: f32) -> Self {
         let raw = rounded_sensitivity(value);
         let Ok(value) = Self::try_new(raw) else {
-            unreachable!("clamped horizontal scroll baseline is always valid");
+            unreachable!("clamped thumb-wheel sensitivity is always valid");
         };
         value
     }
 
     /// Continuous-scroll speed multiplier relative to [`Self::DEFAULT`].
     #[must_use]
-    pub fn scroll_multiplier(self) -> f32 {
-        f32::from(self.into_inner()) / f32::from(Self::DEFAULT.into_inner())
-    }
-
-    /// Continuous-scroll speed multiplier in fixed point (1000 = 1.000x).
-    #[must_use]
-    pub fn scroll_multiplier_fixed(self) -> i32 {
-        (i32::from(self.into_inner()) * crate::math::FIXED_POINT_SCALE)
-            / i32::from(Self::DEFAULT.into_inner())
+    pub fn scroll_multiplier(self) -> f64 {
+        f64::from(self.into_inner()) / f64::from(Self::DEFAULT.into_inner())
     }
 
     /// Rotation increments required to fire a discrete thumb-wheel action.
@@ -458,31 +436,34 @@ impl HorizontalScrollBaseline {
     }
 }
 
-impl Default for HorizontalScrollBaseline {
+impl Default for ThumbwheelSensitivity {
     fn default() -> Self {
         Self::DEFAULT
     }
 }
 
-impl From<HorizontalScrollBaseline> for f32 {
-    fn from(baseline: HorizontalScrollBaseline) -> Self {
-        Self::from(baseline.into_inner())
+impl From<ThumbwheelSensitivity> for f32 {
+    fn from(sensitivity: ThumbwheelSensitivity) -> Self {
+        Self::from(sensitivity.into_inner())
     }
 }
 
-impl From<HorizontalScrollBaseline> for i32 {
-    fn from(baseline: HorizontalScrollBaseline) -> Self {
-        Self::from(baseline.into_inner())
+impl From<ThumbwheelSensitivity> for i32 {
+    fn from(sensitivity: ThumbwheelSensitivity) -> Self {
+        Self::from(sensitivity.into_inner())
     }
 }
 
 fn rounded_sensitivity(value: f32) -> u8 {
-    crate::math::quantize(
-        value,
-        f32::from(SENSITIVITY_MIN),
-        f32::from(SENSITIVITY_MAX),
-        f32::from(SENSITIVITY_MIN),
-    )
+    let value = if value.is_nan() {
+        f32::from(SENSITIVITY_MIN)
+    } else {
+        value
+    };
+    value
+        .clamp(f32::from(SENSITIVITY_MIN), f32::from(SENSITIVITY_MAX))
+        .round()
+        .saturating_as::<u8>()
 }
 
 impl AppSettings {
@@ -492,143 +473,23 @@ impl AppSettings {
     pub fn is_default(&self) -> bool {
         self == &Self::default()
     }
-
-    /// Effective vertical scroll curve preset, reconciling legacy fields if present.
-    #[must_use]
-    pub fn effective_vertical_preset(&self) -> CurvePreset {
-        if self.vertical_curve_preset != CurvePreset::None {
-            self.vertical_curve_preset
-        } else if self.legacy_smooth_scroll == Some(true)
-            || self.legacy_vertical_acceleration_enabled == Some(true)
-        {
-            CurvePreset::Smooth
-        } else {
-            CurvePreset::None
-        }
-    }
-
-    /// Effective horizontal scroll curve preset, reconciling legacy fields if present.
-    #[must_use]
-    pub fn effective_horizontal_preset(&self) -> CurvePreset {
-        if self.horizontal_curve_preset != CurvePreset::None {
-            self.horizontal_curve_preset
-        } else if self.legacy_horizontal_acceleration_enabled == Some(true) {
-            CurvePreset::Smooth
-        } else {
-            CurvePreset::None
-        }
-    }
-
-    /// Effective vertical acceleration peak multiplier.
-    #[must_use]
-    pub fn effective_vertical_multiplier(&self) -> f32 {
-        if let Some(cap) = self.legacy_vertical_cap {
-            cap
-        } else {
-            self.vertical_multiplier
-        }
-    }
-
-    /// Effective horizontal acceleration peak multiplier.
-    #[must_use]
-    pub fn effective_horizontal_multiplier(&self) -> f32 {
-        if let Some(cap) = self.legacy_horizontal_cap {
-            cap
-        } else {
-            self.horizontal_multiplier
-        }
-    }
-
-    /// Backwards-compatible accessor for smooth_scroll.
-    #[must_use]
-    pub fn smooth_scroll(&self) -> bool {
-        self.effective_vertical_preset() == CurvePreset::Smooth
-    }
-
-    /// Backwards-compatible accessor for vertical_scroll_sensitivity.
-    #[must_use]
-    pub fn vertical_scroll_sensitivity(&self) -> VerticalScrollBaseline {
-        self.vertical_scroll_baseline
-    }
-
-    /// Backwards-compatible accessor for thumbwheel_sensitivity.
-    #[must_use]
-    pub fn thumbwheel_sensitivity(&self) -> HorizontalScrollBaseline {
-        self.horizontal_scroll_baseline
-    }
-
-    /// Backwards-compatible accessor for vertical_acceleration_enabled.
-    #[must_use]
-    pub fn vertical_acceleration_enabled(&self) -> bool {
-        self.effective_vertical_preset().is_enabled()
-    }
-
-    /// Backwards-compatible accessor for vertical_acceleration.
-    #[must_use]
-    pub fn vertical_acceleration(&self) -> f32 {
-        self.effective_vertical_multiplier()
-    }
-
-    /// Backwards-compatible accessor for vertical_max_gain.
-    #[must_use]
-    pub fn vertical_max_gain(&self) -> f32 {
-        self.effective_vertical_multiplier()
-    }
-
-    /// Backwards-compatible accessor for vertical_cap.
-    #[must_use]
-    pub fn vertical_cap(&self) -> f32 {
-        self.effective_vertical_multiplier()
-    }
-
-    /// Backwards-compatible accessor for horizontal_acceleration_enabled.
-    #[must_use]
-    pub fn horizontal_acceleration_enabled(&self) -> bool {
-        self.effective_horizontal_preset().is_enabled()
-    }
-
-    /// Backwards-compatible accessor for horizontal_acceleration.
-    #[must_use]
-    pub fn horizontal_acceleration(&self) -> f32 {
-        self.effective_horizontal_multiplier()
-    }
-
-    /// Backwards-compatible accessor for horizontal_max_gain.
-    #[must_use]
-    pub fn horizontal_max_gain(&self) -> f32 {
-        self.effective_horizontal_multiplier()
-    }
-
-    /// Backwards-compatible accessor for horizontal_cap.
-    #[must_use]
-    pub fn horizontal_cap(&self) -> f32 {
-        self.effective_horizontal_multiplier()
-    }
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            launch_at_login: false,
+            launch_at_login: true,
             check_for_updates: false,
             auto_install_updates: false,
             update_prompt_seen: false,
             show_in_menu_bar: true,
             capture_mouse_events: true,
-            vertical_scroll_baseline: VerticalScrollBaseline::DEFAULT,
-            horizontal_scroll_baseline: HorizontalScrollBaseline::DEFAULT,
-            vertical_curve_preset: CurvePreset::Smooth,
-            horizontal_curve_preset: CurvePreset::None,
-            vertical_multiplier: default_vertical_multiplier(),
-            horizontal_multiplier: default_horizontal_multiplier(),
-            legacy_vertical_cap: None,
-            legacy_horizontal_cap: None,
-            legacy_smooth_scroll: None,
-            legacy_vertical_acceleration_enabled: None,
-            legacy_horizontal_acceleration_enabled: None,
+            smooth_scroll: false,
+            vertical_scroll_sensitivity: VerticalScrollSensitivity::DEFAULT,
             auto_download_assets: true,
             asset_source: AssetSourcePreference::Automatic,
             language: None,
+            thumbwheel_sensitivity: ThumbwheelSensitivity::DEFAULT,
             appearance: Appearance::System,
             ui_scale: UiScale::Normal,
             device_view_mode: DeviceViewMode::Grid,
@@ -636,24 +497,20 @@ impl Default for AppSettings {
             theme_light: None,
             theme_dark: None,
             ui_radius: None,
+            mouse_profile_target: MouseProfileTarget::Pointer,
+            low_battery_notifications: true,
+            lock_key_notifications: true,
         }
     }
 }
 
 /// serde default for the on-by-default [`AppSettings`] toggles
 /// ([`AppSettings::show_in_menu_bar`], [`AppSettings::capture_mouse_events`],
-/// [`AppSettings::auto_download_assets`]), so configs predating a field keep the
-/// out-of-the-box behavior.
+/// [`AppSettings::auto_download_assets`],
+/// [`AppSettings::low_battery_notifications`]), so configs predating a field
+/// keep the out-of-the-box behavior.
 fn default_true() -> bool {
     true
-}
-
-const fn default_vertical_multiplier() -> f32 {
-    2.5
-}
-
-const fn default_horizontal_multiplier() -> f32 {
-    2.0
 }
 
 /// Per-device RGB lighting: a single static color, brightness, and on/off.
@@ -740,6 +597,19 @@ impl LightSettings {
             brightness_percent: brightness_percent.min(100),
             temperature_kelvin,
             color: None,
+        }
+    }
+
+    /// Take the values changed on the light itself in place of these.
+    pub fn apply_changes_on_light(&mut self, changed: ChangedOnLight) {
+        if let Some(enabled) = changed.enabled {
+            self.enabled = enabled;
+        }
+        if let Some(percent) = changed.brightness_percent {
+            self.brightness_percent = percent;
+        }
+        if let Some(kelvin) = changed.temperature_kelvin {
+            self.temperature_kelvin = Some(kelvin);
         }
     }
 }
@@ -861,15 +731,13 @@ where
     D: serde::Deserializer<'de>,
 {
     let value = SmartShiftAutoDisengage::deserialize(deserializer)?;
-    match value {
-        SmartShiftAutoDisengage::Threshold(threshold)
-            if threshold < SMARTSHIFT_MIN_AUTO_DISENGAGE =>
-        {
-            Err(serde::de::Error::custom(format_args!(
-                "SmartShift auto_disengage must be between {SMARTSHIFT_MIN_AUTO_DISENGAGE} and 255, got {threshold}"
-            )))
-        }
-        _ => Ok(value),
+    if SmartShift::accepts_auto_disengage(value) {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom(format_args!(
+            "SmartShift auto_disengage must be between {SMARTSHIFT_MIN_AUTO_DISENGAGE} and 255, got {}",
+            u8::from(value)
+        )))
     }
 }
 
@@ -891,10 +759,20 @@ pub struct SmartShift {
     /// below [`SMARTSHIFT_MIN_AUTO_DISENGAGE`] is rejected on load.
     #[serde(deserialize_with = "deserialize_auto_disengage")]
     pub auto_disengage: SmartShiftAutoDisengage,
-    /// Firmware tunable-torque level (`1`–`255`), `0` when the device does not
-    /// expose tunable torque. HID++ defines the full non-zero byte range.
+    /// Tunable-torque level in percent of the wheel's maximum force
+    /// (`1`–`100`), `0` when the device reports no torque level. A persisted
+    /// value above `100` is rejected on load.
     #[serde(with = "crate::hid::smartshift::optional_tunable_torque")]
     pub tunable_torque: Option<TunableTorque>,
+}
+
+impl SmartShift {
+    /// Whether a firmware auto-disengage value is safe to persist and reapply.
+    /// The config parser and interactive writers share this policy.
+    #[must_use]
+    pub fn accepts_auto_disengage(value: SmartShiftAutoDisengage) -> bool {
+        !matches!(value, SmartShiftAutoDisengage::Threshold(threshold) if threshold < SMARTSHIFT_MIN_AUTO_DISENGAGE)
+    }
 }
 
 /// The v3-and-older owner-lock choice: which control owned a device's single
@@ -949,7 +827,8 @@ mod tests {
         parse(minimum - 1, 50)
             .expect_err("auto_disengage below the persisted minimum must be rejected");
         parse(minimum, 50).expect("the minimum itself is in contract");
-        parse(0xff, 0xff).expect("the top of both ranges is in contract");
+        parse(0xff, 100).expect("the top of both ranges is in contract");
+        parse(minimum, 101).expect_err("torque above 100% must be rejected");
         assert_eq!(
             parse(minimum, 0)
                 .expect("zero torque represents unsupported hardware")

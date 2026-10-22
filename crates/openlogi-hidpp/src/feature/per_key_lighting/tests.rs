@@ -1,6 +1,6 @@
 //! Unit tests for `PerKeyLighting` request encoding.
 
-use std::assert_matches;
+use std::matches as assert_matches;
 
 use super::{
     FramePersistence, Rgb, RgbZone, RgbZoneRange, ZonePresencePage, consecutive_zones_args,

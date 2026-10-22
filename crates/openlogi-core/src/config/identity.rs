@@ -44,6 +44,42 @@ pub fn canonical_device_key(
 }
 
 impl Config {
+    /// Restore the route index's one-owner invariant after loading and schema
+    /// migration.
+    ///
+    /// A hand-edited file can put one route in several entries, and a key
+    /// migration can add a link that an existing entry already claims. Device
+    /// keys are stored in a [`BTreeMap`](std::collections::BTreeMap), so the
+    /// lexicographically first key keeps its complete
+    /// [`LinkConfig`](crate::config::LinkConfig) and later claims are removed.
+    /// This matches the owner an ambiguous index resolved
+    /// to before the repair, when [`Self::resolve_device_key`] used the first
+    /// matching map entry.
+    ///
+    /// Only the route index is repaired. Device entries are neither renamed
+    /// nor consumed, so [`Self::selected_device`] and
+    /// [`DeviceConfig::host_switch_targets`] keep referring to the same
+    /// physical configuration entries.
+    #[cfg(feature = "fs")]
+    pub(super) fn repair_duplicate_routes(&mut self) {
+        let mut owners = std::collections::BTreeMap::<String, String>::new();
+        for (device_key, device) in &mut self.devices {
+            device.links.retain(|route_key, _| {
+                let Some(owner) = owners.get(route_key) else {
+                    owners.insert(route_key.clone(), device_key.clone());
+                    return true;
+                };
+                tracing::warn!(
+                    %route_key,
+                    %owner,
+                    duplicate_owner = %device_key,
+                    "route is indexed by multiple devices; keeping the first owner"
+                );
+                false
+            });
+        }
+    }
+
     /// The configuration key to *read and write* for a device reached by
     /// `stable`, given whatever `identity` the current probe could read.
     ///
@@ -104,13 +140,7 @@ impl Config {
         {
             return Some(key);
         }
-        if let Some(key) = stable.physical_key() {
-            return Some(key);
-        }
-        if matches!(stable, DeviceStableId::RawHid { .. }) {
-            return PhysicalDeviceKey::parse(&stable.runtime_key());
-        }
-        None
+        stable.physical_key()
     }
 
     /// Record that the device keyed `canonical` was reached by `route_key`,
@@ -259,6 +289,9 @@ pub(super) fn fold(device: &mut DeviceConfig, mut legacy: DeviceConfig, route_ke
     if device.invert_scroll != legacy.invert_scroll && legacy.invert_scroll {
         link.overrides.invert_scroll = Some(legacy.invert_scroll);
     }
+    // `smooth_wheel` is a bare opt-in with no per-link slot: for the same
+    // reason only a legacy `true` is evidence of a choice, so it carries over.
+    device.smooth_wheel |= legacy.smooth_wheel;
 
     // Scalar values with no per-link override slot: take the legacy value
     // when the canonical side is unset. A genuine disagreement keeps the
@@ -284,6 +317,8 @@ pub(super) fn fold(device: &mut DeviceConfig, mut legacy: DeviceConfig, route_ke
     fold_option_field!(camera_profile);
     fold_option_field!(thumbwheel_sensitivity);
     fold_option_field!(fn_lock);
+    fold_option_field!(keep_os_layout);
+    fold_option_field!(report_rate);
     // The user-assigned alias. Without this a legacy entry carrying a name
     // folded into a canonical entry with none would drop it silently — the
     // one field here a user typed by hand, so the loss is the most visible.

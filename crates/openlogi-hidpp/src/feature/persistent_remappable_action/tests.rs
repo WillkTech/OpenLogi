@@ -1,6 +1,6 @@
 //! Unit tests for `PersistentRemappableAction` payload parsing.
 
-use std::assert_matches;
+use std::matches as assert_matches;
 
 use super::{ActionId, HostMask, ModifierMask, PersistentAction, RemappableCapabilities};
 use crate::feature::{hosts_info::HostIndex, reprog_controls::ControlId};

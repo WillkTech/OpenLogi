@@ -241,7 +241,7 @@ impl PhysicalDeviceKey {
     pub fn parse(value: &str) -> Option<Self> {
         if receiver_key_is_valid(value)
             || direct_identity_fragment(value).is_some_and(identity_fragment_is_physical)
-            || raw_identity_fragment(value).is_some()
+            || raw_identity_fragment(value).is_some_and(raw_identity_is_physical)
             || unknown_identity_fragment(value).is_some_and(identity_fragment_is_physical)
             || identity_fragment_is_physical(value)
         {

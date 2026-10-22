@@ -1,6 +1,6 @@
 //! Unit tests for `Illumination` payload parsing and event decoding.
 
-use std::assert_matches;
+use std::matches as assert_matches;
 
 use super::event::{IlluminationEvent, decode_event};
 use super::types::{

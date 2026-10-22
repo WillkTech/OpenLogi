@@ -1,6 +1,6 @@
 //! Unit tests for `TouchpadRawXy` info parsing and raw-event decoding.
 
-use std::assert_matches;
+use std::matches as assert_matches;
 
 use super::event::{TouchpadRawEvent, decode_event};
 use super::{Origin, RawReportFlags, TouchpadInfo};

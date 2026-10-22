@@ -88,7 +88,7 @@ fn usage_packets(usages: &[u8]) -> Vec<[u8; USAGES_PER_PACKET]> {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
+    use std::matches as assert_matches;
 
     use super::{usage_packets, validate_usages};
     use crate::protocol::v20::{ErrorType, Hidpp20Error};
