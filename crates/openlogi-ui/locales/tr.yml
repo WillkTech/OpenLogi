@@ -294,6 +294,8 @@ _version: 1
 "Needed for gesture and button remapping (event tap).": "Hareket ve düğme yeniden atama için gerekli (olay kancası)."
 "Needed to read HID++ data, including Bluetooth-direct mice.": "Doğrudan Bluetooth fareleri dahil HID++ verilerini okumak için gerekli."
 "Granted, but devices still fail to open — another app may hold them exclusively, or macOS needs a log out and back in.": "İzin verildi ama cihazlar yine de açılamıyor — başka bir uygulama onları özel olarak tutuyor olabilir veya macOS'ta oturumu kapatıp yeniden açmanız gerekiyor."
+"OpenLogi is granted, but OpenLogi Agent is not. macOS requires Input Monitoring permission specifically for 'OpenLogi Agent'.": "OpenLogi'ye izin verildi ancak OpenLogi Agent'a verilmedi. macOS, özellikle 'OpenLogi Agent' için Girdi İzleme izni gerektirir."
+"Reveal Agent in Finder": "Agent'ı Finder'da Göster"
 "Allows OpenLogi to use CoreBluetooth (not required for HID access).": "OpenLogi'nin CoreBluetooth kullanmasına izin verir (HID erişimi için gerekli değildir)."
 "Scanning for devices…": "Cihazlar taranıyor…"
 "Connecting to the background service…": "Arka plan hizmetine bağlanılıyor…"

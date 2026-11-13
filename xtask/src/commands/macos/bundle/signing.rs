@@ -61,20 +61,24 @@ pub(super) fn sign_app_with_timestamp(
     // deprecated and can't give the helper an independent signature — but a
     // stable, separately-signed helper identity is exactly what lets the agent's
     // Accessibility (TCC) grant persist across updates. So sign each explicitly.
+    let agent_id = channel.identity(Component::Agent).bundle_id;
+    let overlay_id = channel.identity(Component::Overlay).bundle_id;
+    let app_id = channel.identity(Component::App).bundle_id;
+
     if helper.exists() {
-        codesign_runtime(identity, &helper, timestamp, None)?;
+        codesign_runtime(identity, &helper, timestamp, None, Some(&agent_id))?;
     }
     if overlay.exists() {
-        codesign_runtime(identity, &overlay, timestamp, None)?;
+        codesign_runtime(identity, &overlay, timestamp, None, Some(&overlay_id))?;
     }
     // The embedded CLI is a second Mach-O under Contents/MacOS; sign it with the
     // hardened runtime before the outer app so it carries a Developer ID
     // signature (its as-built ad-hoc signature would fail notarization).
     let cli = app.join("Contents/MacOS/openlogi");
     if cli.exists() {
-        codesign_runtime(identity, &cli, timestamp, Some(&camera_ents))?;
+        codesign_runtime(identity, &cli, timestamp, Some(&camera_ents), None)?;
     }
-    codesign_runtime(identity, &app, timestamp, Some(&camera_ents))?;
+    codesign_runtime(identity, &app, timestamp, Some(&camera_ents), Some(&app_id))?;
     cmd!(sh, "codesign --verify --strict {app}").run()?;
     if helper.exists() {
         cmd!(sh, "codesign --verify --strict {helper}").run()?;
@@ -99,38 +103,27 @@ fn codesign_runtime(
     target: &Path,
     timestamp: TimestampMode,
     entitlements: Option<&Path>,
+    identifier: Option<&str>,
 ) -> Result<()> {
     let sh = Shell::new()?;
-    match (timestamp, entitlements) {
-        (TimestampMode::Secure, Some(ents)) => {
-            cmd!(
-                sh,
-                "codesign --force --options runtime --timestamp --entitlements {ents} --sign {identity} {target}"
-            )
-            .run()?;
-        }
-        (TimestampMode::Secure, None) => {
-            cmd!(
-                sh,
-                "codesign --force --options runtime --timestamp --sign {identity} {target}"
-            )
-            .run()?;
-        }
-        (TimestampMode::None, Some(ents)) => {
-            cmd!(
-                sh,
-                "codesign --force --options runtime --timestamp=none --entitlements {ents} --sign {identity} {target}"
-            )
-            .run()?;
-        }
-        (TimestampMode::None, None) => {
-            cmd!(
-                sh,
-                "codesign --force --options runtime --timestamp=none --sign {identity} {target}"
-            )
-            .run()?;
-        }
+    let mut args: Vec<String> = vec!["--force".into(), "--options".into(), "runtime".into()];
+    match timestamp {
+        TimestampMode::Secure => args.push("--timestamp".into()),
+        TimestampMode::None => args.push("--timestamp=none".into()),
     }
+    if let Some(id) = identifier {
+        args.push("--identifier".into());
+        args.push(id.to_string());
+    }
+    if let Some(ents) = entitlements {
+        args.push("--entitlements".into());
+        args.push(ents.to_string_lossy().to_string());
+    }
+    args.push("--sign".into());
+    args.push(identity.to_string());
+    let target_str = target.to_string_lossy().to_string();
+    args.push(target_str);
+    cmd!(sh, "codesign {args...}").run()?;
     Ok(())
 }
 

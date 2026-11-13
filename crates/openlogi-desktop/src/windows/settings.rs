@@ -146,6 +146,9 @@ pub struct SettingsView {
     /// lets the agent's idle janitor turn monitoring back off.
     #[cfg(all(target_os = "macos", debug_assertions))]
     _monitor_task: gpui::Task<()>,
+    /// Refreshes permission status periodically while Settings is open.
+    #[cfg(target_os = "macos")]
+    _permission_poll_task: gpui::Task<()>,
 }
 
 impl SettingsView {
@@ -271,6 +274,18 @@ impl SettingsView {
             }
         });
 
+        #[cfg(target_os = "macos")]
+        let permission_poll_task = cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(1500))
+                    .await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        });
+
         Self {
             focus_handle,
             appearance_obs: None,
@@ -293,6 +308,8 @@ impl SettingsView {
             asset_cache_desc: assets::cache_size_description(),
             #[cfg(all(target_os = "macos", debug_assertions))]
             _monitor_task: monitor_task,
+            #[cfg(target_os = "macos")]
+            _permission_poll_task: permission_poll_task,
         }
     }
 

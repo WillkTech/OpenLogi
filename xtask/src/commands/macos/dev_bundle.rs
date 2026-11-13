@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, bail};
 use clap::Parser;
+use signing::SignTarget;
 use strum::VariantArray as _;
 use xshell::{Shell, cmd};
 
@@ -181,13 +182,21 @@ fn remove_bundle(path: &Path) -> Result<()> {
 
 /// Nested helpers first, then the app that seals them: an outer signature
 /// covers what is already inside, so signing the app first would invalidate it.
-fn sign_order(app: &Path, components: &[Component]) -> Vec<PathBuf> {
-    let mut targets: Vec<PathBuf> = components
+fn sign_order(app: &Path, components: &[Component]) -> Vec<SignTarget> {
+    let mut targets: Vec<SignTarget> = components
         .iter()
         .filter(|component| component.nested_bundle(CHANNEL).is_some())
-        .map(|component| component.root(app, CHANNEL))
+        .map(|component| {
+            SignTarget::new(
+                component.root(app, CHANNEL),
+                Some(CHANNEL.identity(*component).bundle_id),
+            )
+        })
         .collect();
-    targets.push(app.to_path_buf());
+    targets.push(SignTarget::new(
+        app,
+        Some(CHANNEL.identity(Component::App).bundle_id),
+    ));
     targets
 }
 

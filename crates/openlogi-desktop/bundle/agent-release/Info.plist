@@ -37,5 +37,7 @@
   <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSInputMonitoringUsageDescription</key>
+  <string>OpenLogi Agent requires Input Monitoring to communicate with Logitech HID++ devices and read hardware reports.</string>
 </dict>
 </plist>

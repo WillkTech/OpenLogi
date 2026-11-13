@@ -294,6 +294,8 @@ _version: 1
 "Needed for gesture and button remapping (event tap).": "手勢與按鍵重新對應需要此權限（事件監聽）。"
 "Needed to read HID++ data, including Bluetooth-direct mice.": "需要此權限才能讀取 HID++ 資料，包括藍牙直連滑鼠。"
 "Granted, but devices still fail to open — another app may hold them exclusively, or macOS needs a log out and back in.": "已授權，但裝置仍然無法開啟 —— 可能有其他應用程式獨佔裝置，或需要登出 macOS 後重新登入。"
+"OpenLogi is granted, but OpenLogi Agent is not. macOS requires Input Monitoring permission specifically for 'OpenLogi Agent'.": "OpenLogi 已獲授權，但 OpenLogi Agent 尚未獲得授權。macOS 需要專門為「OpenLogi Agent」授予輸入監控權限。"
+"Reveal Agent in Finder": "在 Finder 中顯示 Agent"
 "Allows OpenLogi to use CoreBluetooth (not required for HID access).": "允許 OpenLogi 使用 CoreBluetooth（HID 存取不需要）。"
 "Scanning for devices…": "正在掃描裝置…"
 "Connecting to the background service…": "正在連線背景服務…"

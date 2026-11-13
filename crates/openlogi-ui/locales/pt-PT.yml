@@ -294,6 +294,8 @@ _version: 1
 "Needed for gesture and button remapping (event tap).": "Necessário para remapear gestos e botões (event tap)."
 "Needed to read HID++ data, including Bluetooth-direct mice.": "Necessário para ler dados HID++, incluindo ratos Bluetooth diretos."
 "Granted, but devices still fail to open — another app may hold them exclusively, or macOS needs a log out and back in.": "Concedido, mas os dispositivos continuam sem abrir — outra aplicação pode estar a retê-los em exclusivo, ou o macOS precisa de terminar sessão e iniciar sessão novamente."
+"OpenLogi is granted, but OpenLogi Agent is not. macOS requires Input Monitoring permission specifically for 'OpenLogi Agent'.": "O OpenLogi está autorizado, mas o OpenLogi Agent não. O macOS requer permissão de Monitorização de Entrada especificamente para o 'OpenLogi Agent'."
+"Reveal Agent in Finder": "Revelar agente no Finder"
 "Allows OpenLogi to use CoreBluetooth (not required for HID access).": "Permite que o OpenLogi use o CoreBluetooth (não necessário para acesso HID)."
 "Scanning for devices…": "A procurar dispositivos…"
 "Connecting to the background service…": "A ligar ao serviço em segundo plano…"

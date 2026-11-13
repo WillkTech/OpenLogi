@@ -114,49 +114,103 @@ pub(super) fn permissions_page(has_camera: bool) -> SettingPage {
 }
 
 #[cfg(target_os = "macos")]
+fn reveal_agent_in_finder() {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(contents) = exe.parent().and_then(|p| p.parent()) {
+            for name in [
+                "OpenLogi Agent.app",
+                "OpenLogi Agent Dev.app",
+                "OpenLogiAgent.app",
+            ] {
+                let bundle = contents.join("Library/LoginItems").join(name);
+                if bundle.exists() {
+                    let _ = std::process::Command::new("/usr/bin/open")
+                        .arg("-R")
+                        .arg(&bundle)
+                        .spawn();
+                    return;
+                }
+            }
+        }
+        let _ = std::process::Command::new("/usr/bin/open")
+            .arg("-R")
+            .arg(&exe)
+            .spawn();
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn input_monitoring_item() -> SettingItem {
     SettingItem::new(
-                tr!("Input Monitoring"),
-                SettingField::render(move |_, _, cx| {
-                    let status = AppState::try_global(cx)
-                        .map(|state| state.read(cx))
-                        .and_then(AppState::agent_status);
-                    // Granted-but-still-failing is the one state the badge
-                    // alone cannot express: the grant exists, yet every
-                    // open is refused — an exclusive open elsewhere, or a
-                    // TCC session only a re-login refreshes (#704).
-                    let stalled = status
-                        .as_ref()
-                        .is_some_and(|s| s.input_monitoring_granted && s.hid_open_failures);
-                    let badge = match status {
-                        Some(s) if s.input_monitoring_granted && s.hid_open_failures => {
-                            PermissionStatus::RequiresRestart
-                        }
-                        Some(s) if s.input_monitoring_granted => PermissionStatus::Granted,
-                        Some(_) => PermissionStatus::Denied,
-                        None => PermissionStatus::Unknown,
-                    };
-                    let field = gpui_component::v_flex().gap_1().child(permission_field(
-                        "perm-input-monitoring",
-                        badge,
-                        Permission::InputMonitoring,
-                        cx,
-                    ));
-                    let pal = theme::palette(cx);
-                    if stalled {
-                        field.child(div().text_caption().text_color(pal.text_muted).child(
-                            tr!(
-                                "Granted, but devices still fail to open — another app may hold them exclusively, or macOS needs a log out and back in."
-                            ),
-                        ))
-                    } else {
-                        field
-                    }
-                }),
-            )
-            .description(tr!(
-                "Needed to read HID++ data, including Bluetooth-direct mice."
-            ))
+        tr!("Input Monitoring"),
+        SettingField::render(move |_, _, cx| {
+            let status = AppState::try_global(cx)
+                .map(|state| state.read(cx))
+                .and_then(AppState::agent_status);
+            // Granted-but-still-failing is the one state the badge
+            // alone cannot express: the grant exists, yet every
+            // open is refused — an exclusive open elsewhere, or a
+            // TCC session only a re-login refreshes (#704).
+            let stalled = status
+                .as_ref()
+                .is_some_and(|s| s.input_monitoring_granted && s.hid_open_failures);
+            let agent_granted = status.as_ref().is_some_and(|s| s.input_monitoring_granted);
+            let gui_granted = permissions::input_monitoring() == PermissionStatus::Granted;
+            let mismatch = gui_granted && !agent_granted;
+
+            let badge = match status {
+                Some(s) if s.input_monitoring_granted && s.hid_open_failures => {
+                    PermissionStatus::RequiresRestart
+                }
+                Some(s) if s.input_monitoring_granted => PermissionStatus::Granted,
+                Some(_) => PermissionStatus::Denied,
+                None => PermissionStatus::Unknown,
+            };
+            let mut field = gpui_component::v_flex().gap_1().child(permission_field(
+                "perm-input-monitoring",
+                badge,
+                Permission::InputMonitoring,
+                cx,
+            ));
+            let pal = theme::palette(cx);
+            if stalled {
+                field = field.child(div().text_caption().text_color(pal.text_muted).child(
+                    tr!(
+                        "Granted, but devices still fail to open — another app may hold them exclusively, or macOS needs a log out and back in."
+                    ),
+                ));
+            } else if mismatch {
+                field = field
+                    .child(div().text_caption().text_color(pal.text_muted).child(tr!(
+                        "OpenLogi is granted, but OpenLogi Agent is not. macOS requires Input Monitoring permission specifically for 'OpenLogi Agent'."
+                    )))
+                    .child(
+                        h_flex().items_center().gap_2().child(
+                            BaseButton::new("reveal-agent-in-finder")
+                                .accessibility_label(tr!("Reveal Agent in Finder"))
+                                .px_2()
+                                .py_1()
+                                .rounded(pal.control_radius)
+                                .border_1()
+                                .border_color(pal.border)
+                                .text_caption()
+                                .cursor_pointer()
+                                .bg(pal.control)
+                                .hover(move |s| s.bg(pal.control_hover))
+                                .focus_visible(move |s| s.bg(pal.control_hover))
+                                .child(tr!("Reveal Agent in Finder"))
+                                .on_click(move |_, _, _| {
+                                    reveal_agent_in_finder();
+                                }),
+                        ),
+                    );
+            }
+            field
+        }),
+    )
+    .description(tr!(
+        "Needed to read HID++ data, including Bluetooth-direct mice."
+    ))
 }
 
 #[cfg(target_os = "macos")]

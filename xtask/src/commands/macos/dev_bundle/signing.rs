@@ -24,6 +24,22 @@ use super::super::bundle::quoted_identity;
 /// The prefix that marks a local development certificate.
 const DEVELOPMENT: &str = "Apple Development:";
 
+/// A target to sign with optional bundle identifier.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(super) struct SignTarget {
+    pub(super) path: PathBuf,
+    pub(super) identifier: Option<String>,
+}
+
+impl SignTarget {
+    pub(super) fn new(path: impl Into<PathBuf>, identifier: Option<impl Into<String>>) -> Self {
+        Self {
+            path: path.into(),
+            identifier: identifier.map(Into::into),
+        }
+    }
+}
+
 /// How the dev bundle gets signed.
 pub(super) enum Signing {
     /// With a real development certificate, so grants survive a rebuild.
@@ -45,7 +61,7 @@ impl Signing {
 
     /// Sign `targets` in the order given — nested helpers before the app that
     /// seals them, since an outer signature covers what is already inside.
-    pub(super) fn run(&self, targets: &[PathBuf]) -> Result<()> {
+    pub(super) fn run(&self, targets: &[SignTarget]) -> Result<()> {
         let identity = match self {
             Self::Identity(identity) => identity.as_str(),
             Self::AdHoc => "-",
@@ -53,12 +69,18 @@ impl Signing {
         };
         let sh = Shell::new()?;
         for target in targets {
-            cmd!(
-                sh,
-                "codesign --force --sign {identity} --timestamp=none {target}"
-            )
-            .run()?;
-            cmd!(sh, "codesign --verify --strict {target}").run()?;
+            let path = &target.path;
+            let mut args: Vec<String> = vec!["--force".into()];
+            if let Some(ref id) = target.identifier {
+                args.push("--identifier".into());
+                args.push(id.clone());
+            }
+            args.push("--sign".into());
+            args.push(identity.to_string());
+            args.push("--timestamp=none".into());
+            args.push(path.to_string_lossy().to_string());
+            cmd!(sh, "codesign {args...}").run()?;
+            cmd!(sh, "codesign --verify --strict {path}").run()?;
         }
         Ok(())
     }

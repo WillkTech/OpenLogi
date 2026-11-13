@@ -37,7 +37,7 @@ fn an_unrecognised_profile_directory_is_an_error() {
 fn the_app_is_signed_after_everything_it_contains() {
     let app = Path::new("/repo/target/dev/OpenLogi.app");
     let order = sign_order(app, Component::VARIANTS);
-    assert_eq!(order.last().unwrap(), app);
+    assert_eq!(order.last().unwrap().path, app);
     assert_eq!(
         order.len(),
         Component::VARIANTS.len(),
@@ -48,5 +48,25 @@ fn the_app_is_signed_after_everything_it_contains() {
 #[test]
 fn skipping_the_helpers_leaves_only_the_app_to_sign() {
     let app = Path::new("/repo/target/dev/OpenLogi.app");
-    assert_eq!(sign_order(app, &APP_ONLY), vec![app.to_path_buf()]);
+    assert_eq!(
+        sign_order(app, &APP_ONLY),
+        vec![SignTarget::new(
+            app,
+            Some(CHANNEL.identity(Component::App).bundle_id)
+        )]
+    );
+}
+
+#[test]
+fn helper_identifiers_match_their_channel_bundle_id() {
+    let app = Path::new("/repo/target/dev/OpenLogi.app");
+    let order = sign_order(app, Component::VARIANTS);
+    let agent_target = order
+        .iter()
+        .find(|t| t.path == Component::Agent.root(app, CHANNEL))
+        .expect("agent target should be in sign_order");
+    assert_eq!(
+        agent_target.identifier.as_deref(),
+        Some("org.openlogi.agent-dev")
+    );
 }

@@ -294,6 +294,8 @@ _version: 1
 "Needed for gesture and button remapping (event tap).": "Krävs för ommappning av gester och knappar (event tap)."
 "Needed to read HID++ data, including Bluetooth-direct mice.": "Krävs för att läsa HID++-data, inklusive Bluetooth-direktanslutna möss."
 "Granted, but devices still fail to open — another app may hold them exclusively, or macOS needs a log out and back in.": "Beviljat, men enheterna kan fortfarande inte öppnas — en annan app kanske håller dem exklusivt, eller så kräver macOS ut- och inloggning igen."
+"OpenLogi is granted, but OpenLogi Agent is not. macOS requires Input Monitoring permission specifically for 'OpenLogi Agent'.": "OpenLogi har beviljats, men inte OpenLogi Agent. macOS kräver behörighet för inmatningsövervakning specifikt för 'OpenLogi Agent'."
+"Reveal Agent in Finder": "Visa agent i Finder"
 "Allows OpenLogi to use CoreBluetooth (not required for HID access).": "Tillåter OpenLogi att använda CoreBluetooth (krävs inte för HID-åtkomst)."
 "Scanning for devices…": "Söker efter enheter…"
 "Connecting to the background service…": "Ansluter till bakgrundstjänsten…"
