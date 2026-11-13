@@ -1928,15 +1928,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "disclaim"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd96fce6aceca6fca1613f438b7c32bbb154f835b5eec6c3458b69a401ad9b1e"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5574,7 +5565,6 @@ dependencies = [
  "appicon",
  "backon",
  "derive_more",
- "disclaim",
  "embed-resource",
  "gpui",
  "gpui-base",
