@@ -441,21 +441,21 @@ Trunk already has the fixture/replay platform (audit §4.E). Work:
 ## 12. Progress checklist (single source of status)
 
 ```
-[ ] P0.1 gitignore openlogi_0.9            [ ] P2.B2 F4 G90 (fixture)
-[ ] P0.2 trunk worktree + baseline         [ ] P2.B2 F5 M720 (fixture)
-[ ] P0.3 pristine-trunk full gate          [ ] P2.B2 F6 quantizer clearing ×3
-[ ] P1.1 fork tooling re-homed             [ ] P2.B3 QoS boost
-[ ] P1.2 gpui patch decision               [ ] P2.B3 alloc-free classifiers
-[ ] P1.3 dev-run teardown                  [ ] P2.B3 watchdog decision doc
-[ ] P2.B1 branding + brand.rs URLs         [ ] P3.0 scroll-key decision
-[ ] P2.B2 F1 double-click                  [ ] P3.1–P3.2 translator + fixtures
-[ ] P2.B2 F2 win11 shadow                  [ ] P4.1 catalog keys for fork UI
-[ ] P2.B2 F3 profile removal               [ ] P5.1–P5.6 scroll engine slices
-[ ] P2.B4 §3.2 sweep complete              [ ] P6.1 fork tests re-expressed
-                                           [ ] P6.2 G90/M720 fixtures recorded
-                                           [ ] P7 flow-gated boot proof
-                                           [ ] P7 updater-feed decision
-                                           [ ] P8 cutover PR + full gate
+[x] P0.1 gitignore openlogi_0.9            [x] P2.B2 F4 G90 (fixture)
+[x] P0.2 trunk worktree + baseline         [x] P2.B2 F5 M720 (fixture)
+[x] P0.3 pristine-trunk full gate          [x] P2.B2 F6 quantizer clearing ×3
+[x] P1.1 fork tooling re-homed             [x] P2.B3 QoS boost
+[x] P1.2 gpui patch decision               [x] P2.B3 alloc-free classifiers
+[x] P1.3 dev-run teardown                  [x] P2.B3 watchdog decision doc
+[x] P2.B1 branding + brand.rs URLs         [x] P3.0 scroll-key decision
+[x] P2.B2 F1 double-click                  [x] P3.1–P3.2 translator + fixtures
+[x] P2.B2 F2 win11 shadow                  [x] P4.1 catalog keys for fork UI
+[x] P2.B2 F3 profile removal               [x] P5.1–P5.6 scroll engine slices
+[x] P2.B4 §3.2 sweep complete              [x] P6.1 fork tests re-expressed
+                                           [x] P6.2 G90/M720 fixtures recorded
+                                           [x] P7 flow-gated boot proof
+                                           [x] P7 updater-feed decision
+                                           [x] P8 cutover PR + full gate
 ```
 
 Status vocabulary in PRs/commits: a slice is **done** only when its named
