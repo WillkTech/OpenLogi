@@ -951,7 +951,7 @@ fn historical_transient_lighting_is_not_exposed_without_a_live_record() {
         commands,
     );
 
-    assert!(state.devices().is_empty());
+    assert_eq!(state.devices(), []);
     assert!(state.lighting_for(transient_key, transient_key).is_none());
 }
 
@@ -1701,7 +1701,7 @@ fn forgetting_an_offline_device_drops_its_card_and_config_entry() {
 
     assert!(state.forget_device(&record_key));
 
-    assert!(state.devices().is_empty());
+    assert_eq!(state.devices(), []);
     assert!(
         state
             .config
@@ -1741,10 +1741,6 @@ fn a_failed_save_keeps_the_forgotten_device() {
 }
 
 #[test]
-#[expect(
-    clippy::float_cmp,
-    reason = "settings multipliers are exact step-grid floating-point values"
-)]
 fn scroll_multiplier_updates_and_resets_work() {
     let mut state = state_with_a_known_mouse();
 
@@ -1773,7 +1769,6 @@ fn scroll_multiplier_updates_and_resets_work() {
 #[test]
 fn targeted_app_profile_removal_removes_profile_without_disrupting_other_open_profile() {
     let mut state = state_with_a_known_mouse();
-    let mouse_key = KNOWN_MOUSE_KEY;
 
     // Create two app profiles with overrides
     state.commit_binding(ButtonId::Forward, Action::Copy);

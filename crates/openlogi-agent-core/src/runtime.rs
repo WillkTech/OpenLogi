@@ -6,6 +6,7 @@
 //! in [`hook`]; the button state machine remains an internal implementation.
 
 mod button;
+pub mod diagnostics;
 pub mod hook;
 pub mod scroll;
 

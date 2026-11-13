@@ -55,7 +55,7 @@ pub struct EventDevice {
     /// USB/Bluetooth/HID product id when the platform exposes it.
     pub product_id: Option<u32>,
     /// Human-readable product name, normalized by consumers before matching.
-    pub product_name: Option<String>,
+    pub product_name: Option<std::sync::Arc<str>>,
 }
 
 fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {

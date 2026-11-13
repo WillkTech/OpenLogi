@@ -65,6 +65,12 @@ impl AppState {
     pub fn request_accessibility_prompt(&self) {
         self.send_ipc(crate::services::ipc::Command::RequestAccessibilityPrompt);
     }
+    /// Ask the agent to fire the macOS Input Monitoring prompt. The agent owns
+    /// every HID device open, so the system dialog must name (and authorize)
+    /// the *agent* binary.
+    pub fn request_input_monitoring_prompt(&self) {
+        self.send_ipc(crate::services::ipc::Command::RequestInputMonitoringPrompt);
+    }
     /// The agent connection state the render path branches on.
     #[must_use]
     pub fn agent_link(&self) -> &AgentLink {

@@ -8,6 +8,7 @@ use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use arc_swap::ArcSwap;
 use crossbeam_queue::ArrayQueue;
 use openlogi_core::config::{
     AppSettings, CurvePreset, HorizontalScrollBaseline, VerticalScrollBaseline,
@@ -73,7 +74,10 @@ impl From<&AppSettings> for ScrollPreferenceSnapshot {
 /// Atomically published settings read from input callbacks and the scroll
 /// worker without taking the orchestrator's config lock.
 pub struct ScrollPreferences {
-    snapshot: std::sync::RwLock<ScrollPreferenceSnapshot>,
+    snapshot: ArcSwap<ScrollPreferenceSnapshot>,
+    /// Deferred reclamation bin to ensure retired snapshots are deallocated
+    /// on the configuration thread rather than the latency-sensitive worker thread.
+    reclamation: std::sync::Mutex<Vec<Arc<ScrollPreferenceSnapshot>>>,
 }
 
 impl ScrollPreferences {
@@ -81,7 +85,8 @@ impl ScrollPreferences {
     #[must_use]
     pub fn from_app_settings(settings: &AppSettings) -> Self {
         Self {
-            snapshot: std::sync::RwLock::new(ScrollPreferenceSnapshot::from(settings)),
+            snapshot: ArcSwap::from_pointee(ScrollPreferenceSnapshot::from(settings)),
+            reclamation: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -98,53 +103,67 @@ impl ScrollPreferences {
             ..AppSettings::default()
         };
         Self {
-            snapshot: std::sync::RwLock::new(ScrollPreferenceSnapshot::from(&settings)),
+            snapshot: ArcSwap::from_pointee(ScrollPreferenceSnapshot::from(&settings)),
+            reclamation: std::sync::Mutex::new(Vec::new()),
         }
     }
 
     /// Publish updated settings snapshot from AppSettings.
     pub fn publish_app_settings(&self, settings: &AppSettings) {
-        if let Ok(mut lock) = self.snapshot.write() {
-            *lock = ScrollPreferenceSnapshot::from(settings);
+        let old = self
+            .snapshot
+            .swap(Arc::new(ScrollPreferenceSnapshot::from(settings)));
+        if let Ok(mut reclamation) = self.reclamation.lock() {
+            reclamation.clear();
+            reclamation.push(old);
         }
     }
 
     /// Publish smooth_scroll and vertical_sensitivity.
     pub fn publish(&self, smooth_scroll: bool, vertical_sensitivity: VerticalScrollSensitivity) {
-        if let Ok(mut lock) = self.snapshot.write() {
-            lock.vertical_preset = if smooth_scroll {
-                CurvePreset::Smooth
-            } else {
-                CurvePreset::None
-            };
-            lock.vertical_baseline = vertical_sensitivity;
-            lock.vertical_lut = Arc::new(ScrollLut::generate(
-                lock.vertical_preset,
-                lock.vertical_multiplier,
-            ));
+        let current = self.snapshot.load();
+        let vertical_preset = if smooth_scroll {
+            CurvePreset::Smooth
+        } else {
+            CurvePreset::None
+        };
+        let vertical_lut = Arc::new(ScrollLut::generate(
+            vertical_preset,
+            current.vertical_multiplier,
+        ));
+        let updated = ScrollPreferenceSnapshot {
+            vertical_baseline: vertical_sensitivity,
+            horizontal_baseline: current.horizontal_baseline,
+            vertical_preset,
+            horizontal_preset: current.horizontal_preset,
+            vertical_multiplier: current.vertical_multiplier,
+            horizontal_multiplier: current.horizontal_multiplier,
+            vertical_lut,
+            horizontal_lut: Arc::clone(&current.horizontal_lut),
+        };
+        let old = self.snapshot.swap(Arc::new(updated));
+        if let Ok(mut reclamation) = self.reclamation.lock() {
+            reclamation.clear();
+            reclamation.push(old);
         }
     }
 
-    /// Load a snapshot of current scroll settings. A poisoned lock still
-    /// yields its last written value, mirroring `publish`'s fail-open policy.
+    /// Load an atomic snapshot of current scroll settings without lock contention.
     #[must_use]
-    pub fn load(&self) -> ScrollPreferenceSnapshot {
-        match self.snapshot.read() {
-            Ok(lock) => lock.clone(),
-            Err(poisoned) => poisoned.into_inner().clone(),
-        }
+    pub fn load(&self) -> Arc<ScrollPreferenceSnapshot> {
+        self.snapshot.load_full()
     }
 
     /// Whether finite smooth scrolling is currently enabled.
     #[must_use]
     pub fn smooth_scroll_enabled(&self) -> bool {
-        self.load().vertical_preset == CurvePreset::Smooth
+        self.snapshot.load().vertical_preset == CurvePreset::Smooth
     }
 
     /// The current traditional vertical wheel sensitivity.
     #[must_use]
     pub fn vertical_sensitivity(&self) -> VerticalScrollSensitivity {
-        self.load().vertical_baseline
+        self.snapshot.load().vertical_baseline
     }
 }
 

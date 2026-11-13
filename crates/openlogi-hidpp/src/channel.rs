@@ -257,6 +257,10 @@ impl HidppChannel {
         if self.rotate_software_id.load(Ordering::SeqCst) {
             // The closure always returns `Some`, so `fetch_update` never
             // reports `Err`; both arms carry the same pre-update value.
+            #[expect(
+                deprecated,
+                reason = "Atomic::fetch_update renamed to try_update in newer Rust"
+            )]
             let previous =
                 match self
                     .software_id

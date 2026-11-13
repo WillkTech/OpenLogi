@@ -282,6 +282,10 @@ impl AppState {
 
     /// Delete the open per-app profile outright and fall back to editing the
     /// device's global bindings.
+    #[expect(
+        dead_code,
+        reason = "convenience wrapper for deleting the currently open per-app profile"
+    )]
     pub fn remove_editing_app_profile(&mut self) {
         if let Some(app) = self.editing_app().map(str::to_string) {
             self.remove_app_profile(&app);

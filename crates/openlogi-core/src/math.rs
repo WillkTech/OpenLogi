@@ -1,5 +1,7 @@
 //! Mathematical utilities and formulas for OpenLogi.
 
+use std::sync::LazyLock;
+
 use az::SaturatingAs;
 use serde::{Deserialize, Serialize};
 
@@ -68,6 +70,26 @@ impl CurvePreset {
         Self::Quartic,
         Self::SquareRoot,
     ];
+
+    /// Stable 0-based index for preset table lookup.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::Smooth => 1,
+            Self::Linear => 2,
+            Self::Exponential => 3,
+            Self::Logarithmic => 4,
+            Self::Quadratic => 5,
+            Self::Cubic => 6,
+            Self::Quartic => 7,
+            Self::SquareRoot => 8,
+            Self::Sigmoid => 9,
+            Self::EaseIn => 10,
+            Self::EaseOut => 11,
+            Self::EaseInOut => 12,
+        }
+    }
 
     /// User-facing label key for translation.
     #[must_use]
@@ -169,17 +191,32 @@ pub fn gain_at_rate(rate: f32, enabled: bool, multiplier: f32) -> f32 {
     gain_at_rate_preset(rate, preset, multiplier)
 }
 
-/// Stage 1 normalized shape lookup table (0 = 0.000, 1000 = 1.000).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+static PRESET_SHAPES: LazyLock<[ShapeLut; 13]> = LazyLock::new(|| {
+    let mut shapes = [ShapeLut { table: [0.0; 256] }; 13];
+    for preset in CurvePreset::ALL {
+        shapes[preset.index()] = ShapeLut::generate(preset);
+    }
+    shapes
+});
+
+/// Stage 1 normalized shape lookup table in f32 [0.0, 1.0].
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShapeLut {
-    table: [i32; 256],
+    table: [f32; 256],
 }
 
 impl ShapeLut {
-    /// Generate a normalized shape table for a preset.
+    /// Retrieve the precomputed static normalized shape for a curve preset.
+    #[must_use]
+    #[inline]
+    pub fn for_preset(preset: CurvePreset) -> &'static Self {
+        &PRESET_SHAPES[preset.index()]
+    }
+
+    /// Generate a normalized shape table for a preset directly.
     #[must_use]
     pub fn generate(preset: CurvePreset) -> Self {
-        let mut table = [0; 256];
+        let mut table = [0.0; 256];
         if !preset.is_enabled() {
             return Self { table };
         }
@@ -187,21 +224,20 @@ impl ShapeLut {
             #[expect(clippy::cast_precision_loss, reason = "rate_bin is 0..255")]
             let rate = rate_bin as f32;
             if rate <= REFERENCE_RATE {
-                *slot = 0;
+                *slot = 0.0;
             } else {
                 let norm_rate =
                     ((rate - REFERENCE_RATE) / (MAX_RATE - REFERENCE_RATE)).clamp(0.0, 1.0);
-                let norm_gain = preset.evaluate_normalized(norm_rate);
-                *slot = quantize_fixed_point(norm_gain);
+                *slot = preset.evaluate_normalized(norm_rate);
             }
         }
         Self { table }
     }
 
-    /// Lookup the normalized response in fixed point (0..=1000).
+    /// Lookup the normalized response in floating point (0.0..=1.0).
     #[must_use]
     #[inline]
-    pub const fn lookup(&self, rate_bin: usize) -> i32 {
+    pub const fn lookup(&self, rate_bin: usize) -> f32 {
         if rate_bin >= 256 {
             self.table[255]
         } else {
@@ -235,9 +271,9 @@ impl ScrollLut {
         fixed_to_f32(self.lookup(rate_bin))
     }
 
-    /// Generate the active LUT for a given preset and multiplier.
+    /// Generate the active LUT directly using math evaluation (baseline un-cached method).
     #[must_use]
-    pub fn generate(preset: CurvePreset, multiplier: f32) -> Self {
+    pub fn generate_direct(preset: CurvePreset, multiplier: f32) -> Self {
         let mut table = [UNITY_GAIN_FIXED; 256];
         if !preset.is_enabled() || multiplier <= 1.0 {
             return Self { table };
@@ -247,6 +283,31 @@ impl ScrollLut {
             let rate = rate_bin as f32;
             let gain = gain_at_rate_preset(rate, preset, multiplier);
             *slot = quantize_fixed_point(gain);
+        }
+        Self { table }
+    }
+
+    /// Generate the active LUT for a given preset and multiplier using precomputed shape tables.
+    #[must_use]
+    pub fn generate(preset: CurvePreset, multiplier: f32) -> Self {
+        let mut table = [UNITY_GAIN_FIXED; 256];
+        if !preset.is_enabled() || multiplier <= 1.0 || !multiplier.is_finite() {
+            return Self { table };
+        }
+
+        let shape = ShapeLut::for_preset(preset);
+        let excess_multiplier = multiplier - 1.0;
+        let max_gain = quantize_fixed_point(multiplier);
+
+        for (norm_gain, slot) in shape.table.iter().zip(table.iter_mut()) {
+            if *norm_gain <= 0.0 {
+                *slot = UNITY_GAIN_FIXED;
+            } else if *norm_gain >= 1.0 {
+                *slot = max_gain;
+            } else {
+                let gain = 1.0 + excess_multiplier * (*norm_gain);
+                *slot = quantize_fixed_point(gain).min(max_gain);
+            }
         }
         Self { table }
     }
@@ -307,19 +368,11 @@ mod tests {
     use super::*;
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "the disabled path returns the literal 1.0 exactly"
-    )]
     fn gain_at_rate_disabled_returns_unity() {
         assert_eq!(gain_at_rate(10.0, false, 2.5), 1.0);
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "the below-reference path returns the literal 1.0 exactly"
-    )]
     fn gain_at_rate_below_reference_returns_unity() {
         assert_eq!(gain_at_rate(0.0, true, 2.5), 1.0);
         assert_eq!(gain_at_rate(1.0, true, 2.5), 1.0);
@@ -337,9 +390,8 @@ mod tests {
 
     #[test]
     #[expect(
-        clippy::float_cmp,
         clippy::cast_precision_loss,
-        reason = "preset None returns literal 0.0 and step is a bounded loop counter"
+        reason = "step is a bounded loop counter 0..=100"
     )]
     fn test_all_preset_boundary_conditions_and_monotonicity() {
         for preset in CurvePreset::ALL {
@@ -409,6 +461,25 @@ mod tests {
                             "Multiplier invariance failed for {preset:?} at rate={rate}: m1={m1} (norm={norm1}), m2={m2} (norm={norm2})"
                         );
                     }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_shape_optimized_lut_matches_direct() {
+        for preset in CurvePreset::ALL {
+            for &m in &[1.0, 1.5, 2.0, 2.5, 3.0, 5.0] {
+                let fast = ScrollLut::generate(preset, m);
+                let direct = ScrollLut::generate_direct(preset, m);
+                for bin in 0..256 {
+                    let diff = (fast.lookup(bin) - direct.lookup(bin)).abs();
+                    assert!(
+                        diff <= 1,
+                        "Mismatch for {preset:?} at bin {bin}, multiplier {m}: fast={}, direct={}",
+                        fast.lookup(bin),
+                        direct.lookup(bin)
+                    );
                 }
             }
         }

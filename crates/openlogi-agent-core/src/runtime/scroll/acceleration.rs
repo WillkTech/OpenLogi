@@ -263,10 +263,6 @@ mod tests {
     };
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "the disabled path returns the literal 1.0 exactly"
-    )]
     fn test_acceleration_disabled_returns_unity_gain() {
         let mut engine = ScrollAccelerationEngine::default();
         let now = Instant::now();
@@ -285,10 +281,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "the first-event path feeds rate 0.0, which returns the literal 1.0"
-    )]
     fn test_single_slow_event_returns_unity_gain() {
         let mut engine = ScrollAccelerationEngine::default();
         let now = Instant::now();
@@ -297,10 +289,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "sub-reference rates clamp excess speed to exactly 0.0 and return literal 1.0"
-    )]
     fn test_repeated_slow_events_maintain_predictable_gain() {
         let mut engine = ScrollAccelerationEngine::default();
         let start = Instant::now();
@@ -334,10 +322,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "the reversal path returns the literal 1.0 exactly"
-    )]
     fn test_direction_reversal_resets_acceleration_immediately() {
         let mut engine = ScrollAccelerationEngine::default();
         let start = Instant::now();
@@ -356,10 +340,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "the idle-reset path returns the literal 1.0 exactly"
-    )]
     fn test_idle_reset_after_pause() {
         let mut engine = ScrollAccelerationEngine::default();
         let start = Instant::now();
@@ -378,10 +358,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "reversal and first-tick paths return the literal 1.0 exactly"
-    )]
     fn test_axes_are_strictly_independent() {
         let mut engine = ScrollAccelerationEngine::default();
         let start = Instant::now();
@@ -429,10 +405,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "non-finite input hits the guard's literal 1.0 early-return"
-    )]
     fn test_zero_and_invalid_timing_handled_safely() {
         let mut engine = ScrollAccelerationEngine::default();
         let now = Instant::now();

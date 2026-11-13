@@ -156,11 +156,11 @@ fn rejected_key_edges_fail_open() {
 fn scroll_interception_uses_the_button_source_safety_policy_and_skips_trackpads() {
     let logitech = EventDevice {
         vendor_id: Some(openlogi_hook::LOGITECH_VENDOR_ID),
-        product_name: Some("Logitech MX Master".to_string()),
+        product_name: Some("Logitech MX Master".into()),
         ..EventDevice::default()
     };
     let trackpad = EventDevice {
-        product_name: Some("Magic Trackpad".to_string()),
+        product_name: Some("Magic Trackpad".into()),
         ..EventDevice::default()
     };
 

@@ -421,7 +421,10 @@ fn reapply_targets_new_arrivals_and_transitions() {
     // First sighting of an online device → re-apply.
     assert_eq!(reapply_targets(&[], &[dev("a", 1, true)], false), vec![0]);
     // Steady state → nothing.
-    assert!(reapply_targets(&[dev("a", 1, true)], &[dev("a", 1, true)], false).is_empty());
+    assert_eq!(
+        reapply_targets(&[dev("a", 1, true)], &[dev("a", 1, true)], false),
+        [] as [usize; 0]
+    );
     // Replug under a new route (same key, new slot) → re-apply.
     assert_eq!(
         reapply_targets(&[dev("a", 1, true)], &[dev("a", 2, true)], false),
@@ -433,7 +436,10 @@ fn reapply_targets_new_arrivals_and_transitions() {
         vec![0]
     );
     // Going to sleep (online → offline) → nothing.
-    assert!(reapply_targets(&[dev("a", 1, true)], &[dev("a", 1, false)], false).is_empty());
+    assert_eq!(
+        reapply_targets(&[dev("a", 1, true)], &[dev("a", 1, false)], false),
+        [] as [usize; 0]
+    );
 }
 
 #[test]
@@ -478,19 +484,22 @@ fn reapply_targets_disambiguates_same_model_duplicates() {
     // with both already online must target NEITHER.
     let prev = [dev("dup", 1, true), dev("dup", 2, true)];
     let next = [dev("dup", 1, true), dev("dup", 2, true)];
-    assert!(reapply_targets(&prev, &next, false).is_empty());
+    assert_eq!(reapply_targets(&prev, &next, false), [] as [usize; 0]);
 }
 
 #[test]
 fn reapply_targets_skip_offline_and_routeless_devices() {
     // A paired-but-asleep new arrival waits for its online transition —
     // writing now would only time out against a sleeping device.
-    assert!(reapply_targets(&[], &[dev("a", 1, false)], false).is_empty());
+    assert_eq!(
+        reapply_targets(&[], &[dev("a", 1, false)], false),
+        [] as [usize; 0]
+    );
     let routeless = AgentDevice {
         route: None,
         ..dev("b", 2, true)
     };
-    assert!(reapply_targets(&[], &[routeless], false).is_empty());
+    assert_eq!(reapply_targets(&[], &[routeless], false), [] as [usize; 0]);
 }
 
 #[test]
@@ -559,7 +568,7 @@ fn plan_reapply_retries_a_first_sighting_for_a_bounded_run() {
     assert!(followup.is_empty());
     // Steady state after that: nothing.
     let (targets, _) = plan_reapply(&prev, &prev, &HashMap::new(), false);
-    assert!(targets.is_empty());
+    assert_eq!(targets, [] as [usize; 0]);
 }
 
 #[test]
@@ -611,7 +620,7 @@ fn plan_reapply_skips_a_followup_that_went_offline() {
         &HashMap::from([("a".to_string(), VOLATILE_REAPPLY_CONFIRM_RETRIES)]),
         false,
     );
-    assert!(targets.is_empty());
+    assert_eq!(targets, [] as [usize; 0]);
     assert!(followup.is_empty());
 }
 

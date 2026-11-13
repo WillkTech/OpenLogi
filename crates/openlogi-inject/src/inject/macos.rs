@@ -21,14 +21,10 @@ use super::{
 
 use std::cell::RefCell;
 
-static LINE_SCROLL_QUANTIZER: LazyLock<Mutex<ScrollQuantizer>> =
-    LazyLock::new(|| Mutex::new(ScrollQuantizer::default()));
-static PIXEL_SCROLL_QUANTIZER: LazyLock<Mutex<ScrollQuantizer>> =
-    LazyLock::new(|| Mutex::new(ScrollQuantizer::default()));
-static SMOOTH_SCROLL_QUANTIZER: LazyLock<Mutex<ScrollQuantizer>> =
-    LazyLock::new(|| Mutex::new(ScrollQuantizer::default()));
-
 thread_local! {
+    static LINE_SCROLL_QUANTIZER: RefCell<ScrollQuantizer> = RefCell::new(ScrollQuantizer::default());
+    static PIXEL_SCROLL_QUANTIZER: RefCell<ScrollQuantizer> = RefCell::new(ScrollQuantizer::default());
+    static SMOOTH_SCROLL_QUANTIZER: RefCell<ScrollQuantizer> = RefCell::new(ScrollQuantizer::default());
     /// Cached `CGEventSource` in `kCGEventSourceStateHIDSystemState` per thread
     /// to eliminate kernel object allocation overhead per input dispatch.
     static THREAD_EVENT_SOURCE: RefCell<Option<CGEventSource>> = RefCell::new(
@@ -749,16 +745,16 @@ fn dispatch_scroll(dx: i8, dy: i8) {
 }
 
 pub(super) fn post_scroll(delta: ScrollDelta) {
-    let (quantizer, unit) = match delta {
-        ScrollDelta::Pixels { .. } => (&PIXEL_SCROLL_QUANTIZER, ScrollEventUnit::PIXEL),
-        ScrollDelta::WheelTicks { .. } => (&LINE_SCROLL_QUANTIZER, ScrollEventUnit::LINE),
+    let (delta, unit) = match delta {
+        ScrollDelta::Pixels { .. } => {
+            let q = PIXEL_SCROLL_QUANTIZER.with_borrow_mut(|q| q.quantize(delta, 1.0));
+            (q, ScrollEventUnit::PIXEL)
+        }
+        ScrollDelta::WheelTicks { .. } => {
+            let q = LINE_SCROLL_QUANTIZER.with_borrow_mut(|q| q.quantize(delta, 1.0));
+            (q, ScrollEventUnit::LINE)
+        }
     };
-    let Ok(mut quantizer) = quantizer.lock() else {
-        tracing::warn!("macOS scroll quantizer mutex poisoned");
-        return;
-    };
-    let delta = quantizer.quantize(delta, 1.0);
-    drop(quantizer);
     if delta == QuantizedScroll::default() {
         return;
     }
@@ -787,12 +783,7 @@ pub(super) fn post_smooth_scroll(delta: ScrollDelta, phase: SmoothScrollPhase) {
         ScrollDelta::Pixels { .. } => 1.0,
         ScrollDelta::WheelTicks { .. } => POINTS_PER_WHEEL_TICK,
     };
-    let Ok(mut quantizer) = SMOOTH_SCROLL_QUANTIZER.lock() else {
-        tracing::warn!("macOS smooth-scroll quantizer mutex poisoned");
-        return;
-    };
-    let delta = quantizer.quantize(delta, units_per_input);
-    drop(quantizer);
+    let delta = SMOOTH_SCROLL_QUANTIZER.with_borrow_mut(|q| q.quantize(delta, units_per_input));
 
     let Some(src) = event_source() else {
         tracing::warn!("CGEventSource unavailable for smooth scroll");

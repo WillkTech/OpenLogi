@@ -108,6 +108,10 @@ pub enum Command {
     /// CGEventTap, so the system dialog must name (and authorize) the *agent*
     /// binary, not the GUI — prompting locally would grant the wrong process.
     RequestAccessibilityPrompt,
+    /// Ask the agent to fire the macOS Input Monitoring prompt. The agent owns
+    /// every HID device open, so the system dialog must name (and authorize)
+    /// the *agent* binary, not the GUI.
+    RequestInputMonitoringPrompt,
     /// Pairing (agent-owned, since it opens the receiver): begin a session,
     /// pair a discovered device by address, or cancel. Events stream back via
     /// the separate [`IpcClient::pairing`] long-poll, not these commands.
@@ -523,6 +527,9 @@ async fn handle(
             .request_accessibility_prompt(ctx)
             .await
             .map_err(|_| ())?,
+        Command::RequestInputMonitoringPrompt => {
+            let _ = client.request_input_monitoring_prompt(ctx).await;
+        }
         Command::StartPairing(selector) => {
             pairing_command_result(update_tx, client.start_pairing(ctx, selector).await)?;
         }

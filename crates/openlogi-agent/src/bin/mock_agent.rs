@@ -870,6 +870,11 @@ impl Agent for MockAgent {
         info!("request_accessibility_prompt (no-op in the mock)");
     }
 
+    async fn request_input_monitoring_prompt(self, _: Context) -> bool {
+        info!("request_input_monitoring_prompt (returns true in the mock)");
+        true
+    }
+
     async fn start_pairing(
         self,
         _: Context,

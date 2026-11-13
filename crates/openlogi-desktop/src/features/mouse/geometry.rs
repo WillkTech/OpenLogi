@@ -13,6 +13,11 @@ use crate::services::assets::ResolvedAsset;
 /// marker point per button, not a rectangle, so we size by hand.
 const ASSET_HOTSPOT: f32 = 56.;
 
+/// How far, as a fraction of the PNG's height, the metadata `origin.height`
+/// may drift from the real PNG before [`asset_hotspots_for_png`] treats the
+/// whole `origin` block as a stale placeholder and stops cropping by it.
+const ORIGIN_HEIGHT_TOLERANCE: f32 = 0.05;
+
 /// Whether label cards occupy one or both sides of the device render.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LabelDistribution {
@@ -81,9 +86,13 @@ pub fn asset_has_button_labels(asset: &ResolvedAsset) -> bool {
 )]
 pub fn asset_hotspots_for_png(asset: &ResolvedAsset, mouse_w: f32, mouse_h: f32) -> Vec<Hotspot> {
     let png_w = asset.png_width as f32;
+    let png_h = asset.png_height as f32;
     let origin_w = asset
         .metadata
         .origin()
+        .filter(|o| {
+            png_h > 0. && (o.height as f32 - png_h).abs() <= png_h * ORIGIN_HEIGHT_TOLERANCE
+        })
         .map_or(png_w, |o| o.width as f32)
         .min(png_w);
     let bbox_w_rendered = if png_w > 0. {
@@ -276,5 +285,86 @@ mod tests {
 
         assert!(labels.iter().any(|label| label.side == Side::Left));
         assert!(labels.iter().any(|label| label.side == Side::Right));
+    }
+
+    fn mouse_asset(
+        origin: (u32, u32),
+        png: (u32, u32),
+        markers: &[(&str, f32, f32)],
+    ) -> ResolvedAsset {
+        use openlogi_assets::{Assignment, Direction, ImageEntry, Metadata, Origin, Point};
+        use openlogi_core::device::DeviceKind;
+        use std::path::PathBuf;
+
+        let assignments = markers
+            .iter()
+            .map(|(slot_name, x, y)| Assignment {
+                slot_name: (*slot_name).to_string(),
+                marker: Point { x: *x, y: *y },
+                label: Direction { x: 0, y: 0 },
+            })
+            .collect();
+        ResolvedAsset {
+            depot: "m720_triathlon".to_string(),
+            display_name: "M720 Triathlon".to_string(),
+            kind: DeviceKind::Mouse,
+            image_path: PathBuf::from("/tmp/side.png"),
+            hero_image_path: None,
+            glow: None,
+            metadata: Metadata {
+                images: vec![
+                    ImageEntry {
+                        key: "device_image".to_string(),
+                        origin: Origin {
+                            width: origin.0,
+                            height: origin.1,
+                        },
+                        assignments: Vec::new(),
+                    },
+                    ImageEntry {
+                        key: "device_buttons_image".to_string(),
+                        origin: Origin {
+                            width: origin.0,
+                            height: origin.1,
+                        },
+                        assignments,
+                    },
+                ],
+            },
+            png_width: png.0,
+            png_height: png.1,
+        }
+    }
+
+    #[test]
+    fn stale_placeholder_origin_falls_back_to_the_full_png_width() {
+        let asset = mouse_asset(
+            (396, 396),
+            (1228, 1920),
+            &[("SLOT_NAME_MIDDLE_BUTTON", 66., 14.)],
+        );
+
+        let hotspots = asset_hotspots_for_png(&asset, 300., 470.);
+
+        assert_eq!(hotspots.len(), 1);
+        let (cx, _) = hotspots[0].center();
+        assert!((cx - 0.66 * 300.).abs() < 1., "cx={cx}");
+    }
+
+    #[test]
+    fn a_correct_origin_still_applies_the_horizontal_crop() {
+        let asset = mouse_asset(
+            (900, 1920),
+            (1228, 1920),
+            &[("SLOT_NAME_MIDDLE_BUTTON", 25., 14.)],
+        );
+
+        let hotspots = asset_hotspots_for_png(&asset, 300., 470.);
+
+        assert_eq!(hotspots.len(), 1);
+        let (cx, _) = hotspots[0].center();
+        let bbox_w = 300. * 900. / 1228.;
+        let expected = (300. - bbox_w) / 2. + 0.25 * bbox_w;
+        assert!((cx - expected).abs() < 1., "cx={cx}");
     }
 }

@@ -129,6 +129,9 @@ fn input_monitoring_item() -> SettingItem {
                         .as_ref()
                         .is_some_and(|s| s.input_monitoring_granted && s.hid_open_failures);
                     let badge = match status {
+                        Some(s) if s.input_monitoring_granted && s.hid_open_failures => {
+                            PermissionStatus::RequiresRestart
+                        }
                         Some(s) if s.input_monitoring_granted => PermissionStatus::Granted,
                         Some(_) => PermissionStatus::Denied,
                         None => PermissionStatus::Unknown,
@@ -176,8 +179,13 @@ fn permission_item(
 fn status_badge(status: PermissionStatus, pal: Palette) -> gpui::Div {
     let (label, color) = match status {
         PermissionStatus::Granted => (tr!("Granted"), theme::STATUS_CONNECTED),
+        PermissionStatus::RequiresRestart => (tr!("Restart required"), theme::STATUS_CONNECTING),
         PermissionStatus::Denied => (tr!("Not granted"), theme::STATUS_CONNECTING),
-        PermissionStatus::Unknown => (tr!("Unknown"), theme::STATUS_OFFLINE),
+        PermissionStatus::NotYetRequested => (tr!("Not requested"), theme::STATUS_OFFLINE),
+        PermissionStatus::RequestPending => (tr!("Request pending"), theme::STATUS_OFFLINE),
+        PermissionStatus::Unknown | PermissionStatus::Unavailable => {
+            (tr!("Unknown"), theme::STATUS_OFFLINE)
+        }
     };
     badge(label, color, pal)
 }
@@ -204,8 +212,10 @@ fn permission_field(
     let pal = theme::palette(cx);
     // "Not determined" means never requested — Bluetooth deliberately never is
     // (BLE mice go through IOHIDManager) — so don't label it "Unknown".
-    let never_requested = matches!(status, PermissionStatus::Unknown)
-        && matches!(permission, Permission::Bluetooth | Permission::Camera);
+    let never_requested = matches!(
+        status,
+        PermissionStatus::Unknown | PermissionStatus::NotYetRequested
+    ) && matches!(permission, Permission::Bluetooth | Permission::Camera);
     let status_el = if never_requested {
         badge(tr!("Not requested"), theme::STATUS_OFFLINE, pal)
     } else {
@@ -214,6 +224,11 @@ fn permission_field(
     let prompts_here = never_requested && matches!(permission, Permission::Camera);
     let action_label = if prompts_here {
         tr!("Grant")
+    } else if matches!(
+        status,
+        PermissionStatus::Denied | PermissionStatus::NotYetRequested
+    ) {
+        tr!("Request")
     } else {
         tr!("Open")
     };
@@ -238,13 +253,18 @@ fn permission_field(
                 .focus_visible(move |s| s.bg(pal.control_hover))
                 .child(action_label)
                 .on_click(move |_, _, cx| {
-                    // Accessibility must be prompted in the agent (it owns the
-                    // hook); prompting in the GUI would authorize the wrong
-                    // binary. Other panes just deep-link to System Settings.
+                    // Permissions required by the agent (Accessibility, Input Monitoring)
+                    // must be prompted by the agent process so macOS attributes the
+                    // TCC request to the agent binary rather than the GUI.
                     if matches!(permission, Permission::Accessibility)
                         && let Some(state) = crate::state::AppState::try_global(cx)
                     {
                         state.read(cx).request_accessibility_prompt();
+                    }
+                    if matches!(permission, Permission::InputMonitoring)
+                        && let Some(state) = crate::state::AppState::try_global(cx)
+                    {
+                        state.read(cx).request_input_monitoring_prompt();
                     }
                     // The Camera pane only lists an app after its first
                     // AVFoundation request, so a deep link can't grant it.

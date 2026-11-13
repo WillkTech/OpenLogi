@@ -198,7 +198,7 @@ fn sender_device_info(sender_id: u64) -> SenderDeviceInfo {
                         })
                         .and_then(|n| u32::try_from(n).ok())
                 };
-                let product_name = string_prop("Product");
+                let product_name = string_prop("Product").map(std::sync::Arc::from);
                 let event_device = EventDevice {
                     vendor_id: num_prop("VendorID").or_else(|| num_prop("idVendor")),
                     product_id: num_prop("ProductID").or_else(|| num_prop("idProduct")),
@@ -381,8 +381,7 @@ fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
         // Pointer movement feeds gesture-button swipe detection. While a button
         // is physically held the OS reports *Dragged rather than MouseMoved, so
         // a gesture button's hold-and-swipe arrives here as OtherMouseDragged.
-        CGEventType::MouseMoved
-        | CGEventType::LeftMouseDragged
+        CGEventType::LeftMouseDragged
         | CGEventType::RightMouseDragged
         | CGEventType::OtherMouseDragged => {
             let dx = event.get_integer_value_field(EventField::MOUSE_EVENT_DELTA_X);
@@ -714,7 +713,6 @@ fn hooked_event_types() -> Vec<CGEventType> {
         CGEventType::OtherMouseDown,
         CGEventType::OtherMouseUp,
         CGEventType::ScrollWheel,
-        CGEventType::MouseMoved,
         CGEventType::LeftMouseDragged,
         CGEventType::RightMouseDragged,
         CGEventType::OtherMouseDragged,
@@ -1169,7 +1167,7 @@ mod tests {
         assert!(matches!(
             run_tap_callback(
                 &|_| EventDisposition::Suppress,
-                CGEventType::MouseMoved,
+                CGEventType::OtherMouseDragged,
                 &event
             ),
             CallbackResult::Drop
@@ -1177,7 +1175,7 @@ mod tests {
         assert!(matches!(
             run_tap_callback(
                 &|_| panic!("test callback panic"),
-                CGEventType::MouseMoved,
+                CGEventType::OtherMouseDragged,
                 &event
             ),
             CallbackResult::Keep

@@ -35,7 +35,7 @@ mod macos;
 #[cfg(target_os = "linux")]
 mod tests;
 
-/// Tri-state result of a permission query.
+/// Result of a permission query.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PermissionStatus {
@@ -45,6 +45,29 @@ pub enum PermissionStatus {
     Denied,
     /// Not yet determined, or the platform can't report a definite state.
     Unknown,
+    /// Not yet requested from the user.
+    NotYetRequested,
+    /// Permission request dialog is pending user response.
+    RequestPending,
+    /// Permission is granted in system settings, but requires process restart to take effect.
+    RequiresRestart,
+    /// The permission state could not be determined due to a platform detection error.
+    Unavailable,
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+impl PermissionStatus {
+    /// Whether the permission is granted.
+    #[must_use]
+    pub const fn is_granted(self) -> bool {
+        matches!(self, Self::Granted)
+    }
+
+    /// Whether an application or agent restart is required.
+    #[must_use]
+    pub const fn requires_restart(self) -> bool {
+        matches!(self, Self::RequiresRestart)
+    }
 }
 
 /// A privacy permission with a platform action (deep-link or install guide).

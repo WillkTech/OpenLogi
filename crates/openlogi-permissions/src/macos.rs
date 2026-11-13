@@ -25,6 +25,7 @@ pub fn input_monitoring() -> PermissionStatus {
     match IOHIDCheckAccess(IOHIDRequestType::ListenEvent) {
         IOHIDAccessType::Granted => PermissionStatus::Granted,
         IOHIDAccessType::Denied => PermissionStatus::Denied,
+        IOHIDAccessType::Unknown => PermissionStatus::NotYetRequested,
         _ => PermissionStatus::Unknown,
     }
 }

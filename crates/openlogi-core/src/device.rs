@@ -300,6 +300,26 @@ impl DeviceModelInfo {
     }
 }
 
+/// Well-known hardware identity for the Logitech M720 Triathlon mouse.
+pub mod m720 {
+    /// Wireless Product ID for the M720 Triathlon on Logitech Unifying receivers.
+    pub const UNIFYING_WPID: u16 = 0x405e;
+    /// Bluetooth Product ID for the M720 Triathlon.
+    pub const BLUETOOTH_PID: u16 = 0xb015;
+    /// Extended model / runtime config key for the M720 Triathlon (`0b015`).
+    pub const RUNTIME_MODEL_KEY: &str = "0b015";
+    /// Control ID of the physical thumb gesture button on the M720 Triathlon (`0x00d0`).
+    pub const THUMB_GESTURE_CID: u16 = 0x00d0;
+
+    /// Whether the device identity matches a Logitech M720 Triathlon.
+    #[must_use]
+    pub fn is_m720(model_key: &str, wpid: Option<u16>, codename: Option<&str>) -> bool {
+        model_key.eq_ignore_ascii_case(RUNTIME_MODEL_KEY)
+            || wpid.is_some_and(|w| w == UNIFYING_WPID)
+            || codename.is_some_and(|c| c.to_ascii_uppercase().contains("M720"))
+    }
+}
+
 /// Mirror of hidpp's `DeviceTransport` bitfield — one bool per protocol the
 /// device firmware exposes. The shape is dictated by HID++ feature 0x0003;
 /// a state machine doesn't fit since a single device can announce multiple

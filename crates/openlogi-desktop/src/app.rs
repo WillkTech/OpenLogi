@@ -124,7 +124,7 @@ impl DetailTab {
         if matches!(record.kind, DeviceKind::Keyboard) && caps.buttons {
             tabs.push(Self::Keys);
         }
-        if caps.pointer {
+        if caps.pointer || caps.scroll_inversion || caps.hires_wheel {
             tabs.push(Self::Pointer);
         }
         if caps.lighting {
@@ -834,6 +834,25 @@ mod tests {
         assert!(tabs.contains(&DetailTab::Buttons));
         assert!(tabs.contains(&DetailTab::Pointer));
         assert!(!tabs.contains(&DetailTab::Lighting));
+    }
+
+    #[test]
+    fn wheel_controls_show_pointer_tab_without_adjustable_dpi() {
+        for caps in [
+            Capabilities {
+                scroll_inversion: true,
+                ..Capabilities::default()
+            },
+            Capabilities {
+                hires_wheel: true,
+                ..Capabilities::default()
+            },
+        ] {
+            assert!(
+                DetailTab::tabs_for(&record(DeviceKind::Mouse, Some(caps)))
+                    .contains(&DetailTab::Pointer)
+            );
+        }
     }
 
     /// A keyboard that exposes ReprogControls (buttons=true) but has no resolved

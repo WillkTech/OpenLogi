@@ -484,9 +484,14 @@ async fn arm_controls_into(
 
         // Divert each gesture-mode source; a source not listed stays native
         // (an idle HID++ control must not be captured-and-dropped).
+        // If the control reports raw-XY support, arm it with raw-XY reporting
+        // (swipes + clicks). If it lacks raw-XY support (or when click-only),
+        // arm it plainly as a gesture source so its click still replaces the
+        // factory action instead of running native firmware behavior.
         for &cid in &spec.divert_gesture_sources {
-            if controls.iter().any(|c| c.cid == cid && c.supports_raw_xy()) {
-                let reporting = arm_reprog_control(&rc, cid, true).await?;
+            if let Some(control) = controls.iter().find(|c| c.cid == cid && c.is_divertable()) {
+                let raw_xy = control.supports_raw_xy();
+                let reporting = arm_reprog_control(&rc, cid, raw_xy).await?;
                 armed.reporting.push(reporting);
                 armed.gesture_cids.push(cid);
             }

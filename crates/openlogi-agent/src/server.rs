@@ -196,6 +196,24 @@ impl Agent for AgentServer {
         Hook::prompt_accessibility();
     }
 
+    async fn request_input_monitoring_prompt(self, _: Context) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            let granted = tokio::task::spawn_blocking(openlogi_hid::permissions::request_access)
+                .await
+                .unwrap_or(false);
+            if granted {
+                self.observable.set_input_monitoring_granted(true);
+                crate::binary_watch::relaunch_after_input_monitoring_grant();
+            }
+            granted
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            true
+        }
+    }
+
     async fn start_pairing(
         self,
         _: Context,

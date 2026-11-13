@@ -389,7 +389,7 @@ async fn request_input_monitoring() {
     // inventory so it cannot cache the pre-grant access state.
     if !openlogi_hid::permissions::has_access() {
         let access_after_prompt = tokio::task::spawn_blocking(|| {
-            openlogi_hid::permissions::request_access();
+            let _ = openlogi_hid::permissions::request_access();
             openlogi_hid::permissions::has_access()
         })
         .await;
@@ -450,6 +450,10 @@ async fn apply_foreground_update(
     }
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "orchestrates the agent background services and central select loop"
+)]
 async fn run(
     config: Config,
     #[cfg(any(target_os = "macos", target_os = "windows"))] resume_pending: Arc<AtomicBool>,
@@ -589,7 +593,13 @@ async fn run(
                 release_hook_and_exit(hook.take(), &mut inputs, "the app was uninstalled")
             }
             Some(granted) = input_monitoring_rx.recv() => {
+                let was_granted = observable.read(|s| s.status.input_monitoring_granted);
                 observable.set_input_monitoring_granted(granted);
+                #[cfg(target_os = "macos")]
+                if !was_granted && granted {
+                    info!("Input Monitoring granted while running — relaunching agent to bind HID channels");
+                    binary_watch::relaunch_after_input_monitoring_grant();
+                }
             }
             else => break,
         }

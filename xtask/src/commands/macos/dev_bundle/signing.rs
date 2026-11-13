@@ -58,6 +58,7 @@ impl Signing {
                 "codesign --force --sign {identity} --timestamp=none {target}"
             )
             .run()?;
+            cmd!(sh, "codesign --verify --strict {target}").run()?;
         }
         Ok(())
     }

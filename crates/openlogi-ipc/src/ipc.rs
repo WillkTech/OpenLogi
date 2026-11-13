@@ -60,7 +60,8 @@ pub use succession::Identity;
 ///      agent matches per-app profiles against, plus the ones it saw recently.
 /// v28: `Action::HoldShortcut` appended for lifecycle-held keyboard output.
 /// v29: `Action::SavedShortcut` payload updated with `ActionTarget`.
-pub const PROTOCOL_VERSION: u32 = 29;
+/// v30: `Agent::request_input_monitoring_prompt` appended for user-initiated Input Monitoring requests.
+pub const PROTOCOL_VERSION: u32 = 30;
 
 /// Environment variable through which the agent hands a supervised helper the
 /// run token it will serve, so the helper knows which agent it belongs to
@@ -534,4 +535,7 @@ pub trait Agent {
     /// then return it. Same contract as [`Agent::observe`] — whole state, hold
     /// window, `0` for "seen nothing" — over the ring's own cell.
     async fn observe_action_ring(since: Generation) -> RingObservation;
+    /// Prompt for Input Monitoring from the agent, so the system dialog names the
+    /// agent — the actually-trusted binary — rather than the GUI.
+    async fn request_input_monitoring_prompt() -> bool;
 }

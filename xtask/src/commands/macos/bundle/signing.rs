@@ -35,11 +35,9 @@ pub(super) fn local_sign_app_if_available(channel: Channel) -> Result<()> {
     }
 
     println!(
-        "==> local codesign: skipped (no Apple Development identity found;          set OPENLOGI_LOCAL_CODESIGN_IDENTITY or OPENLOGI_SIGN_IDENTITY to sign)"
+        "==> local codesign: signing bundle ad-hoc (no Apple Development identity found; set OPENLOGI_LOCAL_CODESIGN_IDENTITY or OPENLOGI_SIGN_IDENTITY for persistent identity)"
     );
-    println!(
-        "    warning: an unsigned bundle is re-signed ad-hoc on every build, so its own Accessibility grant goes stale each time"
-    );
+    sign_app_with_timestamp("-", TimestampMode::None, channel)?;
     Ok(())
 }
 

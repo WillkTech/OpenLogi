@@ -580,10 +580,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "residual assertions check exact arithmetic values"
-    )]
     fn idle_timeout_clears_fractional_residuals() {
         use std::time::{Duration, Instant};
         let mut quantizer = ScrollQuantizer::default();
@@ -600,10 +596,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "residual assertions check exact arithmetic values"
-    )]
     fn axis_switch_clears_opposite_axis_residual() {
         use std::time::Instant;
         let mut quantizer = ScrollQuantizer::default();
@@ -619,10 +611,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::float_cmp,
-        reason = "residual assertions check exact arithmetic values"
-    )]
     fn direction_reversal_clears_fractional_residual() {
         use std::time::Instant;
         let mut quantizer = ScrollQuantizer::default();

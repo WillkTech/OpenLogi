@@ -20,6 +20,7 @@ futures-lite = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 crossbeam-queue = "0.3"
+arc-swap = "1.9"
 
 [lints]
 workspace = true
