@@ -697,3 +697,24 @@ fn saved_shortcut_lowers_all_six_target_variants() {
     };
     assert_matches!(workflow.effect(), Effect::Script(Script::Workflow(&[])));
 }
+
+#[test]
+fn saved_shortcut_and_open_application_share_application_target() {
+    let app_target = ApplicationTarget::new("/System/Applications/Calculator.app", "Calculator")
+        .expect("valid application target");
+
+    let direct = Action::OpenApplication(app_target.clone());
+    let saved = Action::SavedShortcut {
+        id: "calc".into(),
+        name: "Calculator".into(),
+        target: ActionTarget::Application(app_target.clone()),
+        icon: None,
+    };
+
+    assert_eq!(direct.application_target(), Some(&app_target));
+    assert_eq!(saved.application_target(), Some(&app_target));
+    assert_eq!(
+        direct.application_target().map(ApplicationTarget::path),
+        saved.application_target().map(ApplicationTarget::path)
+    );
+}

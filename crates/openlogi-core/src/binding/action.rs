@@ -385,4 +385,19 @@ impl Action {
             _ => None,
         }
     }
+
+    /// Target application or URL if this action represents an application launch,
+    /// whether direct ([`Action::OpenApplication`]) or via a saved action
+    /// ([`Action::SavedShortcut`]).
+    #[must_use]
+    pub fn application_target(&self) -> Option<&ApplicationTarget> {
+        match self {
+            Self::OpenApplication(target)
+            | Self::SavedShortcut {
+                target: ActionTarget::Application(target),
+                ..
+            } => Some(target),
+            _ => None,
+        }
+    }
 }

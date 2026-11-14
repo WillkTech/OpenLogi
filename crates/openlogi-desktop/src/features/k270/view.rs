@@ -23,7 +23,7 @@ use crate::features::mouse::picker::{EditFn, PickFn, editor_scroll_list};
 use crate::state::{AppState, DeviceRecord, StateEvent};
 use crate::ui::action::{action_icon_path, localized_action_label};
 use crate::ui::action_library::{ActionLibrary, OpenPowerUserFn, editor_section};
-use crate::ui::components::control_button;
+use crate::ui::components::{control_button, control_input};
 use crate::ui::theme::{self, ACCENT_BLUE, Palette, Typography as _};
 
 /// Target max render width of the K270 media keys diagram.
@@ -124,10 +124,18 @@ impl K270MediaKeysView {
     }
 
     /// Select a key for inspection and editing.
-    pub fn select_key(&mut self, key: K270MediaKey, cx: &mut Context<Self>) {
-        self.selected_key = Some(key);
-        self.power_user.close();
-        cx.notify();
+    pub fn select_key(&mut self, key: K270MediaKey, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_key != Some(key) {
+            self.selected_key = Some(key);
+            self.power_user.close();
+            if let Some(state) = &self.search_state {
+                state.update(cx, |input, cx| {
+                    input.set_value("", window, cx);
+                });
+            }
+            self.search_query.clear();
+            cx.notify();
+        }
     }
 
     /// Return the currently selected key.
@@ -300,9 +308,9 @@ fn render_hotspot(
                     .bg(rgb(ACCENT_BLUE)),
             )
         })
-        .on_click(move |_event, _window, cx| {
+        .on_click(move |_event, window, cx| {
             view_click.update(cx, |this, cx| {
-                this.select_key(key, cx);
+                this.select_key(key, window, cx);
             });
         })
 }
@@ -413,7 +421,6 @@ fn render_inspector(
         });
     });
 
-    let search_input = view.search_state.clone();
     let query = view.search_query.clone();
 
     v_flex()
@@ -589,11 +596,11 @@ fn render_inspector(
                 ),
         )
         // Action picker search bar
-        .when_some(search_input, |parent, input| {
+        .when_some(view.search_state.as_ref(), |parent, search| {
             parent.child(
                 h_flex()
                     .w_full()
-                    .child(input),
+                    .child(control_input(search).cleanable(true)),
             )
         })
         // Action catalog list

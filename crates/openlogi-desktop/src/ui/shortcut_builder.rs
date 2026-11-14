@@ -54,6 +54,18 @@ impl ShortcutBuilderModal {
 
         let composer = cx.new(|cx| ActionComposer::new(target, icon, window, cx));
 
+        let name_input_clone = name_input.clone();
+        composer.update(cx, |composer, _cx| {
+            composer.on_app_selected =
+                Some(std::sync::Arc::new(move |app_name, _path, window, cx| {
+                    name_input_clone.update(cx, |input, cx| {
+                        if input.value().trim().is_empty() {
+                            input.set_value(app_name.to_string(), window, cx);
+                        }
+                    });
+                }));
+        });
+
         Self {
             focus_handle: cx.focus_handle(),
             id: existing_id,

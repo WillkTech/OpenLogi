@@ -3,6 +3,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render, Styled as _,
@@ -19,9 +20,69 @@ use openlogi_core::binding::{
     ActionRingIcon, ActionTarget, ApplicationTarget, KeyCombo, KeyComboParseError,
 };
 
+use crate::ui::components::MenuRow;
 use crate::ui::power_user::{WorkflowStepDraft, workflow_steps_list_and_adder};
 use crate::ui::section::section_label;
 use crate::ui::theme::{self, ACCENT_BLUE, Typography as _};
+
+pub type AppSelectedFn = Arc<dyn Fn(&str, &str, &mut Window, &mut App)>;
+
+#[derive(Clone, Debug)]
+pub struct DiscoveredApp {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum PathValidationStatus {
+    Empty,
+    Url,
+    AppBundle,
+    Folder,
+    NotFound,
+}
+
+fn expand_tilde(path: &str) -> std::borrow::Cow<'_, str> {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return std::borrow::Cow::Owned(format!("{home}/{rest}"));
+        }
+    } else if path == "~"
+        && let Ok(home) = std::env::var("HOME")
+    {
+        return std::borrow::Cow::Owned(home);
+    }
+    std::borrow::Cow::Borrowed(path)
+}
+
+fn validate_path(raw: &str) -> PathValidationStatus {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return PathValidationStatus::Empty;
+    }
+    if trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("mailto:")
+    {
+        return PathValidationStatus::Url;
+    }
+    let expanded = expand_tilde(trimmed);
+    let path = std::path::Path::new(expanded.as_ref());
+    if !path.exists() {
+        return PathValidationStatus::NotFound;
+    }
+    let path_no_slash = trimmed.trim_end_matches('/');
+    let is_bundle = std::path::Path::new(path_no_slash)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("app"));
+    if is_bundle {
+        PathValidationStatus::AppBundle
+    } else if path.is_dir() {
+        PathValidationStatus::Folder
+    } else {
+        PathValidationStatus::AppBundle
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ComposerTargetMode {
@@ -149,7 +210,10 @@ pub struct ActionComposer {
     pub fn_active: bool,
     pub selected_icon: Option<ActionRingIcon>,
     pub legend_open: bool,
+    pub on_app_selected: Option<AppSelectedFn>,
+    pub discovered_apps: Rc<RefCell<Vec<DiscoveredApp>>>,
     _input_obs: Subscription,
+    _path_obs: Subscription,
 }
 
 impl ActionComposer {
@@ -269,6 +333,42 @@ impl ActionComposer {
             }
         });
 
+        let path_obs = cx.subscribe(&path_input, |_, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) {
+                cx.notify();
+            }
+        });
+
+        let discovered_apps: Rc<RefCell<Vec<DiscoveredApp>>> = Rc::new(RefCell::new(Vec::new()));
+        let apps_store = discovered_apps.clone();
+        cx.spawn(async move |composer, cx| {
+            let apps = cx
+                .background_executor()
+                .spawn(async { appcatalog::applications() })
+                .await;
+            if let Ok(catalog) = apps {
+                let mut list: Vec<DiscoveredApp> = catalog
+                    .into_iter()
+                    .filter_map(|app| {
+                        let path = app.registration.to_string_lossy().to_string();
+                        if path.is_empty() {
+                            None
+                        } else {
+                            Some(DiscoveredApp {
+                                name: app.name,
+                                path,
+                            })
+                        }
+                    })
+                    .collect();
+                list.sort_by_key(|a| a.name.to_lowercase());
+                list.dedup_by(|a, b| a.path == b.path);
+                *apps_store.borrow_mut() = list;
+                composer.update(cx, |_, cx| cx.notify()).ok();
+            }
+        })
+        .detach();
+
         Self {
             mode,
             key_input,
@@ -283,7 +383,10 @@ impl ActionComposer {
             fn_active: fn_mod,
             selected_icon: icon,
             legend_open: false,
+            on_app_selected: None,
+            discovered_apps,
             _input_obs: input_obs,
+            _path_obs: path_obs,
         }
     }
 
@@ -529,11 +632,196 @@ impl Render for ActionComposer {
                     )
             })
             .when(self.mode == ComposerTargetMode::Application, |this| {
+                let query = self.path_input.read(cx).value().trim().to_string();
+                let status = validate_path(&query);
+                let path_empty = query.is_empty();
+
+                let matched_apps = if path_empty {
+                    Vec::new()
+                } else {
+                    let q_lower = query.to_lowercase();
+                    self.discovered_apps
+                        .borrow()
+                        .iter()
+                        .filter(|app| {
+                            app.name.to_lowercase().contains(&q_lower)
+                                || app.path.to_lowercase().contains(&q_lower)
+                        })
+                        .take(5)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                };
+
+                let composer_entity = cx.entity();
+
                 this.child(
                     v_flex()
-                        .gap_1()
+                        .gap_1p5()
                         .child(section_label("Application or Folder Path", pal))
-                        .child(Input::new(&self.path_input)),
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(div().flex_1().child(Input::new(&self.path_input)))
+                                .child(
+                                    Button::new("browse-btn")
+                                        .compact()
+                                        .label(tr!("Browse…"))
+                                        .on_click(cx.listener(|_composer, _, window, cx| {
+                                            let window_handle = window.window_handle();
+                                            let rx = cx.prompt_for_paths(gpui::PathPromptOptions {
+                                                files: true,
+                                                directories: true,
+                                                multiple: false,
+                                                prompt: None,
+                                            });
+                                            cx.spawn(async move |composer, cx| {
+                                                if let Ok(Ok(Some(paths))) = rx.await
+                                                    && let Some(path) = paths.into_iter().next()
+                                                {
+                                                    let path_str =
+                                                        path.to_string_lossy().to_string();
+                                                    let app_name = path
+                                                        .file_stem()
+                                                        .and_then(|s| s.to_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let _ = cx.update_window(
+                                                        window_handle,
+                                                        move |_, window, cx| {
+                                                            let _ = composer.update(
+                                                                cx,
+                                                                |composer, cx| {
+                                                                    composer.selected_icon =
+                                                                        Some(
+                                                                            ActionRingIcon::Applications,
+                                                                        );
+                                                                    composer.path_input.update(
+                                                                        cx,
+                                                                        |input, cx| {
+                                                                            input.set_value(
+                                                                                path_str.clone(),
+                                                                                window,
+                                                                                cx,
+                                                                            );
+                                                                        },
+                                                                    );
+                                                                    if let Some(cb) =
+                                                                        &composer.on_app_selected
+                                                                    {
+                                                                        cb(
+                                                                            &app_name,
+                                                                            &path_str,
+                                                                            window,
+                                                                            cx,
+                                                                        );
+                                                                    }
+                                                                    cx.notify();
+                                                                },
+                                                            );
+                                                        },
+                                                    );
+                                                }
+                                            })
+                                            .detach();
+                                        })),
+                                ),
+                        )
+                        .when(!path_empty, |parent| {
+                            let badge = match status {
+                                PathValidationStatus::Empty => None,
+                                PathValidationStatus::AppBundle => Some((
+                                    tr!("Application bundle"),
+                                    theme::accent_tint(),
+                                    gpui::Hsla::from(rgb(ACCENT_BLUE)),
+                                )),
+                                PathValidationStatus::Folder => {
+                                    Some((tr!("Folder"), pal.control, pal.text_primary))
+                                }
+                                PathValidationStatus::Url => Some((
+                                    tr!("URL"),
+                                    theme::accent_tint(),
+                                    gpui::Hsla::from(rgb(ACCENT_BLUE)),
+                                )),
+                                PathValidationStatus::NotFound => Some((
+                                    tr!("Path not found"),
+                                    gpui::Hsla::from(rgb(0x0040_1515)),
+                                    gpui::Hsla::from(rgb(0x00ff_6b6b)),
+                                )),
+                            };
+                            parent.when_some(badge, |parent, (label, bg, fg)| {
+                                parent.child(
+                                    h_flex().items_center().gap_1p5().child(
+                                        div()
+                                            .px_2()
+                                            .py_0p5()
+                                            .rounded_full()
+                                            .text_caption()
+                                            .bg(bg)
+                                            .text_color(fg)
+                                            .child(label),
+                                    ),
+                                )
+                            })
+                        })
+                        .when(!matched_apps.is_empty(), |parent| {
+                            parent.child(
+                                v_flex()
+                                    .gap_1()
+                                    .p_1p5()
+                                    .bg(pal.control)
+                                    .rounded(pal.card_radius)
+                                    .children(matched_apps.into_iter().enumerate().map(
+                                        |(idx, app)| {
+                                            let name = app.name.clone();
+                                            let path = app.path.clone();
+                                            let click_name = name.clone();
+                                            let click_path = path.clone();
+                                            let composer = composer_entity.clone();
+                                            MenuRow::new(("app-suggestion", idx))
+                                                .on_click(move |_, window, cx| {
+                                                    composer.update(cx, |composer, cx| {
+                                                        composer.selected_icon =
+                                                            Some(ActionRingIcon::Applications);
+                                                        composer.path_input.update(
+                                                            cx,
+                                                            |input, cx| {
+                                                                input.set_value(
+                                                                    click_path.clone(),
+                                                                    window,
+                                                                    cx,
+                                                                );
+                                                            },
+                                                        );
+                                                        if let Some(cb) = &composer.on_app_selected
+                                                        {
+                                                            cb(&click_name, &click_path, window, cx);
+                                                        }
+                                                        cx.notify();
+                                                    });
+                                                })
+                                                .child(
+                                                    h_flex()
+                                                        .flex_1()
+                                                        .items_center()
+                                                        .justify_between()
+                                                        .gap_2()
+                                                        .child(
+                                                            div()
+                                                                .text_sm()
+                                                                .text_color(pal.text_primary)
+                                                                .child(name),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .text_caption()
+                                                                .text_color(pal.text_muted)
+                                                                .child(path),
+                                                        ),
+                                                )
+                                        },
+                                    )),
+                            )
+                        }),
                 )
             })
             .when(
@@ -646,6 +934,37 @@ mod tests {
     fn composer_target_mode_labels_are_non_empty() {
         for &mode in ComposerTargetMode::supported_on_current_platform() {
             assert!(!mode.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn validate_path_identifies_urls_and_status() {
+        assert_eq!(validate_path(""), PathValidationStatus::Empty);
+        assert_eq!(validate_path("   "), PathValidationStatus::Empty);
+        assert_eq!(
+            validate_path("https://example.com"),
+            PathValidationStatus::Url
+        );
+        assert_eq!(
+            validate_path("http://localhost:8080"),
+            PathValidationStatus::Url
+        );
+        assert_eq!(
+            validate_path("mailto:test@example.com"),
+            PathValidationStatus::Url
+        );
+        assert_eq!(
+            validate_path("/nonexistent_path/definitely_not_here"),
+            PathValidationStatus::NotFound
+        );
+        #[cfg(target_os = "macos")]
+        {
+            if std::path::Path::new("/System/Applications/Calculator.app").exists() {
+                assert_eq!(
+                    validate_path("/System/Applications/Calculator.app"),
+                    PathValidationStatus::AppBundle
+                );
+            }
         }
     }
 }

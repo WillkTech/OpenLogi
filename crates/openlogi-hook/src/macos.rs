@@ -20,10 +20,7 @@ use core_foundation::runloop::{
     CFRunLoop, CFRunLoopRunResult, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
 };
 use core_foundation::string::{CFString, CFStringRef};
-use core_graphics::event::{
-    CGEvent, CGEventField, CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions,
-    CGEventTapPlacement, CGEventTapProxy, CGEventType, CallbackResult, EventField,
-};
+use core_graphics::event::{CGEvent, CGEventField, CGEventFlags, CallbackResult, EventField};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 use foreign_types_shared::ForeignType as _;
 use objc2_application_services::{AXIsProcessTrusted, AXIsProcessTrustedWithOptions};
@@ -38,6 +35,33 @@ use watchdog::{
     LifecycleDecision, LifecycleExitReason, LifecycleObservation, LifecycleWatchdog, RearmBudget,
     TapPhase, WatchdogSignals, stuck_callback,
 };
+
+/// CoreGraphics event types and tap constants used by the low-level event tap.
+const CG_EVENT_TYPE_NULL: u32 = 0;
+const CG_EVENT_TYPE_LEFT_MOUSE_DOWN: u32 = 1;
+const CG_EVENT_TYPE_LEFT_MOUSE_UP: u32 = 2;
+const CG_EVENT_TYPE_RIGHT_MOUSE_DOWN: u32 = 3;
+const CG_EVENT_TYPE_RIGHT_MOUSE_UP: u32 = 4;
+const CG_EVENT_TYPE_LEFT_MOUSE_DRAGGED: u32 = 6;
+const CG_EVENT_TYPE_RIGHT_MOUSE_DRAGGED: u32 = 7;
+const CG_EVENT_TYPE_KEY_DOWN: u32 = 10;
+const CG_EVENT_TYPE_KEY_UP: u32 = 11;
+const CG_EVENT_TYPE_FLAGS_CHANGED: u32 = 12;
+const CG_EVENT_TYPE_SYSTEM_DEFINED: u32 = 14;
+const CG_EVENT_TYPE_SCROLL_WHEEL: u32 = 22;
+const CG_EVENT_TYPE_OTHER_MOUSE_DOWN: u32 = 25;
+const CG_EVENT_TYPE_OTHER_MOUSE_UP: u32 = 26;
+const CG_EVENT_TYPE_OTHER_MOUSE_DRAGGED: u32 = 27;
+const CG_EVENT_TAP_DISABLED_BY_TIMEOUT: u32 = 0xFFFF_FFFE;
+const CG_EVENT_TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
+
+const CG_EVENT_TAP_LOCATION_HID: u32 = 0;
+const CG_EVENT_TAP_PLACEMENT_HEAD_INSERT: u32 = 0;
+const CG_EVENT_TAP_OPTIONS_DEFAULT: u32 = 0;
+
+const NX_SUBTYPE_AUX_CONTROL_BUTTONS: i64 = 8;
+const CG_EVENT_FIELD_SYSTEM_DEFINED_DATA1: CGEventField = 149;
+const CG_EVENT_FIELD_SYSTEM_DEFINED_SUBTYPE: CGEventField = 83;
 
 /// Everything `Hook` needs to control the background thread.
 pub(crate) struct HookInner {
@@ -76,10 +100,25 @@ unsafe extern "C" {
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
     fn CGEventCopyIOHIDEvent(event: *const std::ffi::c_void) -> IOHIDEventRef;
+    #[cfg(test)]
+    fn CGEventSetType(event: *const std::ffi::c_void, event_type: u32);
     // `core-graphics` exposes only the enable-true operation, and does not
     // expose the state read used to budget re-arms.
     fn CGEventTapEnable(tap: core_foundation::mach_port::CFMachPortRef, enable: bool);
     fn CGEventTapIsEnabled(tap: core_foundation::mach_port::CFMachPortRef) -> bool;
+    fn CGEventTapCreate(
+        tap: u32,
+        place: u32,
+        options: u32,
+        events_of_interest: u64,
+        callback: unsafe extern "C" fn(
+            proxy: *mut std::ffi::c_void,
+            etype: u32,
+            event: *mut std::ffi::c_void,
+            refcon: *mut std::ffi::c_void,
+        ) -> *mut std::ffi::c_void,
+        refcon: *mut std::ffi::c_void,
+    ) -> core_foundation::mach_port::CFMachPortRef;
 }
 #[link(name = "IOKit", kind = "framework")]
 unsafe extern "C" {
@@ -90,6 +129,7 @@ unsafe extern "C" {
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
     fn CFRelease(cf: *const std::ffi::c_void);
+    fn CFMachPortInvalidate(port: core_foundation::mach_port::CFMachPortRef);
 }
 
 /// The registry id of the device that produced `event`, via its backing
@@ -226,14 +266,34 @@ fn sender_device_info(sender_id: u64) -> SenderDeviceInfo {
 /// type nothing ever posts, so it cannot gate a single real event during the
 /// microseconds it exists. Dropping it invalidates the port.
 fn can_filter_events() -> bool {
-    CGEventTap::new(
-        CGEventTapLocation::HID,
-        CGEventTapPlacement::HeadInsertEventTap,
-        CGEventTapOptions::Default,
-        vec![CGEventType::Null],
-        |_proxy: CGEventTapProxy, _etype: CGEventType, _event: &CGEvent| CallbackResult::Keep,
-    )
-    .is_ok()
+    unsafe extern "C" fn probe_cb(
+        _proxy: *mut std::ffi::c_void,
+        _etype: u32,
+        event: *mut std::ffi::c_void,
+        _refcon: *mut std::ffi::c_void,
+    ) -> *mut std::ffi::c_void {
+        event
+    }
+    // SAFETY: tests whether the process is permitted to create a filtering HID tap.
+    let tap = unsafe {
+        CGEventTapCreate(
+            CG_EVENT_TAP_LOCATION_HID,
+            CG_EVENT_TAP_PLACEMENT_HEAD_INSERT,
+            CG_EVENT_TAP_OPTIONS_DEFAULT,
+            1u64 << CG_EVENT_TYPE_NULL,
+            probe_cb,
+            std::ptr::null_mut(),
+        )
+    };
+    if tap.is_null() {
+        false
+    } else {
+        // SAFETY: wrap_under_create_rule claims ownership of the +1 CFMachPortRef.
+        let port = unsafe { core_foundation::mach_port::CFMachPort::wrap_under_create_rule(tap) };
+        // SAFETY: invalidate the probe port so it detaches immediately.
+        unsafe { CFMachPortInvalidate(port.as_concrete_TypeRef()) };
+        true
+    }
 }
 
 /// Translate a raw OS button number to a [`ButtonId`].
@@ -305,11 +365,23 @@ fn event_hid_keyboard_usage(event: &CGEvent) -> Option<(u32, u32, bool)> {
 /// non-key event types (the mouse path handles those) and for `FlagsChanged`
 /// (modifier state rides on the next key event via its flags; a standalone
 /// flags change carries no key of interest to the remapper).
-fn translate_key(etype: CGEventType, event: &CGEvent) -> Option<KeyEvent> {
+fn translate_key(etype: u32, event: &CGEvent) -> Option<KeyEvent> {
+    if event.get_integer_value_field(EventField::EVENT_SOURCE_USER_DATA)
+        == openlogi_inject::SYNTHETIC_EVENT_USER_DATA
+    {
+        return None;
+    }
+
     if let Some((page, usage, down)) = event_hid_keyboard_usage(event)
         && (page == 0x0C || (page == 0x01 && (usage == 0x81 || usage == 0x82)))
         && let Ok(keycode) = u16::try_from(usage)
     {
+        debug!(
+            page = format_args!("{page:#06x}"),
+            usage = format_args!("{usage:#06x}"),
+            down,
+            "intercepted HID consumer/media key"
+        );
         return Some(KeyEvent {
             keycode,
             pressed: down,
@@ -317,9 +389,52 @@ fn translate_key(etype: CGEventType, event: &CGEvent) -> Option<KeyEvent> {
         });
     }
 
+    if etype == CG_EVENT_TYPE_SYSTEM_DEFINED {
+        let subtype = event.get_integer_value_field(CG_EVENT_FIELD_SYSTEM_DEFINED_SUBTYPE);
+        if subtype == NX_SUBTYPE_AUX_CONTROL_BUTTONS {
+            let data1 = event.get_integer_value_field(CG_EVENT_FIELD_SYSTEM_DEFINED_DATA1);
+            #[expect(
+                clippy::cast_sign_loss,
+                reason = "data1 is an NXEvent compound bitfield whose high word is key_type and low byte is key_state"
+            )]
+            let (key_type, key_state) = (
+                ((data1 >> 16) & 0xFFFF) as u32,
+                ((data1 >> 8) & 0xFF) as u32,
+            );
+            let pressed = key_state == 0x0A;
+            let usage = match key_type {
+                0 => Some(0x00E9),  // NX_KEYTYPE_SOUND_UP -> Volume Up
+                1 => Some(0x00EA),  // NX_KEYTYPE_SOUND_DOWN -> Volume Down
+                7 => Some(0x00E2),  // NX_KEYTYPE_MUTE -> Mute
+                16 => Some(0x00CD), // NX_KEYTYPE_PLAY -> Play/Pause
+                17 => Some(0x00B5), // NX_KEYTYPE_NEXT -> Scan Next
+                18 => Some(0x00B6), // NX_KEYTYPE_PREVIOUS -> Scan Previous
+                19 => Some(0x00B3), // NX_KEYTYPE_FAST -> Fast Forward
+                20 => Some(0x00B4), // NX_KEYTYPE_REWIND -> Rewind
+                _ => None,
+            };
+            if let Some(usage) = usage
+                && let Ok(keycode) = u16::try_from(usage)
+            {
+                debug!(
+                    key_type,
+                    usage = format_args!("{usage:#06x}"),
+                    pressed,
+                    "intercepted AUX control key fallback"
+                );
+                return Some(KeyEvent {
+                    keycode,
+                    pressed,
+                    modifiers: modifiers_from_flags(event.get_flags()),
+                });
+            }
+        }
+        return None;
+    }
+
     let pressed = match etype {
-        CGEventType::KeyDown => true,
-        CGEventType::KeyUp => false,
+        CG_EVENT_TYPE_KEY_DOWN => true,
+        CG_EVENT_TYPE_KEY_UP => false,
         // FlagsChanged: no key to remap here.
         _ => return None,
     };
@@ -334,20 +449,20 @@ fn translate_key(etype: CGEventType, event: &CGEvent) -> Option<KeyEvent> {
 
 /// Convert a `CGEvent` to our [`MouseEvent`] vocabulary. Returns `None`
 /// for event types we don't translate (e.g. move events, unknown buttons).
-fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
+fn translate(etype: u32, event: &CGEvent) -> Option<MouseEvent> {
     // Skip events OpenLogi itself synthesised, so a remapped click or inverted
     // scroll we posted doesn't re-enter the hook as real input. Gate the field
     // read to events we synthesize — keeping the FFI call off the high-rate
     // pointer-move stream.
     let can_be_synthetic = matches!(
         etype,
-        CGEventType::LeftMouseDown
-            | CGEventType::LeftMouseUp
-            | CGEventType::RightMouseDown
-            | CGEventType::RightMouseUp
-            | CGEventType::OtherMouseDown
-            | CGEventType::OtherMouseUp
-            | CGEventType::ScrollWheel
+        CG_EVENT_TYPE_LEFT_MOUSE_DOWN
+            | CG_EVENT_TYPE_LEFT_MOUSE_UP
+            | CG_EVENT_TYPE_RIGHT_MOUSE_DOWN
+            | CG_EVENT_TYPE_RIGHT_MOUSE_UP
+            | CG_EVENT_TYPE_OTHER_MOUSE_DOWN
+            | CG_EVENT_TYPE_OTHER_MOUSE_UP
+            | CG_EVENT_TYPE_SCROLL_WHEEL
     );
     if can_be_synthetic
         && event.get_integer_value_field(EventField::EVENT_SOURCE_USER_DATA)
@@ -356,27 +471,27 @@ fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
         return None;
     }
     match etype {
-        CGEventType::LeftMouseDown => Some(MouseEvent::Button {
+        CG_EVENT_TYPE_LEFT_MOUSE_DOWN => Some(MouseEvent::Button {
             id: ButtonId::LeftClick,
             pressed: true,
             device: button_source(event),
         }),
-        CGEventType::LeftMouseUp => Some(MouseEvent::Button {
+        CG_EVENT_TYPE_LEFT_MOUSE_UP => Some(MouseEvent::Button {
             id: ButtonId::LeftClick,
             pressed: false,
             device: button_source(event),
         }),
-        CGEventType::RightMouseDown => Some(MouseEvent::Button {
+        CG_EVENT_TYPE_RIGHT_MOUSE_DOWN => Some(MouseEvent::Button {
             id: ButtonId::RightClick,
             pressed: true,
             device: button_source(event),
         }),
-        CGEventType::RightMouseUp => Some(MouseEvent::Button {
+        CG_EVENT_TYPE_RIGHT_MOUSE_UP => Some(MouseEvent::Button {
             id: ButtonId::RightClick,
             pressed: false,
             device: button_source(event),
         }),
-        CGEventType::OtherMouseDown => {
+        CG_EVENT_TYPE_OTHER_MOUSE_DOWN => {
             let n = event.get_integer_value_field(EventField::MOUSE_EVENT_BUTTON_NUMBER);
             button_number_to_id(n).map(|id| MouseEvent::Button {
                 id,
@@ -384,7 +499,7 @@ fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
                 device: button_source(event),
             })
         }
-        CGEventType::OtherMouseUp => {
+        CG_EVENT_TYPE_OTHER_MOUSE_UP => {
             let n = event.get_integer_value_field(EventField::MOUSE_EVENT_BUTTON_NUMBER);
             button_number_to_id(n).map(|id| MouseEvent::Button {
                 id,
@@ -392,7 +507,7 @@ fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
                 device: button_source(event),
             })
         }
-        CGEventType::ScrollWheel => {
+        CG_EVENT_TYPE_SCROLL_WHEEL => {
             // axis 1 = vertical scroll; axis 2 = horizontal scroll. Continuous
             // events carry pixel-precise distance; non-continuous events carry
             // line distance, including fractional lines in the 16.16 fields.
@@ -427,9 +542,9 @@ fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
         // Pointer movement feeds gesture-button swipe detection. While a button
         // is physically held the OS reports *Dragged rather than MouseMoved, so
         // a gesture button's hold-and-swipe arrives here as OtherMouseDragged.
-        CGEventType::LeftMouseDragged
-        | CGEventType::RightMouseDragged
-        | CGEventType::OtherMouseDragged => {
+        CG_EVENT_TYPE_LEFT_MOUSE_DRAGGED
+        | CG_EVENT_TYPE_RIGHT_MOUSE_DRAGGED
+        | CG_EVENT_TYPE_OTHER_MOUSE_DRAGGED => {
             let dx = event.get_integer_value_field(EventField::MOUSE_EVENT_DELTA_X);
             let dy = event.get_integer_value_field(EventField::MOUSE_EVENT_DELTA_Y);
             #[expect(
@@ -441,14 +556,14 @@ fn translate(etype: CGEventType, event: &CGEvent) -> Option<MouseEvent> {
                 delta_y: dy as i32,
             })
         }
-        CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput => {
+        CG_EVENT_TAP_DISABLED_BY_TIMEOUT | CG_EVENT_TAP_DISABLED_BY_USER_INPUT => {
             // The run-loop slice re-enables the tap (see `thread_main`); surface
             // the interruption so the runtime cancels any in-progress hold — a
             // button-up dropped during the gap must not later fire a phantom
             // swipe off ordinary cursor motion. Logged at debug, not warn:
             // TapDisabledByUserInput fires during ordinary heavy input bursts and
             // self-heals next slice, so it isn't worth a warning each time.
-            debug!("CGEventTap disabled by OS (type={etype:?}); re-enabling, cancelling any hold");
+            debug!("CGEventTap disabled by OS (type={etype}); re-enabling, cancelling any hold");
             Some(MouseEvent::CaptureInterrupted)
         }
         _ => None,
@@ -750,29 +865,109 @@ impl HookBackend for Backend {
     }
 }
 
-fn hooked_event_types() -> Vec<CGEventType> {
-    vec![
-        CGEventType::LeftMouseDown,
-        CGEventType::LeftMouseUp,
-        CGEventType::RightMouseDown,
-        CGEventType::RightMouseUp,
-        CGEventType::OtherMouseDown,
-        CGEventType::OtherMouseUp,
-        CGEventType::ScrollWheel,
-        CGEventType::LeftMouseDragged,
-        CGEventType::RightMouseDragged,
-        CGEventType::OtherMouseDragged,
-        // Function-key remapper: F1–F12/Esc arrive as KeyDown/KeyUp.
-        CGEventType::KeyDown,
-        CGEventType::KeyUp,
-        CGEventType::FlagsChanged,
-    ]
+fn hooked_event_mask() -> u64 {
+    (1u64 << CG_EVENT_TYPE_LEFT_MOUSE_DOWN)
+        | (1u64 << CG_EVENT_TYPE_LEFT_MOUSE_UP)
+        | (1u64 << CG_EVENT_TYPE_RIGHT_MOUSE_DOWN)
+        | (1u64 << CG_EVENT_TYPE_RIGHT_MOUSE_UP)
+        | (1u64 << CG_EVENT_TYPE_OTHER_MOUSE_DOWN)
+        | (1u64 << CG_EVENT_TYPE_OTHER_MOUSE_UP)
+        | (1u64 << CG_EVENT_TYPE_SCROLL_WHEEL)
+        | (1u64 << CG_EVENT_TYPE_LEFT_MOUSE_DRAGGED)
+        | (1u64 << CG_EVENT_TYPE_RIGHT_MOUSE_DRAGGED)
+        | (1u64 << CG_EVENT_TYPE_OTHER_MOUSE_DRAGGED)
+        // Function-key and media-key remapper: standard keys and Consumer Control / System-Defined keys.
+        | (1u64 << CG_EVENT_TYPE_KEY_DOWN)
+        | (1u64 << CG_EVENT_TYPE_KEY_UP)
+        | (1u64 << CG_EVENT_TYPE_FLAGS_CHANGED)
+        | (1u64 << CG_EVENT_TYPE_SYSTEM_DEFINED)
+}
+
+struct TapContext {
+    cb: Arc<dyn Fn(HookEvent) -> EventDisposition + Send + Sync>,
+    signals: Arc<WatchdogSignals>,
+    in_callback: Arc<AtomicBool>,
+    entered_at_ms: Arc<AtomicU64>,
+    tap_disabled: Arc<AtomicBool>,
+    tap_port: Arc<std::sync::atomic::AtomicPtr<std::ffi::c_void>>,
+}
+
+struct EventTap {
+    mach_port: core_foundation::mach_port::CFMachPort,
+    _context: Box<TapContext>,
+}
+
+impl EventTap {
+    fn mach_port(&self) -> &core_foundation::mach_port::CFMachPort {
+        &self.mach_port
+    }
+
+    fn enable(&self) {
+        use core_foundation::base::TCFType as _;
+        // SAFETY: the port is owned by EventTap and remains live for this call.
+        unsafe { CGEventTapEnable(self.mach_port.as_concrete_TypeRef(), true) };
+    }
+}
+
+impl Drop for EventTap {
+    fn drop(&mut self) {
+        use core_foundation::base::TCFType as _;
+        // SAFETY: the port is owned by EventTap; invalidating it detaches the tap.
+        unsafe { CFMachPortInvalidate(self.mach_port.as_concrete_TypeRef()) };
+    }
+}
+
+/// Trampoline invoked by CoreGraphics for each intercepted event.
+unsafe extern "C" fn tap_callback_trampoline(
+    _proxy: *mut std::ffi::c_void,
+    etype: u32,
+    event_ref: *mut std::ffi::c_void,
+    refcon: *mut std::ffi::c_void,
+) -> *mut std::ffi::c_void {
+    if refcon.is_null() {
+        return event_ref;
+    }
+    // SAFETY: refcon is a valid pointer to TapContext owned by EventTap.
+    let ctx = unsafe { &*(refcon as *const TapContext) };
+
+    if etype == CG_EVENT_TAP_DISABLED_BY_TIMEOUT || etype == CG_EVENT_TAP_DISABLED_BY_USER_INPUT {
+        ctx.tap_disabled.store(true, Ordering::Release);
+        let port = ctx.tap_port.load(Ordering::Acquire);
+        if !port.is_null() {
+            // SAFETY: port is a valid CFMachPortRef owned by tap for the runloop duration.
+            unsafe { CGEventTapEnable(port.cast(), true) };
+        }
+    }
+
+    if event_ref.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    ctx.entered_at_ms
+        .store(ctx.signals.now_millis(), Ordering::Relaxed);
+    ctx.in_callback.store(true, Ordering::Release);
+
+    // SAFETY: event_ref is a live CGEventRef passed by WindowServer.
+    // Wrap in ManuallyDrop so we do not decrement retain count on drop.
+    let event = std::mem::ManuallyDrop::new(unsafe { CGEvent::from_ptr(event_ref.cast()) });
+
+    let disposition = run_tap_callback(ctx.cb.as_ref(), etype, &event);
+
+    ctx.in_callback.store(false, Ordering::Release);
+
+    match disposition {
+        CallbackResult::Keep => event_ref,
+        CallbackResult::Drop => std::ptr::null_mut(),
+        CallbackResult::Replace(new_event) => {
+            std::mem::ManuallyDrop::new(new_event).as_ptr().cast()
+        }
+    }
 }
 
 /// Invoke the user callback under `catch_unwind`, always failing open.
 fn run_tap_callback(
     cb: &dyn Fn(HookEvent) -> EventDisposition,
-    etype: CGEventType,
+    etype: u32,
     event: &CGEvent,
 ) -> CallbackResult {
     let result = catch_unwind(AssertUnwindSafe(|| {
@@ -927,7 +1122,7 @@ fn spawn_lifecycle_watchdog(
 
 /// Service the tap until it has to be released: an explicit stop, a stopped run
 /// loop, a revoked permission, or a tap the OS will not keep enabled.
-fn service_tap(tap: &CGEventTap<'_>, signals: &WatchdogSignals, tap_disabled: &AtomicBool) {
+fn service_tap(tap: &EventTap, signals: &WatchdogSignals, tap_disabled: &AtomicBool) {
     // Service the tap in short slices instead of an unbounded
     // `run_current()`. Between slices we re-check that we may still filter
     // events: an active tap at the HID location that outlives its permission
@@ -1020,45 +1215,46 @@ fn thread_main(
         std::ptr::null_mut(),
     ));
 
-    let tap_result = {
-        let callback_signals = Arc::clone(&signals);
-        let in_callback = Arc::clone(&in_callback);
-        let entered_at_ms = Arc::clone(&entered_at_ms);
-        let tap_disabled = Arc::clone(&tap_disabled);
-        let tap_port_cb = Arc::clone(&tap_port);
-        CGEventTap::new(
-            CGEventTapLocation::HID,
-            CGEventTapPlacement::HeadInsertEventTap,
-            CGEventTapOptions::Default,
-            hooked_event_types(),
-            move |_proxy: CGEventTapProxy, etype: CGEventType, event: &CGEvent| {
-                if matches!(
-                    etype,
-                    CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
-                ) {
-                    tap_disabled.store(true, Ordering::Release);
-                    let port = tap_port_cb.load(Ordering::Acquire);
-                    if !port.is_null() {
-                        // Immediately re-enable the tap so WindowServer does not suspend input processing
-                        // SAFETY: port is a valid CFMachPortRef owned by tap for the runloop duration.
-                        unsafe { CGEventTapEnable(port.cast(), true) };
-                    }
-                }
-                entered_at_ms.store(callback_signals.now_millis(), Ordering::Relaxed);
-                in_callback.store(true, Ordering::Release);
-                let disposition = run_tap_callback(cb.as_ref(), etype, event);
-                in_callback.store(false, Ordering::Release);
-                disposition
-            },
+    let context = Box::new(TapContext {
+        cb,
+        signals: Arc::clone(&signals),
+        in_callback: Arc::clone(&in_callback),
+        entered_at_ms: Arc::clone(&entered_at_ms),
+        tap_disabled: Arc::clone(&tap_disabled),
+        tap_port: Arc::clone(&tap_port),
+    });
+    let context_ptr = Box::into_raw(context);
+
+    // SAFETY: CGEventTapCreate is called with valid parameters and trampoline callback.
+    let tap_ref = unsafe {
+        CGEventTapCreate(
+            CG_EVENT_TAP_LOCATION_HID,
+            CG_EVENT_TAP_PLACEMENT_HEAD_INSERT,
+            CG_EVENT_TAP_OPTIONS_DEFAULT,
+            hooked_event_mask(),
+            tap_callback_trampoline,
+            context_ptr.cast(),
         )
     };
 
-    let Ok(tap) = tap_result else {
+    if tap_ref.is_null() {
+        // SAFETY: reclaim heap context to avoid leak.
+        unsafe { drop(Box::from_raw(context_ptr)) };
         error!("CGEventTapCreate returned null — Accessibility may have been revoked");
         // Dropping rl_tx causes rl_rx.recv() on the parent to return Err,
         // which we surface as MacOsTap.
         return;
+    }
+
+    // SAFETY: tap_ref is a non-null CFMachPortRef returned by CGEventTapCreate with +1 retain count.
+    let mach_port =
+        unsafe { core_foundation::mach_port::CFMachPort::wrap_under_create_rule(tap_ref) };
+    let tap = EventTap {
+        mach_port,
+        // SAFETY: reassemble Box from pointer; EventTap owns it until drop.
+        _context: unsafe { Box::from_raw(context_ptr) },
     };
+
     tap_port.store(
         tap.mach_port().as_concrete_TypeRef().cast(),
         Ordering::Release,
@@ -1122,16 +1318,16 @@ fn duration_millis(duration: Duration) -> u64 {
 
 /// Whether CoreGraphics currently considers `tap` enabled. Checked on the tap
 /// thread so an unreported OS disable consumes the same budget as a callback.
-fn tap_is_enabled(tap: &CGEventTap<'_>) -> bool {
+fn tap_is_enabled(tap: &EventTap) -> bool {
     use core_foundation::base::TCFType as _;
 
     // SAFETY: the port is owned by `tap` and remains live for this call.
     unsafe { CGEventTapIsEnabled(tap.mach_port().as_concrete_TypeRef()) }
 }
 
-/// Disable an active tap synchronously. Dropping `CGEventTap` then invalidates
+/// Disable an active tap synchronously. Dropping `EventTap` then invalidates
 /// its Mach port on the same thread.
-fn disable_tap(tap: &CGEventTap<'_>) {
+fn disable_tap(tap: &EventTap) {
     use core_foundation::base::TCFType as _;
 
     // SAFETY: the port is owned by `tap` and remains live for this call;
@@ -1213,7 +1409,7 @@ mod tests {
         assert!(matches!(
             run_tap_callback(
                 &|_| EventDisposition::Suppress,
-                CGEventType::OtherMouseDragged,
+                CG_EVENT_TYPE_OTHER_MOUSE_DRAGGED,
                 &event
             ),
             CallbackResult::Drop
@@ -1221,10 +1417,59 @@ mod tests {
         assert!(matches!(
             run_tap_callback(
                 &|_| panic!("test callback panic"),
-                CGEventType::OtherMouseDragged,
+                CG_EVENT_TYPE_OTHER_MOUSE_DRAGGED,
                 &event
             ),
             CallbackResult::Keep
         ));
+    }
+
+    #[test]
+    fn hooked_event_mask_includes_system_defined_media_keys() {
+        let mask = hooked_event_mask();
+        assert_ne!(
+            mask & (1u64 << CG_EVENT_TYPE_SYSTEM_DEFINED),
+            0,
+            "hooked_event_mask must include CG_EVENT_TYPE_SYSTEM_DEFINED (0x4000)"
+        );
+    }
+
+    #[test]
+    fn translate_key_decodes_aux_control_fallback() {
+        let source = CGEventSource::new(CGEventSourceStateID::Private)
+            .expect("CGEventSourceCreate must succeed");
+        let event = CGEvent::new(source).expect("CGEventCreate must succeed");
+        // SAFETY: event is a live CGEvent. Setting its type formats the record for system-defined fields.
+        unsafe { CGEventSetType(event.as_ptr().cast(), CG_EVENT_TYPE_SYSTEM_DEFINED) };
+        event.set_integer_value_field(
+            CG_EVENT_FIELD_SYSTEM_DEFINED_SUBTYPE,
+            NX_SUBTYPE_AUX_CONTROL_BUTTONS,
+        );
+
+        // Volume Up down (key_type = 0, state = 0x0A)
+        let data1 = 0x0Ai64 << 8;
+        event.set_integer_value_field(CG_EVENT_FIELD_SYSTEM_DEFINED_DATA1, data1);
+        let key_event = translate_key(CG_EVENT_TYPE_SYSTEM_DEFINED, &event);
+        assert_eq!(
+            key_event,
+            Some(KeyEvent {
+                keycode: 0x00E9,
+                pressed: true,
+                modifiers: KeyModifiers::default(),
+            })
+        );
+
+        // Play/Pause up (key_type = 16, state = 0x0B)
+        let data1 = (16i64 << 16) | (0x0Bi64 << 8);
+        event.set_integer_value_field(CG_EVENT_FIELD_SYSTEM_DEFINED_DATA1, data1);
+        let key_event = translate_key(CG_EVENT_TYPE_SYSTEM_DEFINED, &event);
+        assert_eq!(
+            key_event,
+            Some(KeyEvent {
+                keycode: 0x00CD,
+                pressed: false,
+                modifiers: KeyModifiers::default(),
+            })
+        );
     }
 }

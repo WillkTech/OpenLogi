@@ -220,16 +220,57 @@ fn held_keys(combo: &KeyCombo) -> Vec<HeldKey> {
 /// it would need to intercept the OS event queue. Smoke-test it manually:
 /// bind a button to any action in the GUI and confirm the expected system event
 /// fires when the button is pressed (or use the `inject_action` example).
-pub fn execute(action: &Action) {
-    if let Action::OpenApplication(target) = action {
-        let expanded = shellexpand::tilde(target.path());
-        if let Err(error) = opener::open(expanded.as_ref()) {
+fn launch_application(target: &openlogi_core::binding::ApplicationTarget) {
+    let raw_path = target.path().trim();
+    if raw_path.is_empty() {
+        tracing::warn!("cannot launch empty application path");
+        return;
+    }
+
+    let expanded = shellexpand::tilde(raw_path);
+    let path = expanded.as_ref();
+
+    #[cfg(target_os = "macos")]
+    {
+        let is_app_bundle = std::path::Path::new(path.trim_end_matches('/'))
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("app"));
+        let mut cmd = std::process::Command::new("/usr/bin/open");
+        if is_app_bundle {
+            cmd.arg("-a").arg(path);
+        } else {
+            cmd.arg(path);
+        }
+        match cmd.spawn() {
+            Ok(mut child) => {
+                let _ = std::thread::spawn(move || {
+                    let _ = child.wait();
+                });
+            }
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    path,
+                    "could not open configured application, folder, or URL via /usr/bin/open"
+                );
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Err(error) = opener::open(path) {
             tracing::warn!(
                 %error,
-                path = target.path(),
+                path,
                 "could not open configured application, folder, or URL"
             );
         }
+    }
+}
+
+pub fn execute(action: &Action) {
+    if let Some(target) = action.application_target() {
+        launch_application(target);
         return;
     }
 
@@ -775,5 +816,25 @@ mod tests {
         assert_eq!(hid_usage_to_windows(0x2c), Some(0x20)); // Space
         assert_eq!(hid_usage_to_windows(0x33), Some(0xba)); // Semicolon
         assert_eq!(hid_usage_to_windows(0xff), None);
+    }
+
+    #[test]
+    fn saved_shortcut_application_target_matches_open_application() {
+        use openlogi_core::binding::{Action, ActionTarget, ApplicationTarget};
+
+        let app_target =
+            ApplicationTarget::new("/System/Applications/Calculator.app", "Calculator")
+                .expect("valid application target");
+
+        let direct = Action::OpenApplication(app_target.clone());
+        let saved = Action::SavedShortcut {
+            id: "calc".into(),
+            name: "Calculator".into(),
+            target: ActionTarget::Application(app_target.clone()),
+            icon: None,
+        };
+
+        assert_eq!(direct.application_target(), Some(&app_target));
+        assert_eq!(saved.application_target(), Some(&app_target));
     }
 }
