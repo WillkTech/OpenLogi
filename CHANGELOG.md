@@ -23,12 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Reveal Agent in Finder" action
 - *(agent)* integration tests for full event-pipeline latency profiling,
   scroll-preference concurrency, and bit-for-bit LUT verification
+- *(core,gui)* extend `ActionTarget` with `Text`, `AppleScript`, `Shell`, and
+  `Workflow` target kinds, making the custom actions library a full power-user
+  catalog; config schema 7 → 8, IPC protocol v31
+- *(gui)* one custom-action library and power-user editor shared by the mouse,
+  keyboard, Actions Ring, and K270 binding surfaces, with "Reset to default" /
+  "Off" affordances on every binding surface
+- *(gui)* native application picker in the action composer, with the shortcut
+  name auto-filled from the selected app
 
 ### Changed
 
 - *(core)* retune the `CurvePreset` variants for smoother easing
 - *(brand)* new logo and icon set, refreshed tray icons
 - *(release)* Windows installer moved to the free WiX Toolset
+- *(inject,macos)* `.app` bundles launch via `/usr/bin/open -a` so app-launch
+  actions activate the application; folders and URLs keep plain `open`
 
 ### Fixed
 
@@ -36,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   targeted, not the one currently being edited
   ([#29](https://github.com/WillkTech/OpenLogi/pull/29),
   [#30](https://github.com/WillkTech/OpenLogi/pull/30))
+- *(gui)* editing or deleting a custom shortcut now propagates to every binding
+  that references it
+- *(inject)* custom shortcuts whose target is an application now launch the
+  app; previously only a direct `OpenApplication` action did
+- *(gui)* the K270 media-key panel resets its search field when switching keys
 
 ## [0.8.3] - 2026-08-30
 

@@ -170,6 +170,22 @@ id = "backup-cmd"
 name = "Run Backup"
 target = { Shell = "rsync -av ~/Docs /Volumes/Backup" }
 icon = "Terminal"
+
+[[custom_shortcuts]]
+id = "report-bug"
+name = "Bug Report Macro"
+target = { Workflow = [ { TypeText = "Steps to reproduce:\n" }, { Delay = { millis = 500 } }, { PressKey = "Cmd+V" } ] }
 ```
 
 The target kinds are `Shortcut` (key chord), `Application` (application path, folder, or URL), `Text` (unicode text insertion), `AppleScript` (macOS AppleScript snippet), `Shell` (shell command), and `Workflow` (ordered sequence of steps).
+
+Workflow steps run in order and are single-key tables: `TypeText`, `PressKey`,
+`RunAppleScript`, `RunShellCommand`, and `Delay = { millis = N }`. `AppleScript`
+runs only on macOS; other platforms log a warning and skip it. `Shell` runs
+through `/bin/sh -c` on macOS and Linux and `cmd /C` on Windows.
+
+A binding that uses a library entry stores a snapshot of it (`SavedShortcut`
+carrying `id`, `name`, `target`, and optional `icon`). Editing or deleting an
+entry through the GUI rewrites every binding that references it; hand-edits to
+`[[custom_shortcuts]]` in the TOML do not rewrite existing snapshots, so
+re-pick the action in the GUI after renaming or retargeting an entry by hand.

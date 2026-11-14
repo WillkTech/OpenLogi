@@ -53,6 +53,7 @@ Things OpenLogi does that Options+ won't:
 - Devices connected over Logi Bolt receivers, Unifying receivers, Bluetooth, or a wired connection, with battery percentage and charge state
 - Non-HID++ mice are discovered too: any standard HID mouse (including the Logitech G90) shows up as a generic device and is remapped through the OS input hook
 - Button remapping via the OS input hook: a built-in action catalog plus custom keyboard shortcuts — authored in the TOML config or built in the GUI shortcut builder, with Win and Fn modifiers — including independent short/long-press actions and hold-until-release chords for push-to-talk¹
+- Custom actions library: named, reusable actions — key chords, app/folder/URL launches, typed text, AppleScript (macOS), shell commands, and multi-step workflows — bound to mouse buttons, keys, Actions Ring slots, and K270 media keys, with a native application picker in the GUI
 - Per-application profile overlays that auto-switch on app focus (macOS + Windows; Linux on X11 / XWayland only)
 - Litra lights: power, brightness, and color temperature, with optional auto power that follows camera activity
 

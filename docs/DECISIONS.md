@@ -4,6 +4,33 @@ Durable "why we did it this way" records that are not obvious from the code.
 Add a dated entry when a non-obvious architectural or dependency decision is
 made or revisited.
 
+## 2026-11: macOS app launches go through `/usr/bin/open -a`
+
+The application-launch action first used the `opener` crate, which hands a
+`.app` bundle to LaunchServices like any other file: the bundle opens but does
+not reliably activate, so a bound key could "launch" an app behind the
+frontmost one. `openlogi-inject` now shells out to `/usr/bin/open -a <path>`
+for paths ending in `.app` and keeps plain `/usr/bin/open` for folders and
+URLs; non-macOS platforms keep the `opener` crate unchanged.
+`Action::application_target()` is the single detector for both direct
+`OpenApplication` actions and saved custom shortcuts whose target is an
+application — before it, saved app-launch shortcuts fell through to the
+platform executor and never launched. This extends the 2026-07 ruling that
+LaunchServices-specific behavior stays custom rather than moving to a generic
+opener crate.
+
+## 2026-11: Input Monitoring consent is requested by the agent
+
+macOS ties an Input Monitoring (IOHID) consent record to the binary that
+requests it, and the binary that must open HID devices is the agent, not the
+GUI. So `Agent::request_input_monitoring_prompt` (IPC v30) has the GUI ask the
+*agent* to raise the system dialog: the prompt then names the actually-trusted
+binary instead of the GUI, whose grant nothing consults when the agent opens a
+device. The GUI also detects the inverse mismatch (GUI granted, agent not) and
+shows a hint plus a "Reveal Agent in Finder" action, because the user then has
+to add the agent's binary to the privacy list by hand and its path inside the
+bundle is not obvious.
+
 ## 2026-11: The fork keeps its own 0.8.x trunk; upstream 0.9 integrates on a branch
 
 This repo is a fork of AprilNEA/OpenLogi and `master` deliberately carries its
