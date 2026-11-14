@@ -201,7 +201,8 @@ impl ActionRingEntry {
         (self.action.into_action(), self.icon, self.label)
     }
 
-    fn replace_action(&mut self, action: RingAction) {
+    /// Replace the executable action for this slot.
+    pub fn replace_action(&mut self, action: RingAction) {
         self.action = action;
     }
 

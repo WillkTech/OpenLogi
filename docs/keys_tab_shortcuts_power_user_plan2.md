@@ -1,3 +1,5 @@
+> Superseded by [custom_actions_ui_unification_plan.md](custom_actions_ui_unification_plan.md)
+
 ## 1. Answers & Architectural Decisions for the Open Questions
 
 ### Q1: `SavedShortcut` Data Model — Resolve-by-ID (Option A) vs. Propagate-on-Write (Option B)?

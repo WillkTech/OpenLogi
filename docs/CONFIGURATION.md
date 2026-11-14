@@ -36,7 +36,7 @@ physical keys.
 
 ## Shape
 
-`schema_version` is required and currently `7`. `selected_device` is an
+`schema_version` is required and currently `8`. `selected_device` is an
 optional physical device key.
 
 `[app_settings]` contains application-wide preferences:
@@ -142,3 +142,34 @@ Top = { action = { CustomShortcut = "Cmd+Shift+P" }, icon = "Keyboard", label = 
 ```
 
 `ShowActionsRing` is rejected inside a ring slot to prevent recursive rings.
+
+### Custom Actions library (`[[custom_shortcuts]]` / `[[custom_actions]]`)
+
+The global custom actions catalog defines named, reusable actions with optional presentation icons:
+
+```toml
+[[custom_shortcuts]]
+id = "paste-special"
+name = "Paste and Match Style"
+target = { Shortcut = "Cmd+Shift+Option+V" }
+icon = "Keyboard"
+
+[[custom_shortcuts]]
+id = "open-safari"
+name = "Safari"
+target = { Application = { path = "/Applications/Safari.app", display_name = "Safari" } }
+icon = "Applications"
+
+[[custom_shortcuts]]
+id = "greet"
+name = "Type Greeting"
+target = { Text = "Hello world!" }
+
+[[custom_shortcuts]]
+id = "backup-cmd"
+name = "Run Backup"
+target = { Shell = "rsync -av ~/Docs /Volumes/Backup" }
+icon = "Terminal"
+```
+
+The target kinds are `Shortcut` (key chord), `Application` (application path, folder, or URL), `Text` (unicode text insertion), `AppleScript` (macOS AppleScript snippet), `Shell` (shell command), and `Workflow` (ordered sequence of steps).

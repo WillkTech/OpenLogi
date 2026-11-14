@@ -63,6 +63,43 @@ impl ShortcutBuilderModal {
             on_cancel: None,
         }
     }
+
+    /// Open and wire a `ShortcutBuilderModal` hosted by any app view.
+    ///
+    /// Automatically commits saved shortcuts to `AppState::commit_custom_shortcut`
+    /// and invokes `on_close` on both save and cancel.
+    pub fn open_for_app(
+        existing_id: Option<String>,
+        name: &str,
+        target: Option<&ActionTarget>,
+        icon: Option<ActionRingIcon>,
+        on_close: impl Fn(&mut Window, &mut App) + 'static,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Entity<Self> {
+        let on_close = Rc::new(on_close);
+        cx.new(|cx| {
+            let mut m = Self::new(existing_id, name, target, icon, window, cx);
+            let on_close_save = on_close.clone();
+            m.on_save = Some(Rc::new(move |id, name, target, icon, window, cx| {
+                let entry = openlogi_core::config::CustomShortcutEntry {
+                    id,
+                    name,
+                    target,
+                    icon,
+                };
+                crate::state::AppState::update(cx, |state, cx| {
+                    state.commit_custom_shortcut(entry, cx);
+                });
+                on_close_save(window, cx);
+            }));
+            let on_close_cancel = on_close;
+            m.on_cancel = Some(Rc::new(move |window, cx| {
+                on_close_cancel(window, cx);
+            }));
+            m
+        })
+    }
 }
 
 impl Focusable for ShortcutBuilderModal {
@@ -107,9 +144,9 @@ impl Render for ShortcutBuilderModal {
                     .items_center()
                     .child(
                         div().text_subheading().child(if self.id.is_some() {
-                            "Edit Custom Action"
+                            tr!("Edit Custom Action")
                         } else {
-                            "New Custom Action"
+                            tr!("New Custom Action")
                         }),
                     )
                     .child(
@@ -130,7 +167,7 @@ impl Render for ShortcutBuilderModal {
             .child(
                 v_flex()
                     .gap_1()
-                    .child(section_label("Name", pal))
+                    .child(section_label(tr!("Name"), pal))
                     .child(Input::new(&self.name_input)),
             )
             // Shared ActionComposer View
@@ -142,7 +179,7 @@ impl Render for ShortcutBuilderModal {
                     .gap_2()
                     .child(
                         Button::new("builder-cancel")
-                            .label("Cancel")
+                            .label(tr!("Cancel"))
                             .on_click({
                                 let on_cancel = on_cancel.clone();
                                 move |_, window, cx| {
@@ -155,7 +192,7 @@ impl Render for ShortcutBuilderModal {
                     .child(
                         Button::new("builder-save")
                             .primary()
-                            .label("Save Action")
+                            .label(tr!("Save Action"))
                             .disabled(!is_valid)
                             .on_click({
                                 move |_, window, cx| {

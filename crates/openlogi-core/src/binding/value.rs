@@ -42,6 +42,16 @@ impl LongPressBinding {
     pub const fn long(&self) -> &Action {
         &self.long
     }
+
+    /// Mutable access to the release-before-threshold action.
+    pub fn short_mut(&mut self) -> &mut Action {
+        &mut self.short
+    }
+
+    /// Mutable access to the threshold action.
+    pub fn long_mut(&mut self) -> &mut Action {
+        &mut self.long
+    }
 }
 
 /// What a single rebindable [`ButtonId`](crate::binding::ButtonId) does: one

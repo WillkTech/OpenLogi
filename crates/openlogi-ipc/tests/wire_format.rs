@@ -101,7 +101,7 @@ fn representative_smartshift_status() -> SmartShiftStatus {
 /// that makes that visible in the same diff.
 #[test]
 fn protocol_version_is_pinned() {
-    assert_eq!(PROTOCOL_VERSION, 30);
+    assert_eq!(PROTOCOL_VERSION, 31);
 }
 
 #[test]
@@ -240,6 +240,29 @@ fn action_ring_types() {
     assert_wire(&ActionRingCommandError::SessionNotFound, "00");
     assert_wire(&ActionRingCommandError::SlotEmpty, "01");
     assert_wire(&HidppOperation::PlayHaptic, "0e");
+}
+
+#[test]
+fn action_target_variants() {
+    use openlogi_core::binding::{ActionTarget, ApplicationTarget, WorkflowStep};
+
+    assert_wire(
+        &ActionTarget::Shortcut("cmd+c".parse().expect("valid shortcut")),
+        "000106",
+    );
+    assert_wire(
+        &ActionTarget::Application(
+            ApplicationTarget::new("/Applications/Safari.app", "Safari").expect("valid target"),
+        ),
+        "01182f4170706c69636174696f6e732f5361666172692e61707006536166617269",
+    );
+    assert_wire(&ActionTarget::Text("hello".into()), "020568656c6c6f");
+    assert_wire(&ActionTarget::AppleScript("beep".into()), "030462656570");
+    assert_wire(&ActionTarget::Shell("date".into()), "040464617465");
+    assert_wire(
+        &ActionTarget::Workflow(vec![WorkflowStep::Delay { millis: 100 }]),
+        "05010264",
+    );
 }
 
 #[test]

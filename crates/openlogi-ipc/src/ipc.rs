@@ -61,7 +61,8 @@ pub use succession::Identity;
 /// v28: `Action::HoldShortcut` appended for lifecycle-held keyboard output.
 /// v29: `Action::SavedShortcut` payload updated with `ActionTarget`.
 /// v30: `Agent::request_input_monitoring_prompt` appended for user-initiated Input Monitoring requests.
-pub const PROTOCOL_VERSION: u32 = 30;
+/// v31: `ActionTarget` union extended with `Text`, `AppleScript`, `Shell`, and `Workflow`.
+pub const PROTOCOL_VERSION: u32 = 31;
 
 /// Environment variable through which the agent hands a supervised helper the
 /// run token it will serve, so the helper knows which agent it belongs to

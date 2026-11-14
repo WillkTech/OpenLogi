@@ -1,40 +1,28 @@
 //! Categorized action, shortcut, path, and icon editor for one ring slot.
 
 use gpui::{
-    Entity, InteractiveElement, IntoElement, ParentElement, Role, ScrollHandle,
-    StatefulInteractiveElement as _, Styled, div, prelude::FluentBuilder as _, px, rgb, svg,
+    Entity, InteractiveElement, IntoElement, ParentElement, ScrollHandle,
+    StatefulInteractiveElement as _, Styled, div, prelude::FluentBuilder as _, px,
 };
 use gpui_component::{
-    Icon, IconName, Selectable as _,
+    Disableable as _, Icon, Selectable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
-    input::InputState,
     scroll::ScrollableElement as _,
     v_flex,
 };
-use openlogi_core::binding::{
-    Action, ActionRingEntry, ActionRingIcon, ActionRingSlot, ApplicationTarget, Category, KeyCombo,
-    RingAction,
-};
+use openlogi_core::binding::{Action, ActionRingEntry, ActionRingIcon, ActionRingSlot, RingAction};
 
 use super::ActionRingPanel;
-use super::action_icons::action_icon_path;
-use crate::features::mouse::picker::{EditFn, editor_section};
+use crate::features::mouse::picker::{EditFn, PickFn, editor_section};
 use crate::state::{AppState, DeviceRecord, StateEvent};
-use crate::ui::action::localized_action_label;
-use crate::ui::action_composer::toggle_modifier_in_text;
-use crate::ui::components::{MenuRow, control_input};
-use crate::ui::theme::{self, Palette, Typography as _};
+use crate::ui::action::{action_icon_path, localized_action_label};
+use crate::ui::action_library::ActionLibrary;
+use crate::ui::theme::{Palette, Typography as _};
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "renders full action ring library panel"
-)]
 pub(super) fn action_library(
     slot: ActionRingSlot,
     current: Option<&ActionRingEntry>,
-    application_input: &Entity<InputState>,
-    shortcut_input: &Entity<InputState>,
     library_scroll: &ScrollHandle,
     view: &Entity<ActionRingPanel>,
     pal: Palette,
@@ -54,10 +42,25 @@ pub(super) fn action_library(
             cx.notify();
         });
     });
+    let view_new = view.clone();
+    let on_new = move |window: &mut gpui::Window, cx: &mut gpui::App| {
+        view_new.update(cx, |panel, cx| {
+            panel.open_shortcut_builder(window, cx);
+            cx.notify();
+        });
+    };
+    let on_pick: PickFn = std::rc::Rc::new(move |action, _window, cx| {
+        commit_action(slot, action, cx);
+    });
     let current_action = current.map(ActionRingEntry::action).cloned();
     let current_label = current_action
         .as_ref()
         .map_or_else(|| tr!("Empty slot"), localized_action_label);
+    let catalog_rows = ActionLibrary::new("ring-action", &on_pick)
+        .current(current_action.as_ref())
+        .filter(|action| RingAction::new(action.clone()).is_ok())
+        .on_edit(Some(&on_edit))
+        .build_rows(pal, cx);
 
     v_flex()
         .flex_1()
@@ -69,35 +72,11 @@ pub(super) fn action_library(
         .border_1()
         .border_color(pal.border)
         .bg(pal.panel)
-        .child(
-            v_flex()
-                .flex_none()
-                .gap_1()
-                .border_b_1()
-                .border_color(pal.border)
-                .p_3()
-                .child(
-                    h_flex()
-                        .items_center()
-                        .justify_between()
-                        .child(div().text_subheading().child(tr!("Actions Ring")))
-                        .child(
-                            Button::new("ring-clear-slot")
-                                .compact()
-                                .label(tr!("Clear slot"))
-                                .on_click(move |_, _, cx| commit_slot(slot, None, cx)),
-                        ),
-                )
-                .child(
-                    div()
-                        .text_caption()
-                        .text_color(pal.text_muted)
-                        .child(current_label),
-                ),
-        )
+        .child(slot_header(slot, current, current_label, pal))
         .child(action_rows_scroller(
             v_flex()
                 .p_1p5()
+                .gap_1()
                 .when_some(current_action.as_ref(), |library, action| {
                     library.child(icon_editor(
                         slot,
@@ -106,21 +85,59 @@ pub(super) fn action_library(
                         pal,
                     ))
                 })
-                .child(composer_section(
-                    slot,
-                    shortcut_input,
-                    application_input,
-                    pal,
-                ))
-                .children(action_sections(
-                    slot,
-                    current_action.as_ref(),
-                    Some(&on_edit),
-                    pal,
-                    cx,
-                )),
+                .child(
+                    h_flex()
+                        .justify_between()
+                        .items_center()
+                        .px_1p5()
+                        .child(editor_section(tr!("Actions"), pal))
+                        .child(
+                            Button::new("ring-new-shortcut")
+                                .compact()
+                                .ghost()
+                                .label(tr!("+ New Shortcut"))
+                                .on_click(move |_, window, cx| {
+                                    (on_new)(window, cx);
+                                }),
+                        ),
+                )
+                .children(catalog_rows),
             library_scroll,
         ))
+}
+
+fn slot_header(
+    slot: ActionRingSlot,
+    current: Option<&ActionRingEntry>,
+    current_label: gpui::SharedString,
+    pal: Palette,
+) -> impl IntoElement {
+    v_flex()
+        .flex_none()
+        .gap_1()
+        .border_b_1()
+        .border_color(pal.border)
+        .p_3()
+        .child(div().text_subheading().child(tr!("Actions Ring")))
+        .child(
+            h_flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .text_caption()
+                        .text_color(pal.text_muted)
+                        .child(current_label),
+                )
+                .child(
+                    Button::new("ring-clear-slot")
+                        .compact()
+                        .ghost()
+                        .disabled(current.is_none())
+                        .label(tr!("Clear slot"))
+                        .on_click(move |_, _, cx| commit_slot(slot, None, cx)),
+                ),
+        )
 }
 
 fn action_rows_scroller(content: impl IntoElement, scroll: &ScrollHandle) -> impl IntoElement {
@@ -186,250 +203,6 @@ fn icon_button(
         .selected(selected)
         .icon(Icon::empty().path(path).text_color(pal.text_muted))
         .tooltip(label)
-}
-
-fn composer_section(
-    slot: ActionRingSlot,
-    shortcut_input: &Entity<InputState>,
-    path_input: &Entity<InputState>,
-    pal: Palette,
-) -> impl IntoElement {
-    let shortcut_sub = shortcut_input.clone();
-    let path_sub = path_input.clone();
-    v_flex()
-        .gap_1p5()
-        .child(editor_section(tr!("Custom Action Target"), pal))
-        .child(
-            v_flex()
-                .gap_1()
-                .child(
-                    div()
-                        .text_caption()
-                        .text_color(pal.text_muted)
-                        .child(tr!("Modifiers")),
-                )
-                .child(
-                    h_flex().flex_wrap().gap_1().children(
-                        ["Win", "Cmd", "Ctrl", "Alt", "Shift", "Fn"]
-                            .into_iter()
-                            .map(|mod_name| {
-                                let input = shortcut_input.clone();
-                                Button::new(format!("ring-mod-{mod_name}"))
-                                    .compact()
-                                    .label(mod_name)
-                                    .on_click(move |_, window, cx| {
-                                        let text = input.read(cx).value();
-                                        let new_text = toggle_modifier_in_text(&text, mod_name);
-                                        input.update(cx, |state, cx| {
-                                            state.set_value(new_text, window, cx);
-                                        });
-                                    })
-                            }),
-                    ),
-                ),
-        )
-        .child(
-            h_flex()
-                .gap_1p5()
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .child(control_input(shortcut_input).cleanable(true)),
-                )
-                .child(
-                    Button::new("ring-add-shortcut")
-                        .compact()
-                        .label(tr!("Add Shortcut"))
-                        .on_click(move |_, _, cx| {
-                            let shortcut = shortcut_sub.read(cx).value().to_string();
-                            if let Ok(combo) = shortcut.parse::<KeyCombo>() {
-                                commit_action(slot, Action::CustomShortcut(combo), cx);
-                            }
-                        }),
-                ),
-        )
-        .child(
-            h_flex()
-                .gap_1p5()
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .child(control_input(path_input).cleanable(true)),
-                )
-                .child(
-                    Button::new("ring-add-path")
-                        .compact()
-                        .label(tr!("Add Path"))
-                        .on_click(move |_, _, cx| {
-                            let path = path_sub.read(cx).value().to_string();
-                            if let Ok(target) = ApplicationTarget::new(path, "") {
-                                commit_action(slot, Action::OpenApplication(target), cx);
-                            }
-                        }),
-                ),
-        )
-}
-
-#[expect(
-    clippy::too_many_lines,
-    reason = "iterates all action catalog sections"
-)]
-fn action_sections(
-    slot: ActionRingSlot,
-    current: Option<&Action>,
-    on_edit: Option<&EditFn>,
-    pal: Palette,
-    cx: &gpui::App,
-) -> impl Iterator<Item = impl IntoElement> {
-    let mut index = 0usize;
-    let on_edit = on_edit.cloned();
-    ring_catalog(Some(cx))
-        .into_iter()
-        .map(move |(category, actions)| {
-            let on_edit = on_edit.clone();
-            v_flex()
-                .child(editor_section(rust_i18n::t!(category.label()), pal))
-                .children(actions.into_iter().map(|action| {
-                    let selected = current == Some(&action);
-                    let action_to_commit = action.clone();
-                    let label = tr!(action.label());
-                    let icon_path = action_icon_path(&action);
-                    let is_custom = matches!(&action, Action::SavedShortcut { .. });
-                    let custom_entry = if let Action::SavedShortcut {
-                        id,
-                        name,
-                        target,
-                        icon,
-                    } = &action
-                    {
-                        Some(openlogi_core::config::CustomShortcutEntry {
-                            id: id.clone(),
-                            name: name.clone(),
-                            target: target.clone(),
-                            icon: *icon,
-                        })
-                    } else {
-                        None
-                    };
-                    let row_index = index;
-                    index += 1;
-                    let on_edit = on_edit.clone();
-                    MenuRow::new(("ring-action", row_index))
-                        .role(Role::MenuItem)
-                        .aria_label(label.clone())
-                        .selected(selected)
-                        .child(
-                            h_flex()
-                                .flex_1()
-                                .items_center()
-                                .justify_between()
-                                .child(
-                                    h_flex()
-                                        .items_center()
-                                        .gap_2()
-                                        .child(
-                                            svg()
-                                                .path(icon_path)
-                                                .size_4()
-                                                .flex_none()
-                                                .text_color(pal.text_muted),
-                                        )
-                                        .child(label),
-                                )
-                                .when_some(custom_entry, |parent, entry| {
-                                    let id = entry.id.clone();
-                                    let edit_entry = entry.clone();
-                                    parent.child(
-                                        h_flex()
-                                            .items_center()
-                                            .gap_1()
-                                            .when_some(on_edit, |controls, on_edit| {
-                                                controls.child(
-                                                    Button::new(("ring-edit-shortcut", row_index))
-                                                        .icon(
-                                                            Icon::empty()
-                                                                .path("action-icons/pencil.svg")
-                                                                .text_color(pal.text_muted),
-                                                        )
-                                                        .compact()
-                                                        .ghost()
-                                                        .tooltip("Edit shortcut")
-                                                        .on_click(move |_event, window, cx| {
-                                                            (on_edit)(
-                                                                edit_entry.clone(),
-                                                                window,
-                                                                cx,
-                                                            );
-                                                        }),
-                                                )
-                                            })
-                                            .child(
-                                                Button::new(("ring-delete-shortcut", row_index))
-                                                    .icon(IconName::Close)
-                                                    .compact()
-                                                    .ghost()
-                                                    .tooltip("Delete shortcut")
-                                                    .on_click(move |_event, _, cx| {
-                                                        let id = id.clone();
-                                                        AppState::update(cx, |state, _cx| {
-                                                            state.delete_custom_shortcut(&id);
-                                                        });
-                                                    }),
-                                            ),
-                                    )
-                                }),
-                        )
-                        .when(selected && !is_custom, |row| {
-                            row.child(
-                                Icon::new(IconName::Check)
-                                    .size_3()
-                                    .text_color(rgb(theme::ACCENT_BLUE)),
-                            )
-                        })
-                        .on_click(move |_, _, cx| {
-                            commit_action(slot, action_to_commit.clone(), cx);
-                        })
-                }))
-        })
-}
-
-fn ring_catalog(cx: Option<&gpui::App>) -> Vec<(Category, Vec<Action>)> {
-    let mut sections: Vec<(Category, Vec<Action>)> = Vec::new();
-
-    if let Some(state) = cx.and_then(AppState::try_read) {
-        let custom_actions: Vec<Action> = state
-            .custom_shortcuts()
-            .iter()
-            .map(|entry| Action::SavedShortcut {
-                id: entry.id.clone(),
-                name: entry.name.clone(),
-                target: entry.target.clone(),
-                icon: entry.icon,
-            })
-            .filter(|action| RingAction::new(action.clone()).is_ok())
-            .collect();
-        if !custom_actions.is_empty() {
-            sections.push((Category::CustomShortcuts, custom_actions));
-        }
-    }
-
-    for action in Action::catalog() {
-        if RingAction::new(action.clone()).is_err() {
-            continue;
-        }
-        let category = action.category();
-        if let Some((_, actions)) = sections
-            .iter_mut()
-            .find(|(candidate, _)| *candidate == category)
-        {
-            actions.push(action);
-        } else {
-            sections.push((category, vec![action]));
-        }
-    }
-    sections
 }
 
 fn commit_action(slot: ActionRingSlot, action: Action, cx: &mut gpui::App) {
@@ -526,15 +299,9 @@ mod tests {
 
     #[test]
     fn ring_catalog_is_categorized_and_excludes_invalid_actions() {
-        let sections = ring_catalog(None);
-        assert!(
-            sections
-                .iter()
-                .any(|(category, _)| *category == Category::Navigation)
-        );
-        let actions = sections
+        let actions = Action::catalog()
             .into_iter()
-            .flat_map(|(_, actions)| actions)
+            .filter(|action| RingAction::new(action.clone()).is_ok())
             .collect::<Vec<_>>();
         assert!(actions.contains(&Action::MissionControl));
         assert!(!actions.contains(&Action::None));

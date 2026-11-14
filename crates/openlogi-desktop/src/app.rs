@@ -235,7 +235,7 @@ impl AppView {
 
         let mouse_model = cx.new(|cx| MouseModelView::new(window, cx));
         let action_ring_panel = cx.new(ActionRingPanel::new);
-        let keyboard_model = cx.new(FunctionRowView::new);
+        let keyboard_model = cx.new(|cx| FunctionRowView::new(window, cx));
         let k270_media_keys = cx.new(|cx| K270MediaKeysView::new(window, cx));
         let dpi_panel = cx.new(DpiPanel::new);
         let smartshift_panel = cx.new(SmartShiftPanel::new);
@@ -254,7 +254,8 @@ impl AppView {
             let relevant = match event {
                 StateEvent::AgentChanged
                 | StateEvent::InventoryChanged
-                | StateEvent::DeviceSelected(_) => true,
+                | StateEvent::DeviceSelected(_)
+                | StateEvent::CustomShortcutsChanged => true,
                 StateEvent::ForegroundChanged => !on_home,
                 StateEvent::BindingsChanged(key) | StateEvent::DpiChanged(key) => {
                     !on_home

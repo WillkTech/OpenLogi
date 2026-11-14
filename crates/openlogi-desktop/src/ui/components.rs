@@ -277,6 +277,16 @@ impl MenuRow {
         self
     }
 
+    /// Attach a tooltip to this menu row.
+    #[must_use]
+    pub(crate) fn tooltip(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        let text = text.into();
+        self.base = self
+            .base
+            .tooltip(move |window, cx| Tooltip::new(text.clone()).build(window, cx));
+        self
+    }
+
     #[must_use]
     pub(crate) fn on_click(
         mut self,

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
@@ -129,6 +128,7 @@ pub struct MouseModelView {
     action_picker_open: bool,
     action_search: Entity<InputState>,
     shortcut_builder: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
+    pub(crate) power_user: crate::ui::power_user::PowerUserEditorState,
     _state_obs: Subscription,
 }
 
@@ -148,7 +148,8 @@ impl MouseModelView {
             let relevant = match event {
                 StateEvent::InventoryChanged
                 | StateEvent::DeviceSelected(_)
-                | StateEvent::ForegroundChanged => true,
+                | StateEvent::ForegroundChanged
+                | StateEvent::CustomShortcutsChanged => true,
                 StateEvent::BindingsChanged(key) | StateEvent::LightingChanged(key) => {
                     AppState::try_read(cx)
                         .and_then(AppState::current_record)
@@ -169,6 +170,7 @@ impl MouseModelView {
             action_picker_open: false,
             action_search,
             shortcut_builder: None,
+            power_user: crate::ui::power_user::PowerUserEditorState::default(),
             _state_obs: state_obs,
         }
     }
@@ -184,40 +186,20 @@ impl MouseModelView {
         cx: &mut Context<Self>,
     ) {
         let view = cx.entity();
-        let modal = cx.new(|cx| {
-            let mut m = crate::ui::shortcut_builder::ShortcutBuilderModal::new(
-                existing_id,
-                name,
-                target,
-                icon,
-                window,
-                cx,
-            );
-            let view_save = view.clone();
-            m.on_save = Some(Rc::new(move |id, name, target, icon, _window, cx| {
-                let entry = openlogi_core::config::CustomShortcutEntry {
-                    id,
-                    name,
-                    target,
-                    icon,
-                };
-                AppState::update(cx, |state, _cx| {
-                    state.commit_custom_shortcut(entry);
-                });
-                view_save.update(cx, |view, cx| {
+        let modal = crate::ui::shortcut_builder::ShortcutBuilderModal::open_for_app(
+            existing_id,
+            name,
+            target,
+            icon,
+            move |_window, cx| {
+                view.update(cx, |view, cx| {
                     view.close_shortcut_builder();
                     cx.notify();
                 });
-            }));
-            let view_cancel = view.clone();
-            m.on_cancel = Some(Rc::new(move |_window, cx| {
-                view_cancel.update(cx, |view, cx| {
-                    view.close_shortcut_builder();
-                    cx.notify();
-                });
-            }));
-            m
-        });
+            },
+            window,
+            cx,
+        );
         self.shortcut_builder = Some(modal);
     }
 
@@ -236,6 +218,7 @@ impl MouseModelView {
     pub(crate) fn set_gesture_selected_dir(&mut self, dir: Option<GestureDirection>) {
         self.gesture_active_dir = dir;
         self.action_picker_open = false;
+        self.power_user.close();
     }
 
     pub(super) fn toggle_action_picker(&mut self) {
@@ -255,6 +238,7 @@ impl MouseModelView {
         self.selected = None;
         self.gesture_active_dir = None;
         self.action_picker_open = false;
+        self.power_user.close();
     }
 
     fn select(&mut self, control: MouseControlId) {
@@ -262,6 +246,7 @@ impl MouseModelView {
             self.selected = Some(control);
             self.gesture_active_dir = None;
             self.action_picker_open = false;
+            self.power_user.close();
         }
     }
 }
@@ -383,6 +368,7 @@ impl Render for MouseModelView {
                 overridden,
             },
             &self.action_search,
+            &self.power_user,
             &view,
             cx,
         );
@@ -1058,6 +1044,7 @@ mod tests {
                     overridden: None,
                 },
                 &view.action_search,
+                &view.power_user,
                 &entity,
                 cx,
             );

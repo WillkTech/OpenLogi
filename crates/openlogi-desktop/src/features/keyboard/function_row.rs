@@ -26,27 +26,30 @@ use std::sync::Arc;
 
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Context, Entity, FontWeight, Hsla,
-    InteractiveElement, IntoElement, ParentElement, PathBuilder, Render, RenderOnce, Role,
+    InteractiveElement, IntoElement, ParentElement, PathBuilder, Render, RenderOnce,
     StatefulInteractiveElement as _, Styled, Subscription, Window, canvas, div, hsla, point,
     prelude::FluentBuilder as _, px, rgb, svg,
 };
-use gpui_component::{Selectable as _, h_flex, input::InputState, v_flex};
-use openlogi_core::binding::{Action, WorkflowStep};
+use gpui_component::{
+    Disableable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+    input::{InputEvent, InputState},
+    v_flex,
+};
+use openlogi_core::binding::Action;
 use openlogi_core::config::{KeyModifiers, KeyTrigger};
 
-use super::editors::{
-    PowerUserKind, text_editor_placeholder, text_editor_seed, workflow_editor_seed,
-};
 use crate::app::{glow_canvas, keyboard_glow};
 use crate::features::mouse::geometry::asset_dimensions_for_png;
-use crate::features::mouse::picker::{
-    PickFn, action_icon_path, action_rows, compact_panel, divider, editor_scroll_list,
-    editor_section,
-};
+use crate::features::mouse::picker::{PickFn, compact_panel, divider, editor_scroll_list};
 use crate::services::assets::{GlowGeometry, ResolvedAsset};
 use crate::state::{AppState, DeviceRecord, StateEvent};
+use crate::ui::action::action_icon_path;
 use crate::ui::action::localized_action_label;
-use crate::ui::components::MenuRow;
+use crate::ui::action_library::{ActionLibrary, OpenPowerUserFn, editor_section};
+use crate::ui::components::control_input;
+use crate::ui::power_user::PowerUserEditorState;
 use crate::ui::theme::{self, ACCENT_BLUE, Palette, Typography as _};
 use gpui::ease_in_out;
 use gpui::{Animation, AnimationExt, img};
@@ -123,21 +126,29 @@ pub struct FunctionRowView {
     /// The hovered function-row key index, shared by callout bubbles, key hit
     /// zones, and leader lines.
     hovered_key: Option<usize>,
-    /// Which power-user editor is showing in the panel, if any.
-    active_editor: Option<PowerUserKind>,
-    /// Lazily-created [`InputState`] for the text editors.
-    text_state: Option<Entity<InputState>>,
-    /// Draft copy of the Workflow steps under edit.
-    workflow_draft: Vec<WorkflowStep>,
+    /// Search input entity for filtering action rows.
+    search_state: Entity<InputState>,
+    shortcut_builder: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
+    pub(crate) power_user: PowerUserEditorState,
     _state_obs: Subscription,
 }
 
 impl FunctionRowView {
     /// Create the view.
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let search_state =
+            cx.new(|cx| InputState::new(window, cx).placeholder(tr!("Search actions…")));
+        cx.subscribe(&search_state, |_, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) {
+                cx.notify();
+            }
+        })
+        .detach();
         let state_obs = cx.subscribe(&AppState::global(cx), |_view, _, event: &StateEvent, cx| {
             let relevant = match event {
-                StateEvent::InventoryChanged | StateEvent::DeviceSelected(_) => true,
+                StateEvent::InventoryChanged
+                | StateEvent::DeviceSelected(_)
+                | StateEvent::CustomShortcutsChanged => true,
                 StateEvent::BindingsChanged(key) => AppState::try_read(cx)
                     .and_then(AppState::current_record)
                     .is_some_and(|record| record.device_key() == *key),
@@ -150,20 +161,64 @@ impl FunctionRowView {
         Self {
             selected_key: None,
             hovered_key: None,
-            active_editor: None,
-            text_state: None,
-            workflow_draft: Vec::new(),
+            search_state,
+            shortcut_builder: None,
+            power_user: PowerUserEditorState::default(),
             _state_obs: state_obs,
         }
     }
 
+    /// Open shortcut builder modal pre-filled with target and icon.
+    pub fn open_shortcut_builder_with(
+        &mut self,
+        existing_id: Option<String>,
+        name: &str,
+        target: Option<&openlogi_core::binding::ActionTarget>,
+        icon: Option<openlogi_core::binding::ActionRingIcon>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let view = cx.entity();
+        let modal = crate::ui::shortcut_builder::ShortcutBuilderModal::open_for_app(
+            existing_id,
+            name,
+            target,
+            icon,
+            move |_window, cx| {
+                view.update(cx, |view, cx| {
+                    view.close_shortcut_builder();
+                    cx.notify();
+                });
+            },
+            window,
+            cx,
+        );
+        self.shortcut_builder = Some(modal);
+    }
+
+    /// Open blank shortcut builder modal.
+    pub fn open_shortcut_builder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_shortcut_builder_with(None, "", None, None, window, cx);
+    }
+
+    /// Close the shortcut builder modal.
+    pub fn close_shortcut_builder(&mut self) {
+        self.shortcut_builder = None;
+    }
+
     /// Select a key (or deselect with `None`), opening/closing the panel.
-    pub(crate) fn select_key(&mut self, idx: Option<usize>, cx: &mut Context<Self>) {
+    pub(crate) fn select_key(
+        &mut self,
+        idx: Option<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         // Changing selection also drops any open editor + its drafts.
         if self.selected_key != idx {
-            self.active_editor = None;
-            self.text_state = None;
-            self.workflow_draft.clear();
+            self.power_user.close();
+            self.search_state.update(cx, |input, cx| {
+                input.set_value("", window, cx);
+            });
         }
         self.selected_key = idx;
         cx.notify();
@@ -171,8 +226,12 @@ impl FunctionRowView {
 
     /// Toggle a key selection from a click on either its callout or key hit
     /// target.
-    pub(crate) fn click_key(&mut self, idx: usize, cx: &mut Context<Self>) {
-        self.select_key(next_selection_after_click(self.selected_key, idx), cx);
+    pub(crate) fn click_key(&mut self, idx: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.select_key(
+            next_selection_after_click(self.selected_key, idx),
+            window,
+            cx,
+        );
     }
 
     #[expect(dead_code, reason = "public accessor for the selection state")]
@@ -183,58 +242,6 @@ impl FunctionRowView {
     pub(crate) fn set_hovered_key(&mut self, idx: Option<usize>, cx: &mut Context<Self>) {
         if self.hovered_key != idx {
             self.hovered_key = idx;
-            cx.notify();
-        }
-    }
-
-    pub(crate) fn open_editor(&mut self, kind: PowerUserKind, cx: &mut Context<Self>) {
-        self.active_editor = Some(kind);
-        self.text_state = None;
-        self.workflow_draft.clear();
-        cx.notify();
-    }
-
-    pub(crate) fn close_editor(&mut self, cx: &mut Context<Self>) {
-        self.active_editor = None;
-        self.text_state = None;
-        self.workflow_draft.clear();
-        cx.notify();
-    }
-
-    pub(crate) fn text_state(&self) -> Option<Entity<InputState>> {
-        self.text_state.clone()
-    }
-
-    pub(crate) fn new_text_state(
-        &mut self,
-        seed: String,
-        placeholder: &str,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Entity<InputState> {
-        let state = cx.new(|cx| {
-            let mut s = InputState::new(window, cx).placeholder(tr!(placeholder));
-            if !seed.is_empty() {
-                s.set_value(seed, window, cx);
-            }
-            s
-        });
-        self.text_state = Some(state.clone());
-        state
-    }
-
-    pub(crate) fn workflow_draft(&self) -> &[WorkflowStep] {
-        &self.workflow_draft
-    }
-
-    pub(crate) fn push_workflow_step(&mut self, step: WorkflowStep, cx: &mut Context<Self>) {
-        self.workflow_draft.push(step);
-        cx.notify();
-    }
-
-    pub(crate) fn remove_workflow_step(&mut self, idx: usize, cx: &mut Context<Self>) {
-        if idx < self.workflow_draft.len() {
-            self.workflow_draft.remove(idx);
             cx.notify();
         }
     }
@@ -281,35 +288,10 @@ impl Render for FunctionRowView {
         // drop it instead of indexing past the new slot list.
         if self.selected_key.is_some_and(|idx| idx >= slots.len()) {
             self.selected_key = None;
-            self.active_editor = None;
-            self.text_state = None;
-            self.workflow_draft.clear();
+            self.power_user.close();
         }
         let selected = self.selected_key;
         let hovered = self.hovered_key;
-        let active_editor = self.active_editor;
-        if let (Some(selected_idx), Some(kind)) = (selected, active_editor)
-            && let Some(slot) = slots.get(selected_idx)
-        {
-            let current_action = bindings.and_then(|bindings| bindings.get(&slot.trigger));
-            match kind {
-                PowerUserKind::Workflow => {
-                    if self.workflow_draft.is_empty() {
-                        self.workflow_draft = workflow_editor_seed(current_action);
-                    }
-                }
-                _ => {
-                    if self.text_state.is_none() {
-                        self.new_text_state(
-                            text_editor_seed(current_action, kind),
-                            text_editor_placeholder(kind),
-                            window,
-                            cx,
-                        );
-                    }
-                }
-            }
-        }
         let view = cx.entity();
         let keyboard =
             KeyboardPane::new(slots.clone(), image_path, glow, render_size, view.clone())
@@ -319,10 +301,27 @@ impl Render for FunctionRowView {
 
         // The whole row animates as one: when a key is selected the right-side
         // panel grows in and the keyboard nudges left to make room.
-        v_flex()
+        div()
+            .relative()
             .w_full()
-            .items_center()
-            .child(InspectorRow::new(keyboard).panel(panel))
+            .child(
+                v_flex()
+                    .w_full()
+                    .items_center()
+                    .child(InspectorRow::new(keyboard).panel(panel)),
+            )
+            .when_some(self.shortcut_builder.clone(), |parent, modal_entity| {
+                parent.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .bg(gpui::rgba(0x0000_0088))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(div().w(px(460.0)).max_w(px(520.0)).child(modal_entity)),
+                )
+            })
     }
 }
 
@@ -602,8 +601,8 @@ impl RenderOnce for KeyCallout {
                 let next = (*hovered).then_some(idx);
                 view_hover.update(cx, |v, vcx| v.set_hovered_key(next, vcx));
             })
-            .on_click(move |_ev, _window, cx| {
-                view_click.update(cx, |v, vcx| v.click_key(idx, vcx));
+            .on_click(move |_ev, window, cx| {
+                view_click.update(cx, |v, vcx| v.click_key(idx, window, vcx));
             })
     }
 }
@@ -662,8 +661,8 @@ fn key_click_target(
             let next = (*hovered).then_some(idx);
             view_hover.update(cx, |v, vcx| v.set_hovered_key(next, vcx));
         })
-        .on_click(move |_ev, _window, cx| {
-            view_click.update(cx, |v, vcx| v.click_key(idx, vcx));
+        .on_click(move |_ev, window, cx| {
+            view_click.update(cx, |v, vcx| v.click_key(idx, window, vcx));
         })
 }
 
@@ -793,19 +792,49 @@ impl FunctionRowView {
         let key_name = trigger.to_string();
 
         // If an editor is active, render it instead of the list.
-        if let Some(kind) = self.active_editor {
-            return super::editors::editor_card(
-                trigger,
-                kind,
-                self.text_state.clone(),
-                self.workflow_draft.clone(),
-                view,
+        if self.power_user.is_open() {
+            let view_commit = view.clone();
+            let view_close = view.clone();
+            let view_promote = view.clone();
+            let trigger_commit = trigger.clone();
+            let on_promote: crate::ui::power_user::PromoteActionFn =
+                Arc::new(move |target, window, cx| {
+                    view_promote.update(cx, |v, cx| {
+                        v.power_user.close();
+                        v.open_shortcut_builder_with(None, "", Some(&target), None, window, cx);
+                        cx.notify();
+                    });
+                });
+            return self.power_user.render_card_with_promote(
+                &key_name,
+                move |action, _window, cx| {
+                    AppState::update(cx, |state, cx| {
+                        let key = state.current_record().map(DeviceRecord::device_key);
+                        state.commit_keyboard_binding(trigger_commit.clone(), Some(action));
+                        if let Some(key) = key {
+                            cx.emit(StateEvent::BindingsChanged(key));
+                        }
+                    });
+                    view_commit.update(cx, |v, cx| {
+                        v.power_user.close();
+                        cx.notify();
+                    });
+                },
+                move |_window, cx| {
+                    view_close.update(cx, |v, cx| {
+                        v.power_user.close();
+                        cx.notify();
+                    });
+                },
+                Some(on_promote),
                 pal,
+                cx,
             );
         }
 
         let current = AppState::try_read(cx)
             .and_then(|state| state.keyboard_bindings().get(&trigger).cloned());
+        let is_customized = current.is_some();
 
         let view_for_pick = view.clone();
         let trigger_for_pick = trigger.clone();
@@ -820,19 +849,50 @@ impl FunctionRowView {
             view_for_pick.update(cx, |_, vcx| vcx.notify());
         });
 
-        let rows = panel_action_rows(current.as_ref(), &on_pick, view, &pal, cx);
+        let query = self.search_state.read(cx).value().to_string();
+        let rows = panel_action_rows(&query, current.as_ref(), &on_pick, view, &pal, cx);
 
         compact_panel(pal)
             .w(px(PANEL_W))
             .max_h(px(500.))
-            .child(title_header(&key_name, &pal))
+            .child(title_header(&key_name, is_customized, trigger, view, &pal))
             .child(divider(pal))
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .px_2()
+                    .child(editor_section(tr!("Actions"), pal))
+                    .child(
+                        Button::new("function-row-new-shortcut-btn")
+                            .compact()
+                            .ghost()
+                            .label(tr!("+ New Shortcut"))
+                            .on_click({
+                                let view = view.clone();
+                                move |_, window, cx| {
+                                    view.update(cx, |v, cx| {
+                                        v.open_shortcut_builder(window, cx);
+                                    });
+                                }
+                            }),
+                    ),
+            )
+            .child(control_input(&self.search_state).cleanable(true))
             .child(editor_scroll_list("key-panel-scroll", rows))
     }
 }
 
-/// The panel's title — shows which key is selected, e.g. "F1".
-fn title_header(key_name: &str, pal: &Palette) -> impl IntoElement {
+/// The panel's title — shows which key is selected, its binding state badge,
+/// and a "Reset to default" button to return to native pass-through.
+fn title_header(
+    key_name: &str,
+    is_customized: bool,
+    trigger: KeyTrigger,
+    view: &Entity<FunctionRowView>,
+    pal: &Palette,
+) -> impl IntoElement {
+    let view_reset = view.clone();
     h_flex()
         .items_center()
         .justify_between()
@@ -845,92 +905,98 @@ fn title_header(key_name: &str, pal: &Palette) -> impl IntoElement {
                 .text_color(pal.text_muted)
                 .child(tr!("Bind %{name}", name => key_name)),
         )
+        .child(
+            h_flex()
+                .items_center()
+                .gap_2()
+                // Status badge
+                .when(is_customized, |this| {
+                    this.child(
+                        div()
+                            .px_2()
+                            .py_0p5()
+                            .rounded_full()
+                            .text_caption()
+                            .font_weight(FontWeight::MEDIUM)
+                            .bg(theme::accent_tint())
+                            .text_color(rgb(ACCENT_BLUE))
+                            .child(tr!("Customized")),
+                    )
+                })
+                .when(!is_customized, |this| {
+                    this.child(
+                        div()
+                            .px_2()
+                            .py_0p5()
+                            .rounded_full()
+                            .text_caption()
+                            .bg(pal.control)
+                            .text_color(pal.text_muted)
+                            .child(tr!("Default")),
+                    )
+                })
+                // Reset to default button
+                .child(
+                    Button::new("function-row-reset-btn")
+                        .ghost()
+                        .compact()
+                        .disabled(!is_customized)
+                        .label(tr!("Reset to default"))
+                        .on_click(move |_event, _window, cx| {
+                            AppState::update(cx, |state, cx| {
+                                let key = state.current_record().map(DeviceRecord::device_key);
+                                state.commit_keyboard_binding(trigger.clone(), None);
+                                if let Some(key) = key {
+                                    cx.emit(StateEvent::BindingsChanged(key));
+                                }
+                            });
+                            view_reset.update(cx, |_, vcx| vcx.notify());
+                        }),
+                ),
+        )
 }
 
 /// The action rows + a Power User section, mirroring the picker's list but
 /// adapted for the panel context (no popover dismissal).
 fn panel_action_rows(
+    query: &str,
     current: Option<&Action>,
     on_pick: &PickFn,
     view: &Entity<FunctionRowView>,
     pal: &Palette,
     cx: &App,
 ) -> Vec<gpui::Div> {
-    let mut children = action_rows("panel-action", current, on_pick, None, *pal, cx);
+    let view_pw = view.clone();
+    let current_action = current.cloned();
+    let on_open_power_user: OpenPowerUserFn = std::rc::Rc::new(move |kind, window, cx| {
+        view_pw.update(cx, |v, cx| {
+            v.power_user.open(kind, current_action.as_ref(), window, cx);
+            cx.notify();
+        });
+    });
 
-    let power_user_actions: &[(PowerUserKind, &str, &'static str)] = &[
-        (
-            PowerUserKind::TypeText,
-            "Type Text…",
-            "action-icons/keyboard.svg",
-        ),
-        (
-            PowerUserKind::RunAppleScript,
-            "Run AppleScript…",
-            "action-icons/terminal.svg",
-        ),
-        (
-            PowerUserKind::RunShellCommand,
-            "Run Shell Command…",
-            "action-icons/terminal.svg",
-        ),
-        (
-            PowerUserKind::Workflow,
-            "Workflow…",
-            "action-icons/list-checks.svg",
-        ),
-    ];
+    let view_edit = view.clone();
+    let on_edit: crate::features::mouse::picker::EditFn =
+        std::rc::Rc::new(move |entry, window, cx| {
+            view_edit.update(cx, |v, cx| {
+                v.open_shortcut_builder_with(
+                    Some(entry.id),
+                    &entry.name,
+                    Some(&entry.target),
+                    entry.icon,
+                    window,
+                    cx,
+                );
+                cx.notify();
+            });
+        });
 
-    children.push(
-        v_flex()
-            .child(editor_section(tr!("Power User").to_string(), *pal))
-            .children(power_user_actions.iter().enumerate().map(
-                |(idx, (kind, label, icon_path))| {
-                    let kind = *kind;
-                    let view = view.clone();
-                    let selected = matches!(
-                        (current, kind),
-                        (Some(Action::TypeText(_)), PowerUserKind::TypeText)
-                            | (
-                                Some(Action::RunAppleScript(_)),
-                                PowerUserKind::RunAppleScript
-                            )
-                            | (
-                                Some(Action::RunShellCommand(_)),
-                                PowerUserKind::RunShellCommand
-                            )
-                            | (Some(Action::Workflow(_)), PowerUserKind::Workflow)
-                    );
-                    MenuRow::new(format!("panel-power-{idx}"))
-                        .selected(selected)
-                        .role(Role::MenuItem)
-                        .child(
-                            h_flex()
-                                .items_center()
-                                .gap_2()
-                                .child(
-                                    svg()
-                                        .path(*icon_path)
-                                        .size_4()
-                                        .flex_none()
-                                        .text_color(pal.text_muted),
-                                )
-                                .child(div().child((*label).to_string())),
-                        )
-                        .when(selected, |s| {
-                            s.child(
-                                gpui_component::Icon::new(gpui_component::IconName::Check)
-                                    .size_3()
-                                    .text_color(rgb(ACCENT_BLUE)),
-                            )
-                        })
-                        .on_click(move |_ev, _window, cx| {
-                            view.update(cx, |v, vcx| v.open_editor(kind, vcx));
-                        })
-                },
-            )),
-    );
-    children
+    ActionLibrary::new("panel-action", on_pick)
+        .current(current)
+        .query(query)
+        .on_edit(Some(&on_edit))
+        .on_open_power_user(Some(on_open_power_user))
+        .build_rows(*pal, cx)
 }
 
 #[derive(Clone, Copy, Debug)]

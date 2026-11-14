@@ -644,3 +644,56 @@ fn scroll_actions_lower_to_unit_direction() {
         Effect::Scroll { dx: 1, dy: 0 }
     );
 }
+
+#[test]
+fn saved_shortcut_lowers_all_six_target_variants() {
+    let shortcut = Action::SavedShortcut {
+        id: "s1".into(),
+        name: "Copy".into(),
+        target: ActionTarget::Shortcut("cmd+c".parse().unwrap()),
+        icon: None,
+    };
+    assert_matches!(shortcut.effect(), Effect::Key(_));
+
+    let app = Action::SavedShortcut {
+        id: "s2".into(),
+        name: "Safari".into(),
+        target: ActionTarget::Application(
+            ApplicationTarget::new("/Applications/Safari.app", "").unwrap(),
+        ),
+        icon: None,
+    };
+    assert_matches!(app.effect(), Effect::AgentSide);
+
+    let text = Action::SavedShortcut {
+        id: "s3".into(),
+        name: "Text".into(),
+        target: ActionTarget::Text("hello".into()),
+        icon: None,
+    };
+    assert_matches!(text.effect(), Effect::Text("hello"));
+
+    let script = Action::SavedShortcut {
+        id: "s4".into(),
+        name: "Script".into(),
+        target: ActionTarget::AppleScript("beep".into()),
+        icon: None,
+    };
+    assert_matches!(script.effect(), Effect::Script(Script::AppleScript("beep")));
+
+    let shell = Action::SavedShortcut {
+        id: "s5".into(),
+        name: "Shell".into(),
+        target: ActionTarget::Shell("date".into()),
+        icon: None,
+    };
+    assert_matches!(shell.effect(), Effect::Script(Script::ShellCommand("date")));
+
+    let workflow = Action::SavedShortcut {
+        id: "s6".into(),
+        name: "Workflow".into(),
+        target: ActionTarget::Workflow(vec![]),
+        icon: None,
+    };
+    assert_matches!(workflow.effect(), Effect::Script(Script::Workflow(&[])));
+}

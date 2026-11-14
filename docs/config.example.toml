@@ -1,5 +1,5 @@
 # OpenLogi configuration example. Copy only the sections you need.
-schema_version = 7
+schema_version = 8
 selected_device = "receiver:aabbccdd:slot:1"
 
 [app_settings]
@@ -123,3 +123,27 @@ dpi = 800
 [keyboard.bindings]
 f1 = "MissionControl"
 "shift+command+f5" = "ShowDesktop"
+
+# Global custom actions library, available across devices, keys, and radial rings.
+[[custom_shortcuts]]
+id = "paste-special"
+name = "Paste and Match Style"
+target = { Shortcut = "Cmd+Shift+Option+V" }
+icon = "Keyboard"
+
+[[custom_shortcuts]]
+id = "open-safari"
+name = "Safari"
+target = { Application = { path = "/Applications/Safari.app", display_name = "Safari" } }
+icon = "Applications"
+
+[[custom_shortcuts]]
+id = "greet"
+name = "Type Greeting"
+target = { Text = "Hello from OpenLogi!" }
+
+[[custom_shortcuts]]
+id = "backup-cmd"
+name = "Run Backup"
+target = { Shell = "rsync -av ~/Docs /Volumes/Backup" }
+icon = "Terminal"

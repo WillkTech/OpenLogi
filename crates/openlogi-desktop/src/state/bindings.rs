@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use gpui::App;
-use openlogi_core::binding::{Action, Binding, ButtonId, GestureDirection};
+use gpui::{App, Context};
+use openlogi_core::binding::{Action, Binding, ButtonId, GestureDirection, default_binding};
 use openlogi_core::bindings::{bindings_for, hidpp_gesture_maps_for, oshook_gestures_for};
 use openlogi_core::config::{Config, KeyTrigger};
 use tracing::debug;
@@ -231,6 +231,32 @@ impl AppState {
     /// nothing to inherit from.
     pub fn clear_app_binding(&mut self, button: ButtonId) {
         self.clear_app_bindings([button]);
+    }
+
+    /// Reset `button` to default behavior. In a per-app profile, drops the override
+    /// so the button inherits the global binding. In the global profile, removes the
+    /// persisted binding and restores native hardware default pass-through.
+    pub fn reset_binding(&mut self, button: ButtonId) {
+        if self.editing_app().is_some() {
+            self.clear_app_binding(button);
+            return;
+        }
+
+        let Some(key) = self
+            .current_record()
+            .and_then(DeviceRecord::persistent_config_key)
+            .map(str::to_string)
+        else {
+            return;
+        };
+
+        self.config
+            .edit(|config| config.remove_binding(&key, button));
+        self.bindings
+            .button_bindings
+            .insert(button, default_binding(button));
+        self.refresh_binding_projections();
+        self.persist_and_reload("reset button binding");
     }
 
     /// Drop both halves of a thumb-wheel override together.
@@ -548,15 +574,29 @@ impl AppState {
     }
 
     /// Commit or update a custom shortcut.
-    pub fn commit_custom_shortcut(&mut self, entry: openlogi_core::config::CustomShortcutEntry) {
+    pub fn commit_custom_shortcut(
+        &mut self,
+        entry: openlogi_core::config::CustomShortcutEntry,
+        cx: &mut Context<Self>,
+    ) {
         self.config
             .edit(|config| config.save_custom_shortcut(entry));
+        self.restore_binding_projections();
         self.persist_and_reload("custom shortcut");
+        if let Some(key) = self.current_record().map(DeviceRecord::device_key) {
+            cx.emit(StateEvent::BindingsChanged(key));
+        }
+        cx.emit(StateEvent::CustomShortcutsChanged);
     }
 
     /// Delete a custom shortcut by ID.
-    pub fn delete_custom_shortcut(&mut self, id: &str) {
+    pub fn delete_custom_shortcut(&mut self, id: &str, cx: &mut Context<Self>) {
         self.config.edit(|config| config.delete_custom_shortcut(id));
+        self.restore_binding_projections();
         self.persist_and_reload("delete custom shortcut");
+        if let Some(key) = self.current_record().map(DeviceRecord::device_key) {
+            cx.emit(StateEvent::BindingsChanged(key));
+        }
+        cx.emit(StateEvent::CustomShortcutsChanged);
     }
 }

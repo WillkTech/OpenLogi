@@ -1,23 +1,21 @@
 //! Eight-slot Actions Ring editor for the active device.
 
-mod action_icons;
 mod editor;
 
 use gpui::{
-    App, AppContext as _, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    ParentElement, Render, ScrollHandle, SharedString, StatefulInteractiveElement as _, Styled,
-    Subscription, Window, div, prelude::FluentBuilder as _, px, rgb, svg,
+    App, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement, ParentElement,
+    Render, ScrollHandle, StatefulInteractiveElement as _, Styled, Subscription, Window, div,
+    prelude::FluentBuilder as _, px, rgb, svg,
 };
 use gpui_base::Button as BaseButton;
 use gpui_component::{
-    Icon, IconName, Selectable as _, button::Button, h_flex, input::InputState, tooltip::Tooltip,
-    v_flex,
+    Icon, IconName, Selectable as _, button::Button, h_flex, tooltip::Tooltip, v_flex,
 };
 use openlogi_core::binding::{ActionRingEntry, ActionRingIcon, ActionRingLayout, ActionRingSlot};
 
-use self::action_icons::action_icon_path;
 use self::editor::action_library;
 use crate::state::{AppState, DeviceRecord, StateEvent};
+use crate::ui::action::action_icon_path;
 use crate::ui::theme::{self, Palette, Typography as _};
 
 /// Stateful Actions Ring editor. Ring configuration itself lives in
@@ -25,8 +23,6 @@ use crate::ui::theme::{self, Palette, Typography as _};
 pub struct ActionRingPanel {
     focus_handle: FocusHandle,
     selected_slot: ActionRingSlot,
-    application_input: Option<Entity<InputState>>,
-    shortcut_input: Option<Entity<InputState>>,
     library_scroll: ScrollHandle,
     shortcut_builder: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
     #[expect(dead_code, reason = "held to keep the AppState subscription alive")]
@@ -38,7 +34,9 @@ impl ActionRingPanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let state_obs = cx.subscribe(&AppState::global(cx), |_, _, event: &StateEvent, cx| {
             let relevant = match event {
-                StateEvent::InventoryChanged | StateEvent::DeviceSelected(_) => true,
+                StateEvent::InventoryChanged
+                | StateEvent::DeviceSelected(_)
+                | StateEvent::CustomShortcutsChanged => true,
                 StateEvent::BindingsChanged(key) => AppState::try_read(cx)
                     .and_then(AppState::current_record)
                     .is_some_and(|record| record.device_key() == *key),
@@ -51,8 +49,6 @@ impl ActionRingPanel {
         Self {
             focus_handle: cx.focus_handle(),
             selected_slot: ActionRingSlot::Top,
-            application_input: None,
-            shortcut_input: None,
             library_scroll: ScrollHandle::new(),
             shortcut_builder: None,
             state_obs,
@@ -70,43 +66,26 @@ impl ActionRingPanel {
         cx: &mut Context<Self>,
     ) {
         let view = cx.entity();
-        let modal = cx.new(|cx| {
-            let mut m = crate::ui::shortcut_builder::ShortcutBuilderModal::new(
-                existing_id,
-                name,
-                target,
-                icon,
-                window,
-                cx,
-            );
-            let view_save = view.clone();
-            m.on_save = Some(std::rc::Rc::new(
-                move |id, name, target, icon, _window, cx| {
-                    let entry = openlogi_core::config::CustomShortcutEntry {
-                        id,
-                        name,
-                        target,
-                        icon,
-                    };
-                    AppState::update(cx, |state, _cx| {
-                        state.commit_custom_shortcut(entry);
-                    });
-                    view_save.update(cx, |view, cx| {
-                        view.close_shortcut_builder();
-                        cx.notify();
-                    });
-                },
-            ));
-            let view_cancel = view.clone();
-            m.on_cancel = Some(std::rc::Rc::new(move |_window, cx| {
-                view_cancel.update(cx, |view, cx| {
+        let modal = crate::ui::shortcut_builder::ShortcutBuilderModal::open_for_app(
+            existing_id,
+            name,
+            target,
+            icon,
+            move |_window, cx| {
+                view.update(cx, |view, cx| {
                     view.close_shortcut_builder();
                     cx.notify();
                 });
-            }));
-            m
-        });
+            },
+            window,
+            cx,
+        );
         self.shortcut_builder = Some(modal);
+    }
+
+    /// Open blank shortcut builder modal.
+    pub fn open_shortcut_builder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_shortcut_builder_with(None, "", None, None, window, cx);
     }
 
     /// Close the shortcut builder modal.
@@ -122,28 +101,12 @@ impl Focusable for ActionRingPanel {
 }
 
 impl Render for ActionRingPanel {
-    #[expect(
-        clippy::too_many_lines,
-        reason = "renders action ring panel layout and controls"
-    )]
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let pal = theme::palette(cx);
         let ring = AppState::try_read(cx)
             .map(AppState::current_action_ring)
             .unwrap_or_default();
         let haptics_supported = current_device_supports_haptics(cx);
-        let application_input = editor_input(
-            &mut self.application_input,
-            tr!("Application, folder path, or URL"),
-            window,
-            cx,
-        );
-        let shortcut_input = editor_input(
-            &mut self.shortcut_input,
-            tr!("Shortcut, e.g. Cmd+Shift+P"),
-            window,
-            cx,
-        );
         let view = cx.entity();
 
         div()
@@ -173,8 +136,6 @@ impl Render for ActionRingPanel {
                             .child(action_library(
                                 self.selected_slot,
                                 ring.default.slots.get(&self.selected_slot),
-                                &application_input,
-                                &shortcut_input,
                                 &self.library_scroll,
                                 &view,
                                 pal,
@@ -242,17 +203,6 @@ impl Render for ActionRingPanel {
                 )
             })
     }
-}
-
-fn editor_input(
-    state: &mut Option<Entity<InputState>>,
-    placeholder: impl Into<SharedString>,
-    window: &mut Window,
-    cx: &mut Context<ActionRingPanel>,
-) -> Entity<InputState> {
-    state
-        .get_or_insert_with(|| cx.new(|cx| InputState::new(window, cx).placeholder(placeholder)))
-        .clone()
 }
 
 fn current_device_supports_haptics(cx: &Context<ActionRingPanel>) -> bool {

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openlogi_camera::Camera;
-use openlogi_core::binding::{Action, Binding, ButtonId};
+use openlogi_core::binding::{Action, Binding, ButtonId, default_binding};
 use openlogi_core::config::{
     Config, DeviceIdentity, LightSettings, Lighting, ScrollResolution, ThumbwheelSensitivity,
     VerticalScrollSensitivity,
@@ -509,6 +509,39 @@ fn clearing_an_override_falls_back_to_the_global_binding() {
             .per_app_overrides(KNOWN_MOUSE_KEY, "com.apple.Safari")
             .is_none(),
         "an emptied profile is pruned, not left behind"
+    );
+}
+
+#[test]
+fn reset_binding_clears_per_app_or_restores_default() {
+    let mut state = state_with_a_known_mouse();
+    state.commit_binding(ButtonId::Forward, Action::Copy);
+    state.set_editing_app(Some("com.apple.Safari".into()));
+    state.commit_binding(ButtonId::Forward, Action::Paste);
+    assert_eq!(
+        state.button_bindings().get(&ButtonId::Forward),
+        Some(&Action::Paste)
+    );
+
+    // 1. In per-app mode, reset_binding delegates to clear_app_binding
+    state.reset_binding(ButtonId::Forward);
+    assert_eq!(
+        state.button_bindings().get(&ButtonId::Forward),
+        Some(&Action::Copy),
+        "in app profile, reset_binding drops override and inherits global"
+    );
+
+    // 2. In global mode, reset_binding removes binding and restores default
+    state.set_editing_app(None);
+    assert_eq!(
+        state.button_bindings().get(&ButtonId::Forward),
+        Some(&Action::Copy)
+    );
+    state.reset_binding(ButtonId::Forward);
+    assert_eq!(
+        state.button_bindings().get(&ButtonId::Forward),
+        Some(&default_binding(ButtonId::Forward)),
+        "in global profile, reset_binding removes binding and restores native default"
     );
 }
 

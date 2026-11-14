@@ -19,11 +19,10 @@ use openlogi_core::device::k270::K270MediaKey;
 
 use super::geometry::{K270_ASPECT_RATIO, K270_HOTSPOTS, K270Hotspot};
 use crate::app_assets::K270_MEDIAKEYS;
-use crate::features::mouse::picker::{
-    PickFn, action_icon_path, action_rows_matching, editor_scroll_list,
-};
+use crate::features::mouse::picker::{EditFn, PickFn, editor_scroll_list};
 use crate::state::{AppState, DeviceRecord, StateEvent};
-use crate::ui::action::localized_action_label;
+use crate::ui::action::{action_icon_path, localized_action_label};
+use crate::ui::action_library::{ActionLibrary, OpenPowerUserFn, editor_section};
 use crate::ui::components::control_button;
 use crate::ui::theme::{self, ACCENT_BLUE, Palette, Typography as _};
 
@@ -40,6 +39,8 @@ pub struct K270MediaKeysView {
     search_query: String,
     /// Search input entity.
     search_state: Option<Entity<InputState>>,
+    shortcut_builder: Option<Entity<crate::ui::shortcut_builder::ShortcutBuilderModal>>,
+    pub(crate) power_user: crate::ui::power_user::PowerUserEditorState,
     _subscription: Subscription,
 }
 
@@ -63,7 +64,8 @@ impl K270MediaKeysView {
             |_this, _state, event: &StateEvent, cx| match event {
                 StateEvent::DeviceSelected(_)
                 | StateEvent::DeviceConfigChanged(_)
-                | StateEvent::InventoryChanged => {
+                | StateEvent::InventoryChanged
+                | StateEvent::CustomShortcutsChanged => {
                     cx.notify();
                 }
                 _ => {}
@@ -74,6 +76,8 @@ impl K270MediaKeysView {
             selected_key: Some(K270MediaKey::PlayPause),
             search_query: String::new(),
             search_state: Some(search_state),
+            shortcut_builder: None,
+            power_user: crate::ui::power_user::PowerUserEditorState::default(),
             _subscription: Subscription::new(move || {
                 drop(search_sub);
                 drop(state_sub);
@@ -81,9 +85,48 @@ impl K270MediaKeysView {
         }
     }
 
+    /// Open shortcut builder modal pre-filled with target and icon.
+    pub fn open_shortcut_builder_with(
+        &mut self,
+        existing_id: Option<String>,
+        name: &str,
+        target: Option<&openlogi_core::binding::ActionTarget>,
+        icon: Option<openlogi_core::binding::ActionRingIcon>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let view = cx.entity();
+        let modal = crate::ui::shortcut_builder::ShortcutBuilderModal::open_for_app(
+            existing_id,
+            name,
+            target,
+            icon,
+            move |_window, cx| {
+                view.update(cx, |view, cx| {
+                    view.close_shortcut_builder();
+                    cx.notify();
+                });
+            },
+            window,
+            cx,
+        );
+        self.shortcut_builder = Some(modal);
+    }
+
+    /// Open blank shortcut builder modal.
+    pub fn open_shortcut_builder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_shortcut_builder_with(None, "", None, None, window, cx);
+    }
+
+    /// Close the shortcut builder modal.
+    pub fn close_shortcut_builder(&mut self) {
+        self.shortcut_builder = None;
+    }
+
     /// Select a key for inspection and editing.
     pub fn select_key(&mut self, key: K270MediaKey, cx: &mut Context<Self>) {
         self.selected_key = Some(key);
+        self.power_user.close();
         cx.notify();
     }
 
@@ -101,39 +144,56 @@ impl Render for K270MediaKeysView {
         let selected = self.selected_key;
         let view_entity = cx.entity();
 
-        v_flex()
+        div()
+            .relative()
             .w_full()
-            .items_center()
-            .gap_6()
-            .py_6()
-            .px_4()
-            // 1. Header & description
             .child(
                 v_flex()
+                    .w_full()
                     .items_center()
-                    .gap_1()
+                    .gap_6()
+                    .py_6()
+                    .px_4()
+                    // 1. Header & description
                     .child(
-                        div()
-                            .text_heading()
-                            .child(tr!("Media keys")),
+                        v_flex()
+                            .items_center()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_heading()
+                                    .child(tr!("Media keys")),
+                            )
+                            .child(
+                                div()
+                                    .text_caption()
+                                    .text_color(pal.text_muted)
+                                    .child(tr!(
+                                        "Customize the eight dedicated media and shortcut keys on your Wireless Keyboard K270."
+                                    )),
+                            ),
                     )
-                    .child(
-                        div()
-                            .text_caption()
-                            .text_color(pal.text_muted)
-                            .child(tr!(
-                                "Customize the eight dedicated media and shortcut keys on your Wireless Keyboard K270."
-                            )),
-                    ),
+                    // 2. Interactive keyboard diagram
+                    .child(render_diagram(selected, &view_entity, pal, cx))
+                    // 3. Key assignment editor & inspector
+                    .when_some(selected, |parent, key| {
+                        parent.child(render_inspector(key, self, pal, cx))
+                    })
+                    // 4. Reset all keys section
+                    .child(render_reset_all_section(pal)),
             )
-            // 2. Interactive keyboard diagram
-            .child(render_diagram(selected, &view_entity, pal, cx))
-            // 3. Key assignment editor & inspector
-            .when_some(selected, |parent, key| {
-                parent.child(render_inspector(key, self, pal, cx))
+            .when_some(self.shortcut_builder.clone(), |parent, modal_entity| {
+                parent.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .bg(gpui::rgba(0x0000_0088))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(div().w(px(460.0)).max_w(px(520.0)).child(modal_entity)),
+                )
             })
-            // 4. Reset all keys section
-            .child(render_reset_all_section(pal))
     }
 }
 
@@ -278,6 +338,43 @@ fn render_inspector(
     pal: Palette,
     cx: &mut Context<K270MediaKeysView>,
 ) -> impl IntoElement {
+    if view.power_user.is_open() {
+        let view_entity = cx.entity();
+        let view_close = view_entity.clone();
+        let view_commit = view_entity.clone();
+        let view_promote = view_entity.clone();
+        let on_promote: crate::ui::power_user::PromoteActionFn =
+            std::sync::Arc::new(move |target, window, cx| {
+                view_promote.update(cx, |v, cx| {
+                    v.power_user.close();
+                    v.open_shortcut_builder_with(None, "", Some(&target), None, window, cx);
+                    cx.notify();
+                });
+            });
+        return view
+            .power_user
+            .render_card_with_promote(
+                &tr!(key.label_key()),
+                move |action, _window, cx| {
+                    commit_media_key(key, Some(action), cx);
+                    view_commit.update(cx, |v, cx| {
+                        v.power_user.close();
+                        cx.notify();
+                    });
+                },
+                move |_window, cx| {
+                    view_close.update(cx, |v, cx| {
+                        v.power_user.close();
+                        cx.notify();
+                    });
+                },
+                Some(on_promote),
+                pal,
+                cx,
+            )
+            .w(px(INSPECTOR_W));
+    }
+
     let app_state = AppState::try_read(cx);
     let is_customized = app_state.is_some_and(|s| s.is_k270_media_key_customized(key));
     let effective_action = app_state.map_or_else(
@@ -288,6 +385,32 @@ fn render_inspector(
 
     let on_pick: PickFn = Rc::new(move |action, _window, cx| {
         commit_media_key(key, Some(action), cx);
+    });
+
+    let view_entity = cx.entity();
+    let view_edit = view_entity.clone();
+    let on_edit: EditFn = Rc::new(move |entry, window, cx| {
+        view_edit.update(cx, |view, cx| {
+            view.open_shortcut_builder_with(
+                Some(entry.id),
+                &entry.name,
+                Some(&entry.target),
+                entry.icon,
+                window,
+                cx,
+            );
+            cx.notify();
+        });
+    });
+    let view_new = view_entity.clone();
+    let view_pw = view_entity.clone();
+    let current_action_for_pw = effective_action.clone();
+    let on_open_power_user: OpenPowerUserFn = Rc::new(move |kind, window, cx| {
+        view_pw.update(cx, |view, cx| {
+            view.power_user
+                .open(kind, Some(&current_action_for_pw), window, cx);
+            cx.notify();
+        });
     });
 
     let search_input = view.search_state.clone();
@@ -446,6 +569,25 @@ fn render_inspector(
                     )
                 }),
         )
+        // Actions header with + New Shortcut button
+        .child(
+            h_flex()
+                .justify_between()
+                .items_center()
+                .px_1()
+                .child(editor_section(tr!("Actions"), pal))
+                .child(
+                    Button::new("k270-new-shortcut-btn")
+                        .compact()
+                        .ghost()
+                        .label(tr!("+ New Shortcut"))
+                        .on_click(move |_, window, cx| {
+                            view_new.update(cx, |view, cx| {
+                                view.open_shortcut_builder(window, cx);
+                            });
+                        }),
+                ),
+        )
         // Action picker search bar
         .when_some(search_input, |parent, input| {
             parent.child(
@@ -458,15 +600,12 @@ fn render_inspector(
         .child(
             editor_scroll_list(
                 "k270-action-picker-list",
-                action_rows_matching(
-                    "k270-action-row",
-                    Some(&effective_action),
-                    &query,
-                    &on_pick,
-                    None,
-                    pal,
-                    cx,
-                ),
+                ActionLibrary::new("k270-action-row", &on_pick)
+                    .current(Some(&effective_action))
+                    .query(&query)
+                    .on_edit(Some(&on_edit))
+                    .on_open_power_user(Some(on_open_power_user))
+                    .build_rows(pal, cx),
             ),
         )
 }

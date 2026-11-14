@@ -545,7 +545,7 @@ pub mod k270 {
             }
         }
 
-        /// Convert this media key to its runtime [`KeyTrigger`].
+        /// Convert this media key to its runtime [`crate::config::KeyTrigger`].
         #[must_use]
         pub fn to_key_trigger(self) -> crate::config::KeyTrigger {
             crate::config::KeyTrigger {

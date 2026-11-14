@@ -99,6 +99,8 @@ pub(crate) enum StateEvent {
     DeviceSelected(DeviceKey),
     /// Mouse, keyboard, gesture, or Actions Ring bindings changed.
     BindingsChanged(DeviceKey),
+    /// Saved custom shortcuts / actions changed.
+    CustomShortcutsChanged,
     /// DPI data or the active DPI value changed.
     DpiChanged(DeviceKey),
     /// SmartShift data or write status changed.

@@ -1,3 +1,5 @@
+> Superseded by [custom_actions_ui_unification_plan.md](custom_actions_ui_unification_plan.md)
+
 # Custom Shortcuts & Power User — UI Investigation and Redevelopment Plan
 
 Status: **draft for discussion** (no code changed by this document).

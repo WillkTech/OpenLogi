@@ -96,6 +96,8 @@ use settings::GestureOwner;
 /// persisted shape or enum vocabulary changes; readers inspect this value
 /// before consuming the rest of the file.
 ///
+/// v8 expands `ActionTarget` to include `Text`, `AppleScript`, `Shell`, and `Workflow`.
+///
 /// v7 extends `CustomShortcutEntry` and `Action::SavedShortcut` to use `ActionTarget`,
 /// unifying key chords and application/folder launch targets under custom shortcuts.
 ///
@@ -136,7 +138,7 @@ use settings::GestureOwner;
 /// next save; [`Config::load_from_path`] accepts supported versions `1` through
 /// [`SCHEMA_VERSION`] so an invalid or forward file fails loudly instead of
 /// silently losing bindings.
-pub const SCHEMA_VERSION: u32 = 7;
+pub const SCHEMA_VERSION: u32 = 8;
 
 /// Top-level config document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,7 +182,11 @@ pub struct Config {
     pub keyboard: KeyboardConfig,
     /// User-created named custom shortcuts globally accessible across all devices
     /// and radial action ring slots.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        alias = "custom_actions"
+    )]
     pub custom_shortcuts: Vec<CustomShortcutEntry>,
 }
 
@@ -231,6 +237,16 @@ impl Config {
             .or_default()
             .bindings
             .insert(button, binding);
+    }
+
+    /// Removes `button` from `devices[device_key].bindings` so capture plan
+    /// treats the control as its native hardware default. Returns true if an entry was removed.
+    pub fn remove_binding(&mut self, device_key: &str, button: ButtonId) -> bool {
+        if let Some(device) = self.devices.get_mut(device_key) {
+            device.bindings.remove(&button).is_some()
+        } else {
+            false
+        }
     }
 
     /// Records (or, with `action = None`, clears) the F-key `trigger` binding
@@ -1075,8 +1091,10 @@ impl Config {
         &self.custom_shortcuts
     }
 
-    /// Save or overwrite a custom shortcut entry.
+    /// Save or overwrite a custom shortcut entry, cascading updates to all active
+    /// bindings, gesture maps, per-app overlays, media keys, and ring slots.
     pub fn save_custom_shortcut(&mut self, entry: CustomShortcutEntry) {
+        self.cascade_custom_shortcut_update(&entry);
         if let Some(existing) = self
             .custom_shortcuts
             .iter_mut()
@@ -1088,11 +1106,274 @@ impl Config {
         }
     }
 
-    /// Delete a custom shortcut by its unique ID.
+    /// Delete a custom shortcut by its unique ID, cascading deletion across all
+    /// bindings, gesture directions, per-app overlays, media keys, and ring slots.
     pub fn delete_custom_shortcut(&mut self, id: &str) -> bool {
         let initial_len = self.custom_shortcuts.len();
         self.custom_shortcuts.retain(|entry| entry.id != id);
-        self.custom_shortcuts.len() != initial_len
+        let removed = self.custom_shortcuts.len() != initial_len;
+        self.cascade_custom_shortcut_delete(id);
+        removed
+    }
+
+    /// Cascade updates to all active bindings, gesture maps, per-app overlays,
+    /// media keys, function keys, and Action Ring slots using the custom shortcut `entry.id`.
+    pub fn cascade_custom_shortcut_update(&mut self, entry: &CustomShortcutEntry) {
+        for device in self.devices.values_mut() {
+            for binding in device.bindings.values_mut() {
+                update_binding_if_matching(binding, entry);
+            }
+            for map in device.disabled_gestures.values_mut() {
+                for action in map.values_mut() {
+                    update_action_if_matching(action, entry);
+                }
+            }
+            for map in device.per_app_bindings.values_mut() {
+                for action in map.values_mut() {
+                    update_action_if_matching(action, entry);
+                }
+            }
+            for action in device.media_keys.values_mut() {
+                update_action_if_matching(action, entry);
+            }
+            update_layout_saved_shortcut(&mut device.action_ring.default, entry);
+            for layout in device.action_ring.per_app.values_mut() {
+                update_layout_saved_shortcut(layout, entry);
+            }
+        }
+
+        for action in self.keyboard.bindings.values_mut() {
+            update_action_if_matching(action, entry);
+        }
+    }
+
+    /// Cascade deletion of custom shortcut `id` across all device bindings, gesture maps,
+    /// per-app overlays, media keys, function keys, and Action Ring slots.
+    ///
+    /// - In sparse maps (`keyboard.bindings`, `device.media_keys`, `device.per_app_bindings`,
+    ///   `action_ring.default.slots`, `action_ring.per_app[*].slots`), removes the entry.
+    /// - In `device.bindings`:
+    ///   - `Single` or `LongPress` matching `id`: removes the button binding (returning to default).
+    ///   - `Gesture`: resets the matching direction action to `default_gesture_binding(dir)`.
+    /// - In `device.disabled_gestures`: resets the matching direction action to `default_gesture_binding(dir)`.
+    ///
+    /// Returns the number of bindings/slots cleared or reset.
+    pub fn cascade_custom_shortcut_delete(&mut self, id: &str) -> usize {
+        let mut affected = 0;
+
+        for device in self.devices.values_mut() {
+            // device.bindings
+            device.bindings.retain(|_button, binding| match binding {
+                Binding::Single(action) => {
+                    if action_matches_id(action, id) {
+                        affected += 1;
+                        false
+                    } else {
+                        true
+                    }
+                }
+                Binding::Gesture(map) => {
+                    for (dir, action) in map.iter_mut() {
+                        if action_matches_id(action, id) {
+                            *action = default_gesture_binding(*dir);
+                            affected += 1;
+                        }
+                    }
+                    true
+                }
+                Binding::LongPress(lp) => {
+                    if action_matches_id(lp.short(), id) || action_matches_id(lp.long(), id) {
+                        affected += 1;
+                        false
+                    } else {
+                        true
+                    }
+                }
+            });
+
+            // device.disabled_gestures
+            for map in device.disabled_gestures.values_mut() {
+                for (dir, action) in map.iter_mut() {
+                    if action_matches_id(action, id) {
+                        *action = default_gesture_binding(*dir);
+                        affected += 1;
+                    }
+                }
+            }
+
+            // device.per_app_bindings
+            for map in device.per_app_bindings.values_mut() {
+                let prev_len = map.len();
+                map.retain(|_, action| !action_matches_id(action, id));
+                affected += prev_len - map.len();
+            }
+
+            // device.media_keys
+            let prev_media_len = device.media_keys.len();
+            device
+                .media_keys
+                .retain(|_, action| !action_matches_id(action, id));
+            affected += prev_media_len - device.media_keys.len();
+
+            // device.action_ring.default.slots
+            let prev_ring_len = device.action_ring.default.slots.len();
+            device
+                .action_ring
+                .default
+                .slots
+                .retain(|_, slot_entry| !action_matches_id(slot_entry.action(), id));
+            affected += prev_ring_len - device.action_ring.default.slots.len();
+
+            // device.action_ring.per_app
+            for layout in device.action_ring.per_app.values_mut() {
+                let prev_layout_len = layout.slots.len();
+                layout
+                    .slots
+                    .retain(|_, slot_entry| !action_matches_id(slot_entry.action(), id));
+                affected += prev_layout_len - layout.slots.len();
+            }
+        }
+
+        // self.keyboard.bindings
+        let prev_kbd_len = self.keyboard.bindings.len();
+        self.keyboard
+            .bindings
+            .retain(|_, action| !action_matches_id(action, id));
+        affected += prev_kbd_len - self.keyboard.bindings.len();
+
+        affected
+    }
+
+    /// Count the total number of active references to custom shortcut `id` across all
+    /// device bindings, gesture directions, per-app overlays, media keys, function keys,
+    /// and Action Ring slots.
+    #[must_use]
+    pub fn count_custom_shortcut_usages(&self, id: &str) -> usize {
+        let mut count = 0;
+
+        for device in self.devices.values() {
+            for binding in device.bindings.values() {
+                match binding {
+                    Binding::Single(action) => {
+                        if action_matches_id(action, id) {
+                            count += 1;
+                        }
+                    }
+                    Binding::Gesture(map) => {
+                        for action in map.values() {
+                            if action_matches_id(action, id) {
+                                count += 1;
+                            }
+                        }
+                    }
+                    Binding::LongPress(lp) => {
+                        if action_matches_id(lp.short(), id) {
+                            count += 1;
+                        }
+                        if action_matches_id(lp.long(), id) {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+
+            for map in device.disabled_gestures.values() {
+                for action in map.values() {
+                    if action_matches_id(action, id) {
+                        count += 1;
+                    }
+                }
+            }
+
+            for map in device.per_app_bindings.values() {
+                for action in map.values() {
+                    if action_matches_id(action, id) {
+                        count += 1;
+                    }
+                }
+            }
+
+            for action in device.media_keys.values() {
+                if action_matches_id(action, id) {
+                    count += 1;
+                }
+            }
+
+            for slot_entry in device.action_ring.default.slots.values() {
+                if action_matches_id(slot_entry.action(), id) {
+                    count += 1;
+                }
+            }
+
+            for layout in device.action_ring.per_app.values() {
+                for slot_entry in layout.slots.values() {
+                    if action_matches_id(slot_entry.action(), id) {
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        for action in self.keyboard.bindings.values() {
+            if action_matches_id(action, id) {
+                count += 1;
+            }
+        }
+
+        count
+    }
+}
+
+fn action_matches_id(action: &Action, id: &str) -> bool {
+    matches!(action, Action::SavedShortcut { id: shortcut_id, .. } if shortcut_id == id)
+}
+
+fn update_action_if_matching(action: &mut Action, entry: &CustomShortcutEntry) {
+    if let Action::SavedShortcut {
+        id,
+        name,
+        target,
+        icon,
+    } = action
+        && id == &entry.id
+    {
+        name.clone_from(&entry.name);
+        *target = entry.target.clone();
+        *icon = entry.icon;
+    }
+}
+
+fn update_binding_if_matching(binding: &mut Binding, entry: &CustomShortcutEntry) {
+    match binding {
+        Binding::Single(action) => update_action_if_matching(action, entry),
+        Binding::Gesture(map) => {
+            for action in map.values_mut() {
+                update_action_if_matching(action, entry);
+            }
+        }
+        Binding::LongPress(lp) => {
+            update_action_if_matching(lp.short_mut(), entry);
+            update_action_if_matching(lp.long_mut(), entry);
+        }
+    }
+}
+
+fn update_layout_saved_shortcut(
+    layout: &mut crate::binding::ActionRingLayout,
+    entry: &CustomShortcutEntry,
+) {
+    for slot_entry in layout.slots.values_mut() {
+        if action_matches_id(slot_entry.action(), &entry.id) {
+            let updated = Action::SavedShortcut {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                target: entry.target.clone(),
+                icon: entry.icon,
+            };
+            if let Ok(ring_act) = RingAction::new(updated) {
+                slot_entry.replace_action(ring_act);
+            }
+        }
     }
 }
 

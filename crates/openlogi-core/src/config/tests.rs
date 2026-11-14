@@ -1262,12 +1262,83 @@ icon = "Keyboard"
 }
 
 #[test]
+fn custom_actions_alias_and_all_six_target_variants_roundtrip() {
+    let toml = r#"
+schema_version = 7
+
+[[custom_actions]]
+id = "c1"
+name = "Shortcut"
+target = { Shortcut = "Cmd+C" }
+
+[[custom_actions]]
+id = "c2"
+name = "App"
+target = { Application = { path = "/Applications/Safari.app", display_name = "Safari" } }
+
+[[custom_actions]]
+id = "c3"
+name = "Text"
+target = { Text = "hello world" }
+
+[[custom_actions]]
+id = "c4"
+name = "AppleScript"
+target = { AppleScript = "display dialog \"hi\"" }
+
+[[custom_actions]]
+id = "c5"
+name = "Shell"
+target = { Shell = "echo 1" }
+
+[[custom_actions]]
+id = "c6"
+name = "Workflow"
+target = { Workflow = [{ Delay = { millis = 50 } }] }
+"#;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("config.toml");
+    fs::write(&path, toml).expect("write");
+
+    let loaded = Config::load_from_path(&path).expect("must parse v7 and alias");
+    assert_eq!(loaded.schema_version, 8);
+    assert_eq!(loaded.custom_shortcuts.len(), 6);
+    assert_eq!(
+        loaded.custom_shortcuts[0].target,
+        ActionTarget::Shortcut("Cmd+C".parse().unwrap())
+    );
+    assert_eq!(
+        loaded.custom_shortcuts[1].target,
+        ActionTarget::Application(
+            crate::binding::ApplicationTarget::new("/Applications/Safari.app", "Safari").unwrap()
+        )
+    );
+    assert_eq!(
+        loaded.custom_shortcuts[2].target,
+        ActionTarget::Text("hello world".into())
+    );
+    assert_eq!(
+        loaded.custom_shortcuts[3].target,
+        ActionTarget::AppleScript("display dialog \"hi\"".into())
+    );
+    assert_eq!(
+        loaded.custom_shortcuts[4].target,
+        ActionTarget::Shell("echo 1".into())
+    );
+    assert_eq!(
+        loaded.custom_shortcuts[5].target,
+        ActionTarget::Workflow(vec![crate::binding::WorkflowStep::Delay { millis: 50 }])
+    );
+}
+
+#[test]
 fn current_schema_rejects_unknown_and_obsolete_fields() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("config.toml");
     fs::write(
         &path,
-        "schema_version = 7\n[app_settings]\nthumbwheel_sensitivty = 14\n",
+        "schema_version = 8\n[app_settings]\nthumbwheel_sensitivty = 14\n",
     )
     .expect("write typo");
     assert_matches!(
@@ -1277,7 +1348,7 @@ fn current_schema_rejects_unknown_and_obsolete_fields() {
 
     fs::write(
         &path,
-        r#"schema_version = 7
+        r#"schema_version = 8
 [devices.mouse.identity]
 display_name = "Mouse"
 kind = "mouse"
@@ -1292,7 +1363,7 @@ capabilities = { buttons = true, pointer = true, lighting = false, scroll_invers
 
     fs::write(
         &path,
-        "schema_version = 7\n[devices.mouse]\ngesture_owner = \"Off\"\n",
+        "schema_version = 8\n[devices.mouse]\ngesture_owner = \"Off\"\n",
     )
     .expect("write obsolete field");
     assert_matches!(
@@ -1304,15 +1375,15 @@ capabilities = { buttons = true, pointer = true, lighting = false, scroll_invers
 #[test]
 fn persisted_numeric_contracts_reject_unsafe_values() {
     for body in [
-        "schema_version = 7\n[app_settings]\nthumbwheel_sensitivity = 0\n",
-        "schema_version = 7\n[app_settings]\nthumbwheel_sensitivity = 101\n",
-        "schema_version = 7\n[app_settings]\nthumbwheel_sensitivity = -2147483648\n",
-        "schema_version = 7\n[app_settings]\nvertical_scroll_sensitivity = 0\n",
-        "schema_version = 7\n[app_settings]\nvertical_scroll_sensitivity = 101\n",
-        "schema_version = 7\n[app_settings]\nvertical_scroll_sensitivity = -2147483648\n",
-        "schema_version = 7\n[devices.mouse]\nthumbwheel_sensitivity = -1\n",
-        "schema_version = 7\n[devices.mouse]\ndpi = 65536\n",
-        "schema_version = 7\n[devices.mouse]\ndpi_presets = [800, 70000]\n",
+        "schema_version = 8\n[app_settings]\nthumbwheel_sensitivity = 0\n",
+        "schema_version = 8\n[app_settings]\nthumbwheel_sensitivity = 101\n",
+        "schema_version = 8\n[app_settings]\nthumbwheel_sensitivity = -2147483648\n",
+        "schema_version = 8\n[app_settings]\nvertical_scroll_sensitivity = 0\n",
+        "schema_version = 8\n[app_settings]\nvertical_scroll_sensitivity = 101\n",
+        "schema_version = 8\n[app_settings]\nvertical_scroll_sensitivity = -2147483648\n",
+        "schema_version = 8\n[devices.mouse]\nthumbwheel_sensitivity = -1\n",
+        "schema_version = 8\n[devices.mouse]\ndpi = 65536\n",
+        "schema_version = 8\n[devices.mouse]\ndpi_presets = [800, 70000]\n",
     ] {
         assert!(toml::from_str::<Config>(body).is_err(), "accepted: {body}");
     }
@@ -1324,7 +1395,7 @@ fn tracked_save_preserves_comments_and_rejects_concurrent_edits() {
     let path = dir.path().join("config.toml");
     fs::write(
         &path,
-        "# keep this comment\nschema_version = 7\nselected_device = \"one\" # and this one\n",
+        "# keep this comment\nschema_version = 8\nselected_device = \"one\" # and this one\n",
     )
     .expect("write");
     let (mut config, mut file) = ConfigFile::load_from_path(&path).expect("load tracked");
@@ -2228,4 +2299,227 @@ fn k270_media_keys_persistence_and_isolation() {
     let reloaded_empty = write_and_read(&config);
     let toml_str = toml::to_string(&reloaded_empty).expect("toml string");
     assert!(!toml_str.contains("media_keys"));
+}
+
+fn setup_cascade_test_config() -> (Config, &'static str, KeyTrigger) {
+    use crate::binding::ActionRingEntry;
+    use crate::device::K270MediaKey;
+
+    let mut config = Config::default();
+
+    let initial = CustomShortcutEntry {
+        id: "sc_1".into(),
+        name: "Initial Name".into(),
+        target: ActionTarget::Shortcut("cmd+c".parse().unwrap()),
+        icon: None,
+    };
+    config.save_custom_shortcut(initial);
+
+    let saved_action = Action::SavedShortcut {
+        id: "sc_1".into(),
+        name: "Initial Name".into(),
+        target: ActionTarget::Shortcut("cmd+c".parse().unwrap()),
+        icon: None,
+    };
+
+    let dev_key = "device:test";
+
+    // 1. Single button binding
+    config.set_binding(
+        dev_key,
+        ButtonId::Forward,
+        Binding::Single(saved_action.clone()),
+    );
+
+    // 2. Gesture binding on gesture button
+    let mut gesture_map = BTreeMap::new();
+    gesture_map.insert(GestureDirection::Click, Action::None);
+    gesture_map.insert(GestureDirection::Up, saved_action.clone());
+    config.set_binding(
+        dev_key,
+        ButtonId::GestureButton,
+        Binding::Gesture(gesture_map),
+    );
+
+    // 3. Per-app overlay
+    let dev = config.devices.get_mut(dev_key).unwrap();
+    let mut app_map = BTreeMap::new();
+    app_map.insert(ButtonId::Back, saved_action.clone());
+    dev.per_app_bindings.insert("com.test.app".into(), app_map);
+
+    // 4. Media key
+    dev.media_keys
+        .insert(K270MediaKey::Email, saved_action.clone());
+
+    // 5. Action ring slot
+    dev.action_ring.default.slots.insert(
+        ActionRingSlot::Top,
+        ActionRingEntry::new(RingAction::new(saved_action.clone()).unwrap()),
+    );
+
+    // 6. Keyboard function key
+    let trigger = "f1".parse::<KeyTrigger>().unwrap();
+    config
+        .keyboard
+        .bindings
+        .insert(trigger.clone(), saved_action.clone());
+
+    (config, dev_key, trigger)
+}
+
+#[test]
+fn custom_shortcut_cascade_update() {
+    use crate::device::K270MediaKey;
+
+    let (mut config, dev_key, trigger) = setup_cascade_test_config();
+    assert_eq!(config.count_custom_shortcut_usages("sc_1"), 6);
+
+    // Test Cascade Update
+    let updated = CustomShortcutEntry {
+        id: "sc_1".into(),
+        name: "Updated Name".into(),
+        target: ActionTarget::Shortcut("cmd+v".parse().unwrap()),
+        icon: Some(ActionRingIcon::Terminal),
+    };
+    config.save_custom_shortcut(updated);
+
+    assert_eq!(config.count_custom_shortcut_usages("sc_1"), 6);
+
+    // Verify all 6 locations were updated
+    let dev = config.devices.get(dev_key).unwrap();
+    match dev.bindings.get(&ButtonId::Forward).unwrap() {
+        Binding::Single(Action::SavedShortcut {
+            name, target, icon, ..
+        }) => {
+            assert_eq!(name, "Updated Name");
+            assert_eq!(target, &ActionTarget::Shortcut("cmd+v".parse().unwrap()));
+            assert_eq!(*icon, Some(ActionRingIcon::Terminal));
+        }
+        _ => panic!("Expected single binding"),
+    }
+
+    match dev.bindings.get(&ButtonId::GestureButton).unwrap() {
+        Binding::Gesture(map) => match map.get(&GestureDirection::Up).unwrap() {
+            Action::SavedShortcut { name, .. } => assert_eq!(name, "Updated Name"),
+            _ => panic!("Expected updated saved shortcut in gesture map"),
+        },
+        _ => panic!("Expected gesture binding"),
+    }
+
+    let app_action = dev
+        .per_app_bindings
+        .get("com.test.app")
+        .unwrap()
+        .get(&ButtonId::Back)
+        .unwrap();
+    if let Action::SavedShortcut { name, .. } = app_action {
+        assert_eq!(name, "Updated Name");
+    } else {
+        panic!("Expected updated saved shortcut in app overlay");
+    }
+
+    let media_action = dev.media_keys.get(&K270MediaKey::Email).unwrap();
+    if let Action::SavedShortcut { name, .. } = media_action {
+        assert_eq!(name, "Updated Name");
+    } else {
+        panic!("Expected updated saved shortcut in media keys");
+    }
+
+    let ring_slot = dev
+        .action_ring
+        .default
+        .slots
+        .get(&ActionRingSlot::Top)
+        .unwrap();
+    if let Action::SavedShortcut { name, .. } = ring_slot.action() {
+        assert_eq!(name, "Updated Name");
+    } else {
+        panic!("Expected updated saved shortcut in ring slot");
+    }
+
+    let kbd_action = config.keyboard.bindings.get(&trigger).unwrap();
+    if let Action::SavedShortcut { name, .. } = kbd_action {
+        assert_eq!(name, "Updated Name");
+    } else {
+        panic!("Expected updated saved shortcut in keyboard bindings");
+    }
+}
+
+#[test]
+fn custom_shortcut_cascade_delete() {
+    use crate::device::K270MediaKey;
+
+    let (mut config, dev_key, trigger) = setup_cascade_test_config();
+    assert_eq!(config.count_custom_shortcut_usages("sc_1"), 6);
+
+    // Test Cascade Delete
+    let removed = config.delete_custom_shortcut("sc_1");
+    assert!(removed);
+    assert_eq!(config.count_custom_shortcut_usages("sc_1"), 0);
+    assert_eq!(config.custom_shortcuts(), []);
+
+    let dev = config.devices.get(dev_key).unwrap();
+    // ButtonId::Forward should have been removed from bindings (fallback to default)
+    assert!(!dev.bindings.contains_key(&ButtonId::Forward));
+
+    // GestureDirection::Up should be reset to default_gesture_binding(Up)
+    match dev.bindings.get(&ButtonId::GestureButton).unwrap() {
+        Binding::Gesture(map) => {
+            assert_eq!(
+                map.get(&GestureDirection::Up),
+                Some(&default_gesture_binding(GestureDirection::Up))
+            );
+        }
+        _ => panic!("Expected gesture binding to remain"),
+    }
+
+    // App overlay, media keys, ring slot, and keyboard bindings should have their entries removed
+    assert!(
+        !dev.per_app_bindings
+            .get("com.test.app")
+            .unwrap()
+            .contains_key(&ButtonId::Back)
+    );
+    assert!(!dev.media_keys.contains_key(&K270MediaKey::Email));
+    assert!(
+        !dev.action_ring
+            .default
+            .slots
+            .contains_key(&ActionRingSlot::Top)
+    );
+    assert!(!config.keyboard.bindings.contains_key(&trigger));
+}
+
+#[test]
+fn remove_binding_restores_default_behavior() {
+    let mut config = Config::default();
+    let dev_key = "device:mouse";
+
+    assert!(!config.remove_binding(dev_key, ButtonId::Forward));
+
+    config.set_binding(dev_key, ButtonId::Forward, Binding::Single(Action::Copy));
+    assert!(
+        config
+            .devices
+            .get(dev_key)
+            .unwrap()
+            .bindings
+            .contains_key(&ButtonId::Forward)
+    );
+
+    assert!(config.remove_binding(dev_key, ButtonId::Forward));
+    assert!(
+        !config
+            .devices
+            .get(dev_key)
+            .unwrap()
+            .bindings
+            .contains_key(&ButtonId::Forward)
+    );
+
+    let effective = crate::bindings::bindings_for(&config, Some(dev_key), None);
+    assert_eq!(
+        effective.get(&ButtonId::Forward),
+        Some(&crate::binding::default_binding(ButtonId::Forward))
+    );
 }

@@ -280,6 +280,16 @@ impl Action {
             Action::SavedShortcut { target, .. } => match target {
                 super::action_target::ActionTarget::Shortcut(combo) => Effect::Key(combo),
                 super::action_target::ActionTarget::Application(_) => Effect::AgentSide,
+                super::action_target::ActionTarget::Text(text) => Effect::Text(text),
+                super::action_target::ActionTarget::AppleScript(src) => {
+                    Effect::Script(Script::AppleScript(src))
+                }
+                super::action_target::ActionTarget::Shell(cmd) => {
+                    Effect::Script(Script::ShellCommand(cmd))
+                }
+                super::action_target::ActionTarget::Workflow(steps) => {
+                    Effect::Script(Script::Workflow(steps))
+                }
             },
             Action::HoldShortcut(combo) => Effect::HeldKey(combo),
 

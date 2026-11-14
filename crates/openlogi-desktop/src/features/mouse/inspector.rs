@@ -2,15 +2,17 @@
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui::{
-    Context, Entity, InteractiveElement, IntoElement, ParentElement, Role,
+    Context, Entity, FontWeight, InteractiveElement, IntoElement, ParentElement, Role,
     StatefulInteractiveElement as _, Styled, div, prelude::FluentBuilder as _, px, rgb, svg,
 };
 use gpui_base::Button as BaseButton;
+use gpui_base::Disableable as _;
 use gpui_component::{
     Icon, IconName, Selectable as _, Sizable as _,
-    button::{Button, ButtonVariants},
+    button::{Button, ButtonVariants as _},
     h_flex,
     input::InputState,
     scroll::ScrollableElement as _,
@@ -19,14 +21,13 @@ use gpui_component::{
 use openlogi_core::binding::{Action, ButtonId, GestureDirection, default_binding};
 
 use super::hotspots::MouseControlId;
-use super::picker::{
-    EditFn, GESTURE_BUTTON_ICON, PickFn, action_icon_path, action_rows_matching, editor_section,
-};
+use super::picker::{EditFn, GESTURE_BUTTON_ICON, PickFn, action_icon_path, editor_section};
 use super::thumbwheel::ThumbwheelPreset;
 use super::view::MouseModelView;
 use crate::state::AppState;
 use crate::ui::action::localized_action_label;
-use crate::ui::components::{MenuRow, control_button, control_input};
+use crate::ui::action_library::{ActionLibrary, NewShortcutFn, OpenPowerUserFn};
+use crate::ui::components::{MenuRow, control_button};
 use crate::ui::theme::{self, ACCENT_BLUE, Palette, Typography as _};
 
 pub(super) const INSPECTOR_W: f32 = 328.;
@@ -46,12 +47,14 @@ pub(super) struct BindingInspectorData<'a> {
 struct ActionPickerContext<'a> {
     open: bool,
     search: &'a Entity<InputState>,
+    power_user: &'a crate::ui::power_user::PowerUserEditorState,
     view: &'a Entity<MouseModelView>,
 }
 
 pub(super) fn binding_inspector(
     data: BindingInspectorData<'_>,
     action_search: &Entity<InputState>,
+    power_user: &crate::ui::power_user::PowerUserEditorState,
     view: &Entity<MouseModelView>,
     cx: &Context<MouseModelView>,
 ) -> gpui::Div {
@@ -59,6 +62,7 @@ pub(super) fn binding_inspector(
     let picker = ActionPickerContext {
         open: data.action_picker_open,
         search: action_search,
+        power_user,
         view,
     };
     let body = match data.selected {
@@ -119,6 +123,10 @@ fn empty_inspector(app: Option<&str>, override_count: usize, pal: Palette) -> gp
         .child(div().text_body().text_color(pal.text_muted).child(summary))
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "assembles header, gestures, picker, and reset button"
+)]
 fn button_inspector(
     button: ButtonId,
     data: &BindingInspectorData<'_>,
@@ -126,6 +134,41 @@ fn button_inspector(
     pal: Palette,
     cx: &Context<MouseModelView>,
 ) -> gpui::Div {
+    if picker.power_user.is_open() {
+        let view_close = picker.view.clone();
+        let view_commit = picker.view.clone();
+        let view_promote = picker.view.clone();
+        let on_promote: crate::ui::power_user::PromoteActionFn =
+            Arc::new(move |target, window, cx| {
+                view_promote.update(cx, |view, cx| {
+                    view.power_user.close();
+                    view.close_action_picker();
+                    view.open_shortcut_builder_with(None, "", Some(&target), None, window, cx);
+                    cx.notify();
+                });
+            });
+        return picker.power_user.render_card_with_promote(
+            &tr!(button.label()),
+            move |action, _window, cx| {
+                AppState::update_bindings(cx, |state| state.commit_binding(button, action));
+                view_commit.update(cx, |view, cx| {
+                    view.power_user.close();
+                    view.close_action_picker();
+                    cx.notify();
+                });
+            },
+            move |_window, cx| {
+                view_close.update(cx, |view, cx| {
+                    view.power_user.close();
+                    cx.notify();
+                });
+            },
+            Some(on_promote),
+            pal,
+            cx,
+        );
+    }
+
     let gesture_map = data.gesture_maps.get(&button);
     let overridden = data
         .overridden
@@ -157,6 +200,76 @@ fn button_inspector(
         (None, _, true) => tr!("Device default"),
         (None, _, false) => tr!("Customized"),
     };
+
+    let can_reset = if data.editing_app.is_some() {
+        overridden
+    } else {
+        action != default_binding(button)
+    };
+
+    let (badge_text, is_accent) = match (
+        data.editing_app,
+        overridden,
+        action == default_binding(button),
+    ) {
+        (Some(_), true, _) => (tr!("App Override"), true),
+        (Some(_), false, _) => (tr!("Inherited"), false),
+        (None, _, false) => (tr!("Customized"), true),
+        (None, _, true) => (tr!("Default"), false),
+    };
+
+    let view_reset = picker.view.clone();
+    let header = h_flex()
+        .items_center()
+        .justify_between()
+        .child(
+            v_flex()
+                .gap_1()
+                .child(div().text_heading().child(tr!(button.label())))
+                .child(
+                    div()
+                        .text_caption()
+                        .text_color(pal.text_muted)
+                        .child(status),
+                ),
+        )
+        .child(
+            h_flex()
+                .items_center()
+                .gap_2()
+                .child(
+                    div()
+                        .px_2()
+                        .py_0p5()
+                        .rounded_full()
+                        .text_caption()
+                        .font_weight(FontWeight::MEDIUM)
+                        .when(is_accent, |badge| {
+                            badge.bg(theme::accent_tint()).text_color(rgb(ACCENT_BLUE))
+                        })
+                        .when(!is_accent, |badge| {
+                            badge.bg(pal.control).text_color(pal.text_muted)
+                        })
+                        .child(badge_text),
+                )
+                .child(
+                    Button::new("inspector-reset-to-default")
+                        .ghost()
+                        .compact()
+                        .disabled(!can_reset)
+                        .label(tr!("Reset to default"))
+                        .on_click(move |_event, _window, cx| {
+                            AppState::update_bindings(cx, |state| {
+                                state.reset_binding(button);
+                            });
+                            view_reset.update(cx, |view, cx| {
+                                view.close_action_picker();
+                                cx.notify();
+                            });
+                        }),
+                ),
+        );
+
     let observer = picker.view.clone();
     let on_pick: PickFn = Rc::new(move |action, _window, cx| {
         AppState::update_bindings(cx, |state| state.commit_binding(button, action));
@@ -168,7 +281,7 @@ fn button_inspector(
 
     v_flex()
         .gap_3()
-        .child(inspector_heading(tr!(button.label()), Some(status), pal))
+        .child(header)
         .child(current_action_card(&action, picker, pal))
         .when(overridden, |panel| {
             let observer = picker.view.clone();
@@ -285,6 +398,45 @@ fn gesture_inspector(
 ) -> gpui::Div {
     let direction = selected_direction.unwrap_or(GestureDirection::Click);
     let current = gesture_action(gesture_map, button, direction);
+
+    if picker.power_user.is_open() {
+        let view_close = picker.view.clone();
+        let view_commit = picker.view.clone();
+        let view_promote = picker.view.clone();
+        let target_label = format!("{} · {}", tr!(button.label()), direction.label());
+        let on_promote: crate::ui::power_user::PromoteActionFn =
+            Arc::new(move |target, window, cx| {
+                view_promote.update(cx, |view, cx| {
+                    view.power_user.close();
+                    view.close_action_picker();
+                    view.open_shortcut_builder_with(None, "", Some(&target), None, window, cx);
+                    cx.notify();
+                });
+            });
+        return picker.power_user.render_card_with_promote(
+            &target_label,
+            move |action, _window, cx| {
+                AppState::update_bindings(cx, |state| {
+                    state.commit_gesture_binding(button, direction, action);
+                });
+                view_commit.update(cx, |view, cx| {
+                    view.power_user.close();
+                    view.close_action_picker();
+                    cx.notify();
+                });
+            },
+            move |_window, cx| {
+                view_close.update(cx, |view, cx| {
+                    view.power_user.close();
+                    cx.notify();
+                });
+            },
+            Some(on_promote),
+            pal,
+            cx,
+        );
+    }
+
     let observer = picker.view.clone();
     let on_pick: PickFn = Rc::new(move |action, _window, cx| {
         AppState::update_bindings(cx, |state| {
@@ -636,44 +788,32 @@ fn action_library(
             cx.notify();
         });
     });
-    let rows = action_rows_matching(id_prefix, current, &query, on_pick, Some(&on_edit), pal, cx);
-    let view = picker.view.clone();
-    v_flex()
-        .gap_2()
-        .pt_1()
-        .child(
-            h_flex()
-                .justify_between()
-                .items_center()
-                .child(editor_section(tr!("Actions"), pal))
-                .child(
-                    Button::new("new-custom-shortcut")
-                        .compact()
-                        .ghost()
-                        .label(tr!("+ New Shortcut"))
-                        .on_click(move |_, window, cx| {
-                            view.update(cx, |view, cx| {
-                                view.open_shortcut_builder(window, cx);
-                                cx.notify();
-                            });
-                        }),
-                ),
-        )
-        .child(control_input(picker.search).cleanable(true))
-        .child(
-            v_flex()
-                .gap_0p5()
-                .when(rows.is_empty(), |list| {
-                    list.child(
-                        div()
-                            .py_3()
-                            .text_body()
-                            .text_color(pal.text_muted)
-                            .child(tr!("No actions found")),
-                    )
-                })
-                .children(rows),
-        )
+    let view_new = picker.view.clone();
+    let on_new: NewShortcutFn = Rc::new(move |window, cx| {
+        view_new.update(cx, |view, cx| {
+            view.open_shortcut_builder(window, cx);
+            cx.notify();
+        });
+    });
+
+    let view_pw = picker.view.clone();
+    let current_action = current.cloned();
+    let on_open_power_user: OpenPowerUserFn = Rc::new(move |kind, window, cx| {
+        view_pw.update(cx, |view, cx| {
+            view.power_user
+                .open(kind, current_action.as_ref(), window, cx);
+            cx.notify();
+        });
+    });
+
+    ActionLibrary::new(id_prefix, on_pick)
+        .current(current)
+        .query(&query)
+        .on_edit(Some(&on_edit))
+        .on_new_shortcut(Some(on_new))
+        .on_open_power_user(Some(on_open_power_user))
+        .search_state(Some(picker.search))
+        .render(pal, cx)
 }
 
 fn gesture_action(
