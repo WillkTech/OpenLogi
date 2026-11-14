@@ -4,6 +4,53 @@ Durable "why we did it this way" records that are not obvious from the code.
 Add a dated entry when a non-obvious architectural or dependency decision is
 made or revisited.
 
+## 2026-11: The fork keeps its own 0.8.x trunk; upstream 0.9 integrates on a branch
+
+This repo is a fork of AprilNEA/OpenLogi and `master` deliberately carries its
+own version line (0.8.1–0.8.4). Those numbers collide with upstream's
+`v0.8.x` releases — accepted because upstream tags exist only in the ignored
+reference clone (`upstream-clone` remote) and never appear on this branch.
+
+- Rebasing onto upstream was rejected: the fork's value is the fixed-point
+  scroll engine, the macOS private-SPI integrations (Mission Control, App
+  Exposé, and Space switching via `CoreDockSendNotification` with a fail-open
+  public-`CGEvent` fallback), and the WillkTech / Prism product identity,
+  while the upstream v0.8.4→v0.9 line rewrites the config schema and the IPC
+  contract underneath all of them.
+- Upstream integration proceeds on the separate `feat/trunk-v0.9` branch
+  (0.9.0, config schema 11, IPC v47, a new `openlogi-fixture` crate), which
+  keeps `master` shippable while the merge matures.
+- `docs/v0.8.15-WillkTech-migration.md` is the v0.8.15 integration snapshot
+  (schema 9, IPC v37) and has already been overtaken by the branch itself —
+  read it as history, not as the current spec. The divergence audit trail is
+  `docs/OpenLogi-0.8.15-vs-main-diff.md` plus the 0.9 feature/performance
+  audit.
+
+## 2026-08: The scroll engine runs on fixed-point; acceleration is curve presets, not toggles
+
+The scroll pipeline was overhauled (0.8.3) to kill the input lag on single
+and slow ratchet clicks:
+
+- The hot path computes in `i32` fixed-point (scale 1000, `1000 = 1.000×`)
+  and evaluates gain through 256-slot LUTs keyed by input-velocity bins,
+  recomputed on config load — no per-event floating-point transcendental
+  math on the dispatch thread.
+- Smooth-scroll and the acceleration enable-toggles were unified into
+  `CurvePreset` (13 shapes) plus a peak multiplier. The old toggles are not
+  kept as parallel state: `smooth_scroll`, `*_acceleration_enabled`, and
+  `*_cap` are read once through `legacy_*` fields, folded into the preset +
+  multiplier pair, and never written back.
+- The schema stayed at 7 despite the arithmetic change: the old sensitivity
+  names remain serde aliases, so existing files load unchanged and a
+  downgrade stays possible. Bumping it would have punished rollback for a
+  rename that aliases already cover.
+- A single notch dispatches its full step on Frame 0 and velocity is seeded
+  from the inter-tick Δt instead of an EMA ramp-up — the ramp was the actual
+  "wheel feels broken" complaint. Gain is clamped to a floor of 1.000×.
+- 0.8.4 drives the decay animation from a macOS display-link callback
+  (`runtime/scroll/display_link.rs`) rather than a timer, so easing ticks
+  with the display refresh.
+
 ## 2026-08: Device settings are keyed by identity, not by transport
 
 A device's config key was derived from how it was reached, so the same mouse

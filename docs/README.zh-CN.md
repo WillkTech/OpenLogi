@@ -165,7 +165,7 @@ Windows 支持可正常工作，并已在 Windows 11 实机上完成端到端验
 
 ### Logo 与品牌资产
 
-感谢 [@kubai087](https://github.com/kubai087) 为 OpenLogi 设计的 Logo，该 Logo —— 即 [`design/`](../design/) 下的品牌资产 —— © 2026 AprilNEA 保留所有权利，不在上述 MIT/Apache 许可范围内，许可证详见 [`design/LICENSE`](../design/LICENSE)。
+OpenLogi 的 Logo 与应用图标（即 [`design/`](../design/) 下的品牌资产）保留所有权利，不在上述 MIT/Apache 许可范围内。
 Fork 代码并不授予 OpenLogi 名称、Logo 或图标的使用权，未经事先书面许可，请勿用它们代表你自己的项目、Fork 或分发版本。
 
 ---

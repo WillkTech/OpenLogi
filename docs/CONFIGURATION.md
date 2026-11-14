@@ -27,14 +27,16 @@ revision. Opening the GUI also tells the resident agent to reload the current
 file, so hand edits and runtime behavior converge immediately.
 
 Schema versions newer than the running build are rejected before their fields
-are parsed. v1 binding maps and the v2–v3 gesture-owner layout migrate on load.
-The v3 physical-device-key transition cannot safely assign older model-scoped
-device settings when two identical devices exist, so v2 model-key entries must
-be copied manually to the generated physical keys.
+are parsed. v1 binding maps and the v2–v3 gesture-owner layout migrate on
+load, and v4-or-older transport-scoped device keys (`receiver:…:slot:…`) fold
+onto the identity keys below. The v3 physical-device-key transition cannot
+safely assign older model-scoped device settings when two identical devices
+exist, so v2 model-key entries must be copied manually to the generated
+physical keys.
 
 ## Shape
 
-`schema_version` is required and currently `5`. `selected_device` is an
+`schema_version` is required and currently `7`. `selected_device` is an
 optional physical device key.
 
 `[app_settings]` contains application-wide preferences:
@@ -43,10 +45,21 @@ optional physical device key.
 - `asset_source`: `automatic`, `openlogi`, `cloudflare`, or `fastly`
 - `language`, `appearance`, `device_view_mode` (`grid`, `list`, or `carousel`),
   optional theme names, and optional UI radius
-- `smooth_scroll` toggles finite animation for traditional mouse-wheel input
-- `vertical_scroll_sensitivity`, from `1` through `100` (`14` is 1×);
-  continuous trackpad input remains native
-- `thumbwheel_sensitivity`, from `1` through `100` (`14` is 1×)
+- `vertical_scroll_baseline` / `horizontal_scroll_baseline`, from `1` through
+  `100` (`14` is 1×): the un-accelerated scroll distance per notch for the
+  main wheel and the thumb wheel; continuous trackpad input remains native.
+  The pre-0.8.3 names `vertical_scroll_sensitivity` and
+  `thumbwheel_sensitivity` are still read
+- `vertical_curve_preset` / `horizontal_curve_preset`: the scroll
+  acceleration / smoothing shape — `none` (default, 1:1 passthrough),
+  `smooth`, `linear`, `exponential`, `logarithmic`, `quadratic`, `cubic`,
+  `quartic`, `square_root`, `sigmoid`, `ease_in`, `ease_out`, `ease_in_out`
+- `vertical_multiplier` / `horizontal_multiplier`: the peak gain the curve
+  rises to as scroll velocity climbs (defaults `2.5` and `2.0`); ignored
+  when the preset is `none`
+- Pre-0.8.3 keys — `smooth_scroll`, `vertical_acceleration_enabled`,
+  `horizontal_acceleration_enabled`, `vertical_cap`, `horizontal_cap` — are
+  still accepted and fold into the preset + multiplier pair
 
 `[devices."<physical-key>"]` contains per-device state. Receiver keys look like
 `receiver:<receiver-id>:slot:<number>`; direct, raw-HID, and camera devices use
@@ -77,11 +90,16 @@ Common device fields are:
 - `action_ring`: default and complete per-application eight-slot layouts
 - `lighting`, `smartshift`, standalone `light`, and camera controls / profiles
 - `host_switch_targets` and `fn_lock` for compatible keyboards
+- `media_keys`: on the Wireless Keyboard K270, a map of the eight dedicated
+  media keys (`media_play_pause`, `media_mute`, `media_volume_down`,
+  `media_volume_up`, `media_home`, `media_email`, `media_power`,
+  `media_calculator`) to actions
 - `identity` and `disabled_gestures`, which are application-managed metadata
 
 `[keyboard.bindings]` contains global key triggers such as `f1` or
 `shift+command+f5`. Supported trigger modifiers are `shift`, `control`,
-`option`, and `command`; aliases such as `ctrl`, `alt`, and `cmd` are accepted.
+`option`, `command`, `win` (also `super` / `meta`), and `fn` (also `globe`);
+aliases such as `ctrl`, `alt`, and `cmd` are accepted.
 
 ## Actions
 
@@ -100,6 +118,8 @@ DpiToggle = { short = "ShowDesktop", long = "MissionControl" }
 the chord down until the originating physical button is released, and also
 releases it if capture is interrupted, the binding becomes invalid, or the
 agent shuts down. Use it for push-to-talk and other hold-to-activate controls.
+Chord strings accept the same modifier spellings as `[keyboard.bindings]`
+triggers, including `Win` and `Fn`.
 
 A `{ short = ..., long = ... }` binding waits for the button's outcome instead
 of firing on press. Releasing before 500 ms fires `short`; keeping the button

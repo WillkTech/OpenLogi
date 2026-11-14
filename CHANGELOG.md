@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- *(core,hook,gui)* remap the eight dedicated media keys on the Logitech
+  Wireless Keyboard K270 (macOS + Windows capture, dedicated configuration
+  panel with key diagram)
+- *(agent-core)* macOS DisplayLink-synchronized smooth scroll decay — the
+  decay animation now ticks with the display refresh instead of a timer
+- *(agent)* opt-in runtime pipeline diagnostics measuring hook-callback and
+  dispatch durations, gated by an atomic flag so the cost is negligible when
+  disabled
+- *(gui)* Input Monitoring usage descriptions in the agent and dev bundle
+  plists, and detection of the permission mismatch where the GUI is granted
+  Input Monitoring but the agent is not — with a hint and a
+  "Reveal Agent in Finder" action
+- *(agent)* integration tests for full event-pipeline latency profiling,
+  scroll-preference concurrency, and bit-for-bit LUT verification
+
+### Changed
+
+- *(core)* retune the `CurvePreset` variants for smoother easing
+- *(brand)* new logo and icon set, refreshed tray icons
+- *(release)* Windows installer moved to the free WiX Toolset
+
+### Fixed
+
+- *(desktop)* removing an application profile now deletes the profile that was
+  targeted, not the one currently being edited
+  ([#29](https://github.com/WillkTech/OpenLogi/pull/29),
+  [#30](https://github.com/WillkTech/OpenLogi/pull/30))
+
+## [0.8.3] - 2026-08-30
+
+### Changed
+
+- *(agent-core,core)* scroll engine overhaul: the acceleration and smoothing
+  hot path runs on zero-allocation `i32` fixed-point arithmetic
+  (scale 1000, `1000 = 1.000×`) with 256-slot precomputed gain LUTs keyed by
+  input velocity, replacing per-event floating-point transcendental math
+- *(agent-core)* a single ratchet notch dispatches its full quantized step
+  immediately on Frame 0; scroll velocity is seeded from the inter-tick
+  timestamp delta, removing the exponential-moving-average ramp-up lag on
+  slow and single-step scrolling
+- *(core,gui)* smooth-scroll and acceleration enable-toggles are unified into
+  per-direction `CurvePreset` selections with a peak multiplier; the settings
+  page is rebuilt around them
+- *(core)* the config schema stays at 7 while the arithmetic changes: the old
+  sensitivity keys remain readable through serde aliases, so existing
+  `config.toml` files load unchanged
+
+### Performance
+
+- *(agent-core)* scroll-engine benchmarks cover the LUT gain paths and show
+  single-digit-nanosecond gain evaluation
+
+## [0.8.2] - 2026-08-29
+
+### Added
+
+- *(gui)* Win/Fn modifiers in custom shortcuts, a custom-shortcut action
+  catalog, and a shortcut builder UI
+- *(gui)* consolidated ActionComposer with extended custom action targets;
+  config schema 6 → 7
+- *(discovery)* generic (non-HID++) mouse fallback: standard HID mice are
+  enumerated without HID++ probing, with named support for the Logitech G90
+- *(gui)* expose `ShowActionsRing` in the mouse button remapping catalog
+- *(overlay)* eliminate the Windows 11 Actions Ring drop-shadow artifact
+  ([#22](https://github.com/WillkTech/OpenLogi/pull/22),
+  [#24](https://github.com/WillkTech/OpenLogi/pull/24))
+
+### Changed
+
+- *(scroll)* the scroll acceleration path computes in `f32`
+- *(infra)* repository references point at WillkTech/OpenLogi
+  ([#28](https://github.com/WillkTech/OpenLogi/pull/28))
+
+### Fixed
+
+- *(macos)* Double Left Click action dispatch and multi-click
+  ([#25](https://github.com/WillkTech/OpenLogi/pull/25),
+  [#27](https://github.com/WillkTech/OpenLogi/pull/27))
+
+## [0.8.1] - 2026-08-26
+
+### Added
+
+- *(gui)* configurable scroll acceleration curve presets with dynamic curve
+  scaling, tooltip help, and full i18n coverage; `None` hides the
+  acceleration controls and the presets manage the enabled state
+- *(gui)* the acceleration sections are single two-column setting rows instead
+  of heading + field pairs
+
+### Changed
+
+- *(core)* workspace-wide performance audit and refactoring
+
+### Fixed
+
+- *(device)* support the M720 gesture button CID `0x00d0`
+  ([#10](https://github.com/WillkTech/OpenLogi/pull/10))
+- *(agent)* mouse wheel responsiveness on single-step / slow scrolling
+- *(macos)* assorted macOS bug fixes
+
 ## [0.8.0] - 2026-08-25
 
 ### Added

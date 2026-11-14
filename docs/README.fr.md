@@ -166,7 +166,7 @@ par [@lus](https://github.com/lus), sous licence 0BSD.
 
 ### Logo et ressources de marque
 
-Merci à [@kubai087](https://github.com/kubai087) pour la conception du logo OpenLogi. Le logo et l'icône d'application OpenLogi — les ressources de marque sous [`design/`](../design/) — sont © 2026 AprilNEA, tous droits réservés, et ne sont pas couverts par les licences MIT/Apache ci-dessus ; voir [`design/LICENSE`](../design/LICENSE). Forker le code ne confère aucun droit sur le nom, le logo ou l'icône d'OpenLogi ; merci de ne pas les utiliser pour représenter vos propres projets, forks ou distributions sans autorisation écrite préalable.
+Le logo et l'icône d'application OpenLogi — les ressources de marque sous [`design/`](../design/) — sont tous droits réservés et ne sont pas couverts par les licences MIT/Apache ci-dessus. Forker le code ne confère aucun droit sur le nom, le logo ou l'icône d'OpenLogi ; merci de ne pas les utiliser pour représenter vos propres projets, forks ou distributions sans autorisation écrite préalable.
 
 ---
 

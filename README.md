@@ -51,7 +51,8 @@ Things OpenLogi does that Options+ won't:
 ## Features
 
 - Devices connected over Logi Bolt receivers, Unifying receivers, Bluetooth, or a wired connection, with battery percentage and charge state
-- Button remapping via the OS input hook: a built-in action catalog plus custom keyboard shortcuts authored in the TOML config, including independent short/long-press actions and hold-until-release chords for push-to-talk¹
+- Non-HID++ mice are discovered too: any standard HID mouse (including the Logitech G90) shows up as a generic device and is remapped through the OS input hook
+- Button remapping via the OS input hook: a built-in action catalog plus custom keyboard shortcuts — authored in the TOML config or built in the GUI shortcut builder, with Win and Fn modifiers — including independent short/long-press actions and hold-until-release chords for push-to-talk¹
 - Per-application profile overlays that auto-switch on app focus (macOS + Windows; Linux on X11 / XWayland only)
 - Litra lights: power, brightness, and color temperature, with optional auto power that follows camera activity
 
@@ -61,12 +62,14 @@ Things OpenLogi does that Options+ won't:
 - Per-direction gesture bindings with live capture, on any capable button
 - Actions Ring: a cursor-centred, eight-slot overlay of actions (`ShowActionsRing`), with per-application layouts
 - DPI control with presets and Cycle / Set-preset actions (`0x2201`)
+- Scroll acceleration: per-direction curve presets (13 shapes, from `smooth` to `ease_in_out`) with a peak multiplier, evaluated through a fixed-point LUT; single ratchet notches land instantly and the smooth decay is DisplayLink-synced on macOS
 - SmartShift wheel: mode toggle, sensitivity, and a permanent-ratchet panel (`0x2111`)
 - Per-device native scroll inversion (`0x2121`, supported devices)
 
 **Keyboard**
 
 - Global F-key remapping: the same action catalog as the mouse, plus power-user actions — typed text, key combos, multi-step workflows (macOS + Windows)
+- Wireless Keyboard K270: remap its eight dedicated media keys (macOS + Windows)
 - Static RGB lighting (`0x8070` / `0x8080`, supported devices)
 
 **Camera**
@@ -217,12 +220,11 @@ by [@lus](https://github.com/lus), licensed 0BSD.
 
 ### Logo & brand assets
 
-Thanks to [@kubai087](https://github.com/kubai087) for designing the OpenLogi
-logo. The OpenLogi logo and app icon (the brand assets under
-[`design/`](design/)) are © 2026 AprilNEA, all rights reserved, and are not covered by the MIT/Apache
-licenses above; see [`design/LICENSE`](design/LICENSE). Forking the code grants
-no right to the OpenLogi name, logo, or icon; please don't use them to represent
-your own projects, forks, or distributions without prior written permission.
+The OpenLogi logo and app icon (the brand assets under
+[`design/`](design/)) are all rights reserved and are not covered by the
+MIT/Apache licenses above. Forking the code grants no right to the OpenLogi
+name, logo, or icon; please don't use them to represent your own projects,
+forks, or distributions without prior written permission.
 
 ---
 

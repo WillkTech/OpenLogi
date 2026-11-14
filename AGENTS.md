@@ -24,10 +24,12 @@ sits beneath both.
 | `crates/openlogi-core` | Pure types: TOML config, device model, action catalog. No I/O, no async |
 | `crates/openlogi-device-registry` | Pure hardware identity registry: receiver protocols and standalone-device driver metadata |
 | `crates/openlogi-hidpp` | Vendored fork of the `hidpp` protocol crate (**lib name `hidpp`**, 0BSD) |
+| `crates/openlogi-hidpp-derive` | Its proc-macro helpers |
 | `crates/openlogi-device` | The HID++ device layer: enumeration, probing, writes, sessions, pairing. Knows no host — expressed against `HidBackend` |
 | `crates/openlogi-hid` | That layer wired to this host: `async-hid` transport, macOS Input Monitoring, the on-disk probe cache |
+| `crates/openlogi-camera` | Logitech UVC camera backends: image controls, live preview, capture |
 | `crates/openlogi-assets` | Device-render registry + cached fetch from OpenLogi asset mirrors |
-| `crates/openlogi-cli` | `clap` command tree: `list`, `assets`, `diag` |
+| `crates/openlogi-cli` | `clap` command tree: `list`, `backlight`, `snapshot`, `camera`, `assets`, `diag`, `light` |
 | `crates/openlogi-hook` | OS input capture: CGEventTap / evdev+uinput / WH_MOUSE_LL |
 | `crates/openlogi-inject` | OS input synthesis: CGEvent / uinput+MPRIS / SendInput |
 | `crates/openlogi-agent-core` | Shared agent orchestration: hook runtime, HID++ writes, DPI cycle, Actions Ring session state |

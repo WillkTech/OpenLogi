@@ -8,12 +8,14 @@ check_for_updates = false
 auto_install_updates = false
 show_in_menu_bar = true
 capture_mouse_events = true
-smooth_scroll = false
-vertical_scroll_sensitivity = 14
+vertical_scroll_baseline = 14
+horizontal_scroll_baseline = 14
+vertical_curve_preset = "smooth"
+horizontal_curve_preset = "none"
+vertical_multiplier = 2.5
 auto_download_assets = true
 asset_source = "automatic"
 language = "en"
-thumbwheel_sensitivity = 14
 appearance = "system"
 ui_scale = "normal"
 device_view_mode = "grid"
@@ -79,6 +81,14 @@ fn_lock = false
 [devices."receiver:aabbccdd:slot:2".bindings]
 KeySearch = "MissionControl"
 KeyScreenCapture = "Sleep"
+
+# Wireless Keyboard K270: its eight dedicated media keys, remappable to the
+# same action catalog as mouse buttons.
+[devices."unit:5f4e3d2c".media_keys]
+media_play_pause = "PlayPause"
+media_volume_down = "VolumeDown"
+media_volume_up = "VolumeUp"
+media_power = "Sleep"
 
 # Since schema 5 a device is keyed by what it *is* — `unit:<hex>` or
 # `serial:<s>` — rather than by the route it was reached on, so its settings

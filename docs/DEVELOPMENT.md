@@ -172,19 +172,38 @@ ignored by release builds.
 crates/
   openlogi/         the `openlogi` binary — a thin wrapper over openlogi-cli
   openlogi-core/    types, config (TOML), paths, button + action catalog — no HID, no async
-  openlogi-inject/  OS input synthesis: CGEvent, uinput/MPRIS, and SendInput
+  openlogi-device-registry/  pure hardware identity: receiver protocols, standalone-device driver metadata
   openlogi-hidpp/   vendored HID++ protocol crate (lib name `hidpp`)
-  openlogi-hid/     device discovery, HID++ reads/writes, and control capture over async-hid
+  openlogi-hidpp-derive/  its proc-macro helpers
+  openlogi-device/  enumeration, probing, writes, sessions, pairing — knows no host, expressed against HidBackend
+  openlogi-hid/     that layer wired to this host: async-hid transport, macOS Input Monitoring, the on-disk probe cache
+  openlogi-camera/  Logitech UVC camera backends: image controls, capture
+  openlogi-permissions/  permission status + System-Settings deep links: TCC reads, Linux device-file probes — reads only
   openlogi-assets/  device-render registry schema + cached HTTP fetch from OpenLogi asset mirrors
   openlogi-cli/     CLI implementation: command tree + `run()`, called by the `openlogi` binary
-  openlogi-agent-core/  shared orchestration + the agent/GUI IPC contract
+  openlogi-ipc/     the tarpc IPC contract + its local-socket transport, shared by agent and GUI
+  openlogi-agent-core/  shared orchestration: hook runtime, HID++ writes, the fixed-point scroll engine
   openlogi-agent/   the `openlogi-agent` binary — background agent owning device I/O and the hook
-  openlogi-hook/    OS mouse hook: macOS CGEventTap, Linux evdev/uinput, Windows WH_MOUSE_LL
+  openlogi-hook/    OS input capture: macOS CGEventTap, Linux evdev/uinput, Windows WH_MOUSE_LL
+  openlogi-inject/  OS input synthesis: CGEvent, uinput/MPRIS, and SendInput
   openlogi-ui/      presentation shared by the two GPUI processes: ring geometry/icons,
                     the GPUI asset source, locale negotiation — gpui, no gpui-component
   openlogi-desktop/     the `openlogi-desktop` binary — GPUI + gpui-component IPC client
   openlogi-overlay/ the `openlogi-overlay` binary — the cursor-centred Actions Ring
 ```
+
+## Upstream
+
+WillkTech/OpenLogi is a fork of
+[AprilNEA/OpenLogi](https://github.com/AprilNEA/OpenLogi). `master` carries
+the fork's own 0.8.x line; its version numbers deliberately collide with
+upstream's `v0.8.x` tags, which are reachable only through the ignored
+reference clone (`upstream-clone` remote → `./openlogi_0.9`) and never appear
+on this branch. The fork keeps its own fixed-point scroll engine, macOS
+private-SPI integrations, and WillkTech / Prism product identity. Integration
+of upstream v0.8.15 / v0.9 happens on the separate `feat/trunk-v0.9` branch,
+not on `master`; the divergence audits and the integration report live in
+`docs/` (`OpenLogi-0.8.15-vs-main-diff.md`, `v0.8.15-WillkTech-migration.md`).
 
 ## Local CI
 
