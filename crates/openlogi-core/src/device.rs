@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 mod light;
 
+pub use k270::K270MediaKey;
 pub use light::{LightCapabilities, LightValueRange, LightValueRangeError, LightValueUnit};
 
 /// What a paired peripheral is. Mirrors `hidpp::receiver::bolt::BoltDeviceKind`
@@ -317,6 +318,241 @@ pub mod m720 {
         model_key.eq_ignore_ascii_case(RUNTIME_MODEL_KEY)
             || wpid.is_some_and(|w| w == UNIFYING_WPID)
             || codename.is_some_and(|c| c.to_ascii_uppercase().contains("M720"))
+    }
+}
+
+/// Well-known hardware identity and controls for the Logitech Wireless Keyboard K270.
+pub mod k270 {
+    use crate::binding::{Action, ApplicationTarget};
+    use serde::{Deserialize, Serialize};
+
+    /// Wireless Product ID for the K270 on Logitech Unifying receivers.
+    pub const UNIFYING_WPID: u16 = 0x4003;
+    /// Alternate Wireless Product ID reported by some K270/MK270 revisions.
+    pub const ALT_WPID: u16 = 0x4023;
+
+    /// Checks whether device metadata matches a Logitech Wireless Keyboard K270.
+    #[must_use]
+    pub fn is_k270(codename: Option<&str>, model_name: Option<&str>, wpid: Option<u16>) -> bool {
+        wpid.is_some_and(|w| w == UNIFYING_WPID || w == ALT_WPID)
+            || codename.is_some_and(|c| c.to_ascii_uppercase().contains("K270"))
+            || model_name.is_some_and(|m| m.to_ascii_uppercase().contains("K270"))
+    }
+
+    /// The eight dedicated media and shortcut keys on the K270 top bar.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+    pub enum K270MediaKey {
+        /// Play / Pause multimedia key.
+        #[serde(rename = "media_play_pause")]
+        PlayPause,
+        /// Mute audio toggle key.
+        #[serde(rename = "media_mute")]
+        Mute,
+        /// Volume decrement key.
+        #[serde(rename = "media_volume_down")]
+        VolumeDown,
+        /// Volume increment key.
+        #[serde(rename = "media_volume_up")]
+        VolumeUp,
+        /// Web browser / Home shortcut key.
+        #[serde(rename = "media_home")]
+        Home,
+        /// Mail application shortcut key.
+        #[serde(rename = "media_email")]
+        Email,
+        /// PC power / sleep shortcut key.
+        #[serde(rename = "media_power")]
+        Power,
+        /// Calculator application shortcut key.
+        #[serde(rename = "media_calculator")]
+        Calculator,
+    }
+
+    impl K270MediaKey {
+        /// All eight K270 media keys in left-to-right physical order.
+        pub const ALL: [Self; 8] = [
+            Self::PlayPause,
+            Self::Mute,
+            Self::VolumeDown,
+            Self::VolumeUp,
+            Self::Home,
+            Self::Email,
+            Self::Power,
+            Self::Calculator,
+        ];
+
+        /// The stable logical identifier string.
+        #[must_use]
+        pub const fn id_str(self) -> &'static str {
+            match self {
+                Self::PlayPause => "media_play_pause",
+                Self::Mute => "media_mute",
+                Self::VolumeDown => "media_volume_down",
+                Self::VolumeUp => "media_volume_up",
+                Self::Home => "media_home",
+                Self::Email => "media_email",
+                Self::Power => "media_power",
+                Self::Calculator => "media_calculator",
+            }
+        }
+
+        /// Parse from logical identifier string.
+        #[must_use]
+        pub fn from_id_str(s: &str) -> Option<Self> {
+            match s {
+                "media_play_pause" => Some(Self::PlayPause),
+                "media_mute" => Some(Self::Mute),
+                "media_volume_down" => Some(Self::VolumeDown),
+                "media_volume_up" => Some(Self::VolumeUp),
+                "media_home" => Some(Self::Home),
+                "media_email" => Some(Self::Email),
+                "media_power" => Some(Self::Power),
+                "media_calculator" => Some(Self::Calculator),
+                _ => None,
+            }
+        }
+
+        /// English display label.
+        #[must_use]
+        pub const fn display_name(self) -> &'static str {
+            match self {
+                Self::PlayPause => "Play / Pause",
+                Self::Mute => "Mute",
+                Self::VolumeDown => "Volume Down",
+                Self::VolumeUp => "Volume Up",
+                Self::Home => "Home",
+                Self::Email => "Email",
+                Self::Power => "Power / PC",
+                Self::Calculator => "Calculator",
+            }
+        }
+
+        /// Translation key in locale files.
+        #[must_use]
+        pub const fn label_key(self) -> &'static str {
+            match self {
+                Self::PlayPause => "Play / Pause",
+                Self::Mute => "Mute",
+                Self::VolumeDown => "Volume Down",
+                Self::VolumeUp => "Volume Up",
+                Self::Home => "Home",
+                Self::Email => "Email",
+                Self::Power => "Power / PC",
+                Self::Calculator => "Calculator",
+            }
+        }
+
+        /// Default action assigned to this key out of the box.
+        ///
+        /// # Panics
+        ///
+        /// Panics only if the hardcoded static application target strings are invalid,
+        /// which is impossible for these non-empty constants.
+        #[must_use]
+        #[expect(
+            clippy::expect_used,
+            reason = "static default targets are known valid non-empty strings"
+        )]
+        pub fn default_action(self) -> Action {
+            match self {
+                Self::PlayPause => Action::PlayPause,
+                Self::Mute => Action::MuteVolume,
+                Self::VolumeDown => Action::VolumeDown,
+                Self::VolumeUp => Action::VolumeUp,
+                Self::Home => Action::OpenApplication(
+                    ApplicationTarget::new("https://", "Home").expect("valid default target"),
+                ),
+                Self::Email => Action::OpenApplication(
+                    ApplicationTarget::new("mailto:", "Email").expect("valid default target"),
+                ),
+                Self::Power => Action::Sleep,
+                Self::Calculator => Action::OpenApplication(
+                    ApplicationTarget::new("/System/Applications/Calculator.app", "Calculator")
+                        .expect("valid default target"),
+                ),
+            }
+        }
+
+        /// Icon asset path in action-icons.
+        #[must_use]
+        pub const fn icon_path(self) -> &'static str {
+            match self {
+                Self::PlayPause => "action-icons/play.svg",
+                Self::Mute => "action-icons/volume-x.svg",
+                Self::VolumeDown => "action-icons/volume-1.svg",
+                Self::VolumeUp => "action-icons/volume-2.svg",
+                Self::Home => "action-icons/globe.svg",
+                Self::Email => "action-icons/file.svg",
+                Self::Power => "action-icons/moon.svg",
+                Self::Calculator => "action-icons/grid-3x3.svg",
+            }
+        }
+
+        /// Underlying hardware event classification.
+        #[must_use]
+        pub const fn hardware_event_type(self) -> &'static str {
+            match self {
+                Self::PlayPause => "Consumer Control (0x00CD - Play/Pause)",
+                Self::Mute => "Consumer Control (0x00E2 - Mute)",
+                Self::VolumeDown => "Consumer Control (0x00EA - Volume Decrement)",
+                Self::VolumeUp => "Consumer Control (0x00E9 - Volume Increment)",
+                Self::Home => "Consumer Control (0x0223 - AC Home)",
+                Self::Email => "Consumer Control (0x018A - AL Email Reader)",
+                Self::Power => "System Control (0x0081 / 0x0082 - System Power / Sleep)",
+                Self::Calculator => "Consumer Control (0x0192 - AL Calculator)",
+            }
+        }
+
+        /// Whether original event suppression is supported at OS level on macOS.
+        #[must_use]
+        pub const fn is_suppressible(self) -> bool {
+            match self {
+                Self::Power | Self::PlayPause | Self::Mute | Self::VolumeDown | Self::VolumeUp => {
+                    false
+                }
+                Self::Home | Self::Email | Self::Calculator => true,
+            }
+        }
+
+        /// Underlying HID usage code (e.g. 0x0192 for AL Calculator).
+        #[must_use]
+        pub const fn usage(self) -> u16 {
+            match self {
+                Self::PlayPause => 0x00CD,
+                Self::Mute => 0x00E2,
+                Self::VolumeDown => 0x00EA,
+                Self::VolumeUp => 0x00E9,
+                Self::Home => 0x0223,
+                Self::Email => 0x018A,
+                Self::Power => 0x0081,
+                Self::Calculator => 0x0192,
+            }
+        }
+
+        /// Resolve a HID usage code back to a [`K270MediaKey`].
+        #[must_use]
+        pub const fn from_usage(usage: u16) -> Option<Self> {
+            match usage {
+                0x00CD => Some(Self::PlayPause),
+                0x00E2 => Some(Self::Mute),
+                0x00EA => Some(Self::VolumeDown),
+                0x00E9 => Some(Self::VolumeUp),
+                0x0223 => Some(Self::Home),
+                0x018A => Some(Self::Email),
+                0x0081 | 0x0082 | 0x0030 => Some(Self::Power),
+                0x0192 => Some(Self::Calculator),
+                _ => None,
+            }
+        }
+
+        /// Convert this media key to its runtime [`KeyTrigger`].
+        #[must_use]
+        pub fn to_key_trigger(self) -> crate::config::KeyTrigger {
+            crate::config::KeyTrigger {
+                keycode: self.usage(),
+                modifiers: crate::config::KeyModifiers::default(),
+            }
+        }
     }
 }
 
@@ -668,5 +904,118 @@ mod tests {
             "min = 2700\nmax = 6500\nstep = 0\nunit = 'kelvin'\n",
         );
         result.expect_err("a zero step must not survive deserialization");
+    }
+
+    #[test]
+    fn k270_device_identification() {
+        use super::k270::*;
+
+        // Positive identification by codename
+        assert!(is_k270(Some("Wireless Keyboard K270"), None, None));
+        assert!(is_k270(Some("Logitech K270"), None, None));
+        assert!(is_k270(Some("k270"), None, None));
+
+        // Positive identification by model_name
+        assert!(is_k270(None, Some("Wireless Keyboard K270"), None));
+        assert!(is_k270(None, Some("K270"), None));
+
+        // Positive identification by WPID
+        assert!(is_k270(None, None, Some(UNIFYING_WPID)));
+        assert!(is_k270(None, None, Some(ALT_WPID)));
+
+        // Negative identification
+        assert!(!is_k270(Some("MX Keys"), None, None));
+        assert!(!is_k270(Some("K380"), None, None));
+        assert!(!is_k270(Some("Craft"), None, None));
+        assert!(!is_k270(Some("G513 RGB MECHANICAL KEYBOARD"), None, None));
+        assert!(!is_k270(None, Some("MX Master 3S"), None));
+        assert!(!is_k270(None, None, Some(0x405e))); // M720
+        assert!(!is_k270(None, None, None));
+    }
+
+    #[test]
+    fn k270_media_key_properties_and_defaults() {
+        use super::k270::*;
+        use crate::binding::Action;
+
+        assert_eq!(K270MediaKey::ALL.len(), 8);
+
+        // Every control has unique id_str and parses back
+        let mut ids = std::collections::HashSet::new();
+        for key in K270MediaKey::ALL {
+            let id = key.id_str();
+            assert!(ids.insert(id), "duplicate logical id: {id}");
+            assert_eq!(K270MediaKey::from_id_str(id), Some(key));
+
+            // Default actions are valid and match specifications
+            let default_act = key.default_action();
+            match key {
+                K270MediaKey::PlayPause => assert_eq!(default_act, Action::PlayPause),
+                K270MediaKey::Mute => assert_eq!(default_act, Action::MuteVolume),
+                K270MediaKey::VolumeDown => assert_eq!(default_act, Action::VolumeDown),
+                K270MediaKey::VolumeUp => assert_eq!(default_act, Action::VolumeUp),
+                K270MediaKey::Home | K270MediaKey::Email | K270MediaKey::Calculator => {
+                    assert!(matches!(default_act, Action::OpenApplication(_)));
+                }
+                K270MediaKey::Power => assert_eq!(default_act, Action::Sleep),
+            }
+
+            // Hardware event types are non-empty
+            assert_ne!(key.hardware_event_type(), "");
+        }
+
+        // Check power is marked not suppressible due to OS power-management kernel handling
+        assert!(!K270MediaKey::Power.is_suppressible());
+        assert!(!K270MediaKey::PlayPause.is_suppressible());
+    }
+
+    #[test]
+    fn k270_media_key_serde_roundtrip() {
+        use super::k270::*;
+
+        #[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+        struct Wrapper {
+            key: K270MediaKey,
+        }
+
+        for key in K270MediaKey::ALL {
+            let toml_str = toml::to_string(&Wrapper { key }).expect("serialize");
+            assert!(
+                toml_str.contains(key.id_str()),
+                "expected {} in {}",
+                key.id_str(),
+                toml_str
+            );
+            let parsed: Wrapper = toml::from_str(&toml_str).expect("deserialize");
+            assert_eq!(parsed.key, key);
+        }
+    }
+
+    #[test]
+    fn k270_media_key_usage_and_trigger_mapping() {
+        use super::k270::*;
+
+        // 0x0192 is AL Calculator
+        assert_eq!(K270MediaKey::Calculator.usage(), 0x0192);
+        assert_eq!(
+            K270MediaKey::from_usage(0x0192),
+            Some(K270MediaKey::Calculator)
+        );
+
+        // Other media keys
+        assert_eq!(K270MediaKey::PlayPause.usage(), 0x00CD);
+        assert_eq!(K270MediaKey::Mute.usage(), 0x00E2);
+        assert_eq!(K270MediaKey::VolumeDown.usage(), 0x00EA);
+        assert_eq!(K270MediaKey::VolumeUp.usage(), 0x00E9);
+        assert_eq!(K270MediaKey::Home.usage(), 0x0223);
+        assert_eq!(K270MediaKey::Email.usage(), 0x018A);
+        assert_eq!(K270MediaKey::Power.usage(), 0x0081);
+
+        for key in K270MediaKey::ALL {
+            assert_eq!(K270MediaKey::from_usage(key.usage()), Some(key));
+            let trigger = key.to_key_trigger();
+            assert_eq!(trigger.keycode, key.usage());
+            assert!(trigger.modifiers.is_empty());
+        }
     }
 }

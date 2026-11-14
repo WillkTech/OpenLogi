@@ -17,7 +17,7 @@ use std::sync::{Arc, RwLock};
 use openlogi_core::app::ForegroundApp;
 use openlogi_core::binding::{Action, Binding};
 use openlogi_core::bindings::{button_bindings_for, oshook_gestures_for};
-use openlogi_core::config::{Config, LightSettings, ScrollResolution};
+use openlogi_core::config::{Config, KeyTrigger, LightSettings, ScrollResolution};
 use openlogi_core::device::{
     Capabilities, DeviceInventory, DeviceKind, LightCapabilities, StandaloneDevice,
 };
@@ -196,7 +196,7 @@ impl Orchestrator {
     pub fn new(config: Config, observable: Arc<ObservableState>) -> Self {
         let shared = SharedRuntime {
             hook_maps: Arc::new(RwLock::new(HookMaps::default())),
-            keyboard_bindings: Arc::new(RwLock::new(config.keyboard.bindings.clone())),
+            keyboard_bindings: Arc::new(RwLock::new(effective_keyboard_bindings(&config))),
             scroll_preferences: Arc::new(ScrollPreferences::from_app_settings(
                 &config.app_settings,
             )),
@@ -329,12 +329,13 @@ impl Orchestrator {
         );
         self.rebuild_dpi_cycles(self.current_key());
         // Keyboard F-key bindings are global (not per-device), so they key off
-        // the top-level config map rather than the selected device. Published
-        // here so `reload_config` (GUI commit) takes effect live, not only on
-        // agent restart.
+        // the top-level config map rather than the selected device. Aggregated
+        // with per-device media keys (e.g. K270 dedicated media buttons).
+        // Published here so `reload_config` (GUI commit) takes effect live,
+        // not only on agent restart.
         write_value(
             &self.shared.keyboard_bindings,
-            self.config.keyboard.bindings.clone(),
+            effective_keyboard_bindings(&self.config),
             "keyboard_bindings",
         );
         write_value(
@@ -938,6 +939,18 @@ fn build_devices(
             .then_with(|| a.model_key.cmp(&b.model_key))
     });
     devices
+}
+
+fn effective_keyboard_bindings(config: &Config) -> BTreeMap<KeyTrigger, Action> {
+    let mut bindings = config.keyboard.bindings.clone();
+    for (device_key, device) in &config.devices {
+        if config.device_enabled(device_key) {
+            for (media_key, action) in &device.media_keys {
+                bindings.insert(media_key.to_key_trigger(), action.clone());
+            }
+        }
+    }
+    bindings
 }
 
 fn host_switch_links(config: &Config, devices: &[AgentDevice]) -> Vec<HostSwitchLink> {

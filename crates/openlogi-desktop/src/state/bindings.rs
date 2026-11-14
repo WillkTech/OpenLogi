@@ -348,6 +348,71 @@ impl AppState {
             .edit(|config| config.set_keyboard_binding(trigger, action));
         self.persist_and_reload("keyboard binding");
     }
+
+    /// Commit an assignment for a K270 dedicated media key on the current device.
+    pub fn commit_k270_media_key(
+        &mut self,
+        key: openlogi_core::device::k270::K270MediaKey,
+        action: Option<Action>,
+    ) {
+        let Some(dev_key) = self
+            .current_record()
+            .and_then(DeviceRecord::persistent_config_key)
+            .map(str::to_string)
+        else {
+            debug!(
+                ?key,
+                "no persistent device key — k270 media key kept in memory only"
+            );
+            return;
+        };
+        self.config
+            .edit(|config| config.set_media_key_binding(&dev_key, key, action));
+        self.persist_and_reload("k270 media key binding");
+    }
+
+    /// Reset all dedicated media keys for the current K270 keyboard to factory defaults.
+    pub fn reset_k270_media_keys(&mut self) {
+        let Some(dev_key) = self
+            .current_record()
+            .and_then(DeviceRecord::persistent_config_key)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.config.edit(|config| config.reset_media_keys(&dev_key));
+        self.persist_and_reload("reset k270 media keys");
+    }
+
+    /// The effective action for `key` on the current K270 keyboard.
+    #[must_use]
+    pub fn effective_k270_media_key_action(
+        &self,
+        key: openlogi_core::device::k270::K270MediaKey,
+    ) -> Action {
+        let Some(dev_key) = self
+            .current_record()
+            .and_then(DeviceRecord::persistent_config_key)
+        else {
+            return key.default_action();
+        };
+        self.config.effective_media_key_action(dev_key, key)
+    }
+
+    /// Whether `key` on the current K270 keyboard has a custom non-default assignment.
+    #[must_use]
+    pub fn is_k270_media_key_customized(
+        &self,
+        key: openlogi_core::device::k270::K270MediaKey,
+    ) -> bool {
+        let Some(dev_key) = self
+            .current_record()
+            .and_then(DeviceRecord::persistent_config_key)
+        else {
+            return false;
+        };
+        self.config.media_keys(dev_key).contains_key(&key)
+    }
     /// Per-direction maps for every gesture-mode button of the current device,
     /// keyed by button — what the runtime dispatches for it. HID++ sources come
     /// fully seeded (matching the gesture watcher's projection); OS-hook

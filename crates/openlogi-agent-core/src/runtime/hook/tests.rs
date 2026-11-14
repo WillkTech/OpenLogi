@@ -239,3 +239,89 @@ fn resolve_gesture_click_falls_back_when_click_is_absent() {
         default_binding(ButtonId::Forward)
     );
 }
+
+#[test]
+fn handle_key_suppresses_and_executes_remapped_media_key() {
+    use openlogi_core::binding::KeyCombo;
+    use openlogi_core::device::K270MediaKey;
+
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let (ring_tx, _ring_rx) = tokio::sync::mpsc::unbounded_channel();
+    let runtime = crate::runtime::ActionRuntime::new(
+        Arc::new(RwLock::new(crate::DpiCycles::default())),
+        Arc::new(RwLock::new(None)),
+        openlogi_hid::ChannelRegistry::default(),
+        crate::receiver_access::ReceiverAccess::default(),
+        ring_tx,
+    )
+    .expect("test action runtime");
+    let dispatcher = runtime.dispatcher();
+
+    let calc_trigger = K270MediaKey::Calculator.to_key_trigger();
+    let pageup_combo = "pageup".parse::<KeyCombo>().expect("parse pageup");
+    let pageup = Action::CustomShortcut(pageup_combo.clone());
+    let bindings: SharedKeyboardBindings = Arc::new(RwLock::new(BTreeMap::from([(
+        calc_trigger,
+        pageup.clone(),
+    )])));
+
+    // 1. One-shot action (CustomShortcut): press is suppressed and queued to action worker
+    let event_down = openlogi_hook::KeyEvent {
+        keycode: 0x0192,
+        pressed: true,
+        modifiers: openlogi_hook::KeyModifiers::default(),
+    };
+    let disp = handle_key(event_down, &bindings, &tx, &dispatcher);
+    assert_eq!(disp, EventDisposition::Suppress);
+    assert_eq!(rx.try_recv(), Ok(pageup));
+
+    // Release of one-shot action passes through without stale held state
+    let event_up = openlogi_hook::KeyEvent {
+        keycode: 0x0192,
+        pressed: false,
+        modifiers: openlogi_hook::KeyModifiers::default(),
+    };
+    assert_eq!(
+        handle_key(event_up, &bindings, &tx, &dispatcher),
+        EventDisposition::PassThrough
+    );
+
+    // 2. Held combo (HoldShortcut): both down and up edges are suppressed by lifecycle
+    let email_trigger = K270MediaKey::Email.to_key_trigger();
+    let hold_pageup = Action::HoldShortcut(pageup_combo);
+    bindings
+        .write()
+        .expect("write bindings")
+        .insert(email_trigger, hold_pageup);
+
+    let email_down = openlogi_hook::KeyEvent {
+        keycode: 0x018A,
+        pressed: true,
+        modifiers: openlogi_hook::KeyModifiers::default(),
+    };
+    assert_eq!(
+        handle_key(email_down, &bindings, &tx, &dispatcher),
+        EventDisposition::Suppress
+    );
+
+    let email_up = openlogi_hook::KeyEvent {
+        keycode: 0x018A,
+        pressed: false,
+        modifiers: openlogi_hook::KeyModifiers::default(),
+    };
+    assert_eq!(
+        handle_key(email_up, &bindings, &tx, &dispatcher),
+        EventDisposition::Suppress
+    );
+
+    // 3. Unmapped key passes through untouched
+    let unmapped_down = openlogi_hook::KeyEvent {
+        keycode: 0x0223, // Home
+        pressed: true,
+        modifiers: openlogi_hook::KeyModifiers::default(),
+    };
+    assert_eq!(
+        handle_key(unmapped_down, &bindings, &tx, &dispatcher),
+        EventDisposition::PassThrough
+    );
+}

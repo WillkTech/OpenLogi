@@ -531,11 +531,22 @@ const FKEY_MAC_KEYCODES: [u16; 19] = [
 ];
 
 /// Map a Windows virtual-key code to the macOS keycode [`KeyEvent`] carries,
-/// or `None` for keys outside the Esc/F1–F19 set.
+/// or `None` for keys outside the Esc/F1–F19 and dedicated media key set.
 fn mac_keycode(vk: u32) -> Option<u16> {
     let vk = u16::try_from(vk).ok()?;
     if vk == VK_ESCAPE {
         return Some(0x35);
+    }
+    match vk {
+        0xB7 => return Some(0x0192), // VK_LAUNCH_APP2 -> Calculator
+        0xB4 => return Some(0x018A), // VK_LAUNCH_MAIL -> Email
+        0xAC => return Some(0x0223), // VK_BROWSER_HOME -> Home
+        0xB3 => return Some(0x00CD), // VK_MEDIA_PLAY_PAUSE -> Play/Pause
+        0xAD => return Some(0x00E2), // VK_VOLUME_MUTE -> Mute
+        0xAE => return Some(0x00EA), // VK_VOLUME_DOWN -> Volume Down
+        0xAF => return Some(0x00E9), // VK_VOLUME_UP -> Volume Up
+        0x5F => return Some(0x0081), // VK_SLEEP -> Power
+        _ => {}
     }
     FKEY_MAC_KEYCODES
         .get(usize::from(vk.checked_sub(VK_F1)?))

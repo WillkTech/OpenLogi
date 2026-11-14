@@ -13,10 +13,19 @@ use openlogi_ui::action_icons::ActionIcons;
 /// Asset path [`AppAssets`] resolves to the embedded app logo.
 pub const LOGO: &str = "openlogi.png";
 
+/// Asset path [`AppAssets`] resolves to the K270 media keys vector diagram.
+pub const K270_MEDIAKEYS: &str = "k270-mediakeys.svg";
+
 /// The 1024×1024 app icon, embedded into the binary.
 const LOGO_BYTES: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../design/icon/openlogi.png"
+));
+
+/// The K270 media keys SVG artwork, embedded into the binary.
+const K270_MEDIAKEYS_BYTES: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../design/k270-mediakeys.svg"
 ));
 
 /// GPUI asset source: the app logo, the shared ring glyphs, then
@@ -28,6 +37,9 @@ impl AssetSource for AppAssets {
         if path == LOGO {
             return Ok(Some(Cow::Borrowed(LOGO_BYTES)));
         }
+        if path == K270_MEDIAKEYS {
+            return Ok(Some(Cow::Borrowed(K270_MEDIAKEYS_BYTES)));
+        }
         if let Some(bytes) = ActionIcons.load(path)? {
             return Ok(Some(bytes));
         }
@@ -36,5 +48,25 @@ impl AssetSource for AppAssets {
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         gpui_component_assets::Assets.list(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loads_k270_mediakeys_svg() {
+        let assets = AppAssets;
+        let bytes = assets
+            .load(K270_MEDIAKEYS)
+            .expect("load result")
+            .expect("found");
+        assert!(bytes.starts_with(b"<svg"));
+        assert!(bytes.ends_with(b"</svg>"));
+        // Confirm currentColor styling
+        let text = std::str::from_utf8(&bytes).expect("utf8");
+        assert!(text.contains("stroke=\"currentColor\""));
+        assert!(!text.contains("#222023"));
     }
 }

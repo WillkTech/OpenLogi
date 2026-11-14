@@ -87,6 +87,7 @@ pub(super) struct DetailPanels<'a> {
     pub mouse_model: &'a gpui::Entity<MouseModelView>,
     pub action_ring: &'a gpui::Entity<ActionRingPanel>,
     pub keyboard_model: &'a gpui::Entity<FunctionRowView>,
+    pub k270_media_keys: &'a gpui::Entity<crate::features::k270::K270MediaKeysView>,
     pub dpi_panel: &'a gpui::Entity<DpiPanel>,
     pub smartshift_panel: &'a gpui::Entity<SmartShiftPanel>,
     pub lighting_panel: &'a gpui::Entity<LightingPanel>,
@@ -116,6 +117,7 @@ pub(super) fn detail_content(
         }
         DetailTab::ActionsRing => action_ring_tab(panels.action_ring).into_any_element(),
         DetailTab::Keys => keys_tab(panels.keyboard_model).into_any_element(),
+        DetailTab::MediaKeys => panels.k270_media_keys.clone().into_any_element(),
         DetailTab::Pointer => {
             pointer_tab(panels.dpi_panel, panels.smartshift_panel, cx).into_any_element()
         }
@@ -236,6 +238,7 @@ fn detail_tab_icon(tab: DetailTab) -> &'static str {
         DetailTab::Buttons => "action-icons/mouse-pointer-click.svg",
         DetailTab::ActionsRing => "action-icons/layout-grid.svg",
         DetailTab::Keys => "action-icons/keyboard.svg",
+        DetailTab::MediaKeys => "action-icons/play.svg",
         DetailTab::Pointer => "action-icons/gauge.svg",
         DetailTab::Lighting | DetailTab::Light => "action-icons/palette.svg",
         DetailTab::Camera => "action-icons/camera.svg",

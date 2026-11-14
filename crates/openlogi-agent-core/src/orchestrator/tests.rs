@@ -914,3 +914,53 @@ fn app_switch_republishes_capture_plans() {
     orch.set_current_app(Some(ForegroundApp::unnamed("com.example.editor".into())));
     assert_eq!(published_back_binding(&orch), Some(Action::Undo));
 }
+
+#[test]
+fn k270_media_keys_are_published_to_keyboard_bindings() {
+    use openlogi_core::binding::KeyCombo;
+    use openlogi_core::device::K270MediaKey;
+
+    let pageup = Action::CustomShortcut("pageup".parse::<KeyCombo>().expect("parse pageup"));
+    let pagedown = Action::CustomShortcut("pagedown".parse::<KeyCombo>().expect("parse pagedown"));
+
+    let mut config = Config::default();
+    let dev_key = "device_k270";
+    config.set_media_key_binding(dev_key, K270MediaKey::Calculator, Some(pageup.clone()));
+
+    let orch = orchestrator(config.clone());
+    let calc_trigger = K270MediaKey::Calculator.to_key_trigger();
+
+    let bindings = orch.shared.keyboard_bindings.read().expect("read bindings");
+    assert_eq!(
+        bindings.get(&calc_trigger),
+        Some(&pageup),
+        "K270 media key assignment (0x0192) must be published to keyboard_bindings"
+    );
+    drop(bindings);
+
+    // Reloading config with updated binding updates keyboard_bindings
+    let mut updated = config.clone();
+    updated.set_media_key_binding(dev_key, K270MediaKey::Calculator, Some(pagedown.clone()));
+    let mut orch = orch;
+    orch.reload_config(updated);
+
+    let bindings = orch.shared.keyboard_bindings.read().expect("read bindings");
+    assert_eq!(
+        bindings.get(&calc_trigger),
+        Some(&pagedown),
+        "reloading config must update media key assignment in keyboard_bindings"
+    );
+    drop(bindings);
+
+    // Disabling device removes its media keys from runtime bindings
+    let mut disabled = config.clone();
+    disabled.set_device_enabled(dev_key, false);
+    orch.reload_config(disabled);
+
+    let bindings = orch.shared.keyboard_bindings.read().expect("read bindings");
+    assert_eq!(
+        bindings.get(&calc_trigger),
+        None,
+        "disabled device media keys must not be published"
+    );
+}

@@ -254,6 +254,55 @@ impl Config {
         &self.keyboard.bindings
     }
 
+    /// Returns the K270 media-key assignments for `device_key`.
+    #[must_use]
+    pub fn media_keys(&self, device_key: &str) -> &BTreeMap<crate::device::K270MediaKey, Action> {
+        static EMPTY: std::sync::LazyLock<BTreeMap<crate::device::K270MediaKey, Action>> =
+            std::sync::LazyLock::new(BTreeMap::new);
+        self.devices
+            .get(device_key)
+            .map_or(&*EMPTY, |d| &d.media_keys)
+    }
+
+    /// Sets or removes an assignment for a K270 media key on `device_key`.
+    pub fn set_media_key_binding(
+        &mut self,
+        device_key: &str,
+        key: crate::device::K270MediaKey,
+        action: Option<Action>,
+    ) {
+        let entry = self.devices.entry(device_key.to_string()).or_default();
+        match action {
+            Some(a) => {
+                entry.media_keys.insert(key, a);
+            }
+            None => {
+                entry.media_keys.remove(&key);
+            }
+        }
+    }
+
+    /// Resets all media key assignments for `device_key` back to defaults.
+    pub fn reset_media_keys(&mut self, device_key: &str) {
+        if let Some(entry) = self.devices.get_mut(device_key) {
+            entry.media_keys.clear();
+        }
+    }
+
+    /// The effective action for `key` on `device_key` (configured override, or default).
+    #[must_use]
+    pub fn effective_media_key_action(
+        &self,
+        device_key: &str,
+        key: crate::device::K270MediaKey,
+    ) -> Action {
+        self.devices
+            .get(device_key)
+            .and_then(|d| d.media_keys.get(&key))
+            .cloned()
+            .unwrap_or_else(|| key.default_action())
+    }
+
     /// Records `action` for one `direction` of `button`'s gesture binding,
     /// creating the device entry if needed.
     ///

@@ -84,6 +84,8 @@ unsafe extern "C" {
 #[link(name = "IOKit", kind = "framework")]
 unsafe extern "C" {
     fn IOHIDEventGetSenderID(event: IOHIDEventRef) -> u64;
+    fn IOHIDEventGetType(event: IOHIDEventRef) -> u32;
+    fn IOHIDEventGetIntegerValue(event: IOHIDEventRef, field: u32) -> i64;
 }
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
@@ -266,11 +268,55 @@ fn modifiers_from_flags(flags: CGEventFlags) -> KeyModifiers {
     }
 }
 
+const IOHID_EVENT_TYPE_KEYBOARD: u32 = 3;
+const IOHID_EVENT_FIELD_KEYBOARD_USAGE_PAGE: u32 = 0x0003_0000;
+const IOHID_EVENT_FIELD_KEYBOARD_USAGE: u32 = 0x0003_0001;
+const IOHID_EVENT_FIELD_KEYBOARD_DOWN: u32 = 0x0003_0002;
+
+/// Read HID usage page, usage, and down state from an event's backing `IOHIDEvent`.
+fn event_hid_keyboard_usage(event: &CGEvent) -> Option<(u32, u32, bool)> {
+    // SAFETY: `event.as_ptr()` is the live CGEventRef; `CGEventCopyIOHIDEvent`
+    // returns a +1-retained IOHIDEvent (or null) which we release below.
+    let hid = unsafe { CGEventCopyIOHIDEvent(event.as_ptr().cast()) };
+    if hid.is_null() {
+        return None;
+    }
+    // SAFETY: `hid` is a live IOHIDEvent for the duration of the call.
+    let (event_type, page, usage, down) = unsafe {
+        let event_type = IOHIDEventGetType(hid);
+        let raw_page = IOHIDEventGetIntegerValue(hid, IOHID_EVENT_FIELD_KEYBOARD_USAGE_PAGE);
+        let raw_usage = IOHIDEventGetIntegerValue(hid, IOHID_EVENT_FIELD_KEYBOARD_USAGE);
+        let page = u32::try_from(raw_page).ok();
+        let usage = u32::try_from(raw_usage).ok();
+        let down = IOHIDEventGetIntegerValue(hid, IOHID_EVENT_FIELD_KEYBOARD_DOWN) != 0;
+        CFRelease(hid);
+        (event_type, page, usage, down)
+    };
+    if event_type == IOHID_EVENT_TYPE_KEYBOARD
+        && let (Some(page), Some(usage)) = (page, usage)
+    {
+        Some((page, usage, down))
+    } else {
+        None
+    }
+}
+
 /// Translate a keyboard `CGEvent` into a [`KeyEvent`]. Returns `None` for
 /// non-key event types (the mouse path handles those) and for `FlagsChanged`
 /// (modifier state rides on the next key event via its flags; a standalone
 /// flags change carries no key of interest to the remapper).
 fn translate_key(etype: CGEventType, event: &CGEvent) -> Option<KeyEvent> {
+    if let Some((page, usage, down)) = event_hid_keyboard_usage(event)
+        && (page == 0x0C || (page == 0x01 && (usage == 0x81 || usage == 0x82)))
+        && let Ok(keycode) = u16::try_from(usage)
+    {
+        return Some(KeyEvent {
+            keycode,
+            pressed: down,
+            modifiers: modifiers_from_flags(event.get_flags()),
+        });
+    }
+
     let pressed = match etype {
         CGEventType::KeyDown => true,
         CGEventType::KeyUp => false,

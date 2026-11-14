@@ -17,6 +17,7 @@ use self::menu::{APP_KEY_CONTEXT, CloseWindow, Minimize, NavigateBack, Zoom};
 use crate::features::action_ring::ActionRingPanel;
 use crate::features::camera::controls::CameraControlsPanel;
 use crate::features::camera::preview::CameraPreview;
+use crate::features::k270::K270MediaKeysView;
 use crate::features::keyboard::function_row::FunctionRowView;
 use crate::features::lighting::device::LightingPanel;
 use crate::features::lighting::standalone::LightPanel;
@@ -75,6 +76,8 @@ enum DetailTab {
     ActionsRing,
     /// The keyboard function-row remapper with clickable F-key bubbles.
     Keys,
+    /// Dedicated Media keys tab for Wireless Keyboard K270.
+    MediaKeys,
     /// Pointer tuning — DPI and presets.
     Pointer,
     /// RGB lighting — color, brightness, on/off.
@@ -124,6 +127,10 @@ impl DetailTab {
         if matches!(record.kind, DeviceKind::Keyboard) && caps.buttons {
             tabs.push(Self::Keys);
         }
+        // Dedicated Media keys tab when identified as Wireless Keyboard K270.
+        if record.is_k270() {
+            tabs.push(Self::MediaKeys);
+        }
         if caps.pointer || caps.scroll_inversion || caps.hires_wheel {
             tabs.push(Self::Pointer);
         }
@@ -150,6 +157,7 @@ impl DetailTab {
             Self::Buttons => tr!("Buttons"),
             Self::ActionsRing => tr!("Actions Ring"),
             Self::Keys => tr!("Keys"),
+            Self::MediaKeys => tr!("Media keys"),
             Self::Pointer => tr!("Pointer"),
             Self::Lighting | Self::Light => tr!("Lighting"),
             Self::Camera => tr!("Camera"),
@@ -165,6 +173,7 @@ pub struct AppView {
     mouse_model: Entity<MouseModelView>,
     action_ring_panel: Entity<ActionRingPanel>,
     keyboard_model: Entity<FunctionRowView>,
+    k270_media_keys: Entity<K270MediaKeysView>,
     dpi_panel: Entity<DpiPanel>,
     smartshift_panel: Entity<SmartShiftPanel>,
     lighting_panel: Entity<LightingPanel>,
@@ -227,6 +236,7 @@ impl AppView {
         let mouse_model = cx.new(|cx| MouseModelView::new(window, cx));
         let action_ring_panel = cx.new(ActionRingPanel::new);
         let keyboard_model = cx.new(FunctionRowView::new);
+        let k270_media_keys = cx.new(|cx| K270MediaKeysView::new(window, cx));
         let dpi_panel = cx.new(DpiPanel::new);
         let smartshift_panel = cx.new(SmartShiftPanel::new);
         let lighting_panel = cx.new(LightingPanel::new);
@@ -284,6 +294,7 @@ impl AppView {
             mouse_model,
             action_ring_panel,
             keyboard_model,
+            k270_media_keys,
             dpi_panel,
             smartshift_panel,
             lighting_panel,
@@ -597,6 +608,7 @@ impl Render for AppView {
                         mouse_model: &self.mouse_model,
                         action_ring: &self.action_ring_panel,
                         keyboard_model: &self.keyboard_model,
+                        k270_media_keys: &self.k270_media_keys,
                         dpi_panel: &self.dpi_panel,
                         smartshift_panel: &self.smartshift_panel,
                         lighting_panel: &self.lighting_panel,
@@ -940,5 +952,22 @@ mod tests {
     fn unprobed_unknown_device_shows_only_device_tab() {
         let tabs = DetailTab::tabs_for(&record(DeviceKind::Unknown, None));
         assert_eq!(tabs, vec![DetailTab::Device]);
+    }
+
+    #[test]
+    fn k270_keyboard_shows_media_keys_tab() {
+        let mut k270 = record(DeviceKind::Keyboard, None);
+        k270.model_name = "Wireless Keyboard K270".to_string();
+        let tabs = DetailTab::tabs_for(&k270);
+        assert!(tabs.contains(&DetailTab::MediaKeys));
+        assert_eq!(DetailTab::default_for(&k270), DetailTab::MediaKeys);
+
+        let non_k270 = record(DeviceKind::Keyboard, None);
+        let non_tabs = DetailTab::tabs_for(&non_k270);
+        assert!(!non_tabs.contains(&DetailTab::MediaKeys));
+
+        let mouse = record(DeviceKind::Mouse, None);
+        let mouse_tabs = DetailTab::tabs_for(&mouse);
+        assert!(!mouse_tabs.contains(&DetailTab::MediaKeys));
     }
 }

@@ -100,6 +100,14 @@ fn keycode_to_name(code: u16) -> Option<&'static str> {
         0x40 => "f17",
         0x4F => "f18",
         0x50 => "f19",
+        0x0192 => "calculator",
+        0x018A => "email",
+        0x0223 => "home",
+        0x00CD => "playpause",
+        0x00E2 => "mute",
+        0x00EA => "volumedown",
+        0x00E9 => "volumeup",
+        0x0081 => "power",
         _ => return None,
     })
 }
@@ -162,7 +170,22 @@ impl std::str::FromStr for KeyTrigger {
             "f17" => 0x40,
             "f18" => 0x4F,
             "f19" => 0x50,
-            other => return Err(ParseTriggerError(format!("unknown key '{other}'"))),
+            "calculator" | "media_calculator" => 0x0192,
+            "email" | "media_email" => 0x018A,
+            "home" | "media_home" => 0x0223,
+            "playpause" | "media_playpause" | "media_play_pause" => 0x00CD,
+            "mute" | "media_mute" => 0x00E2,
+            "volumedown" | "media_volumedown" | "media_volume_down" => 0x00EA,
+            "volumeup" | "media_volumeup" | "media_volume_up" => 0x00E9,
+            "power" | "media_power" => 0x0081,
+            other => {
+                if let Some(hex_str) = other.strip_prefix("0x") {
+                    u16::from_str_radix(hex_str, 16)
+                        .map_err(|_| ParseTriggerError(format!("unknown key '{other}'")))?
+                } else {
+                    return Err(ParseTriggerError(format!("unknown key '{other}'")));
+                }
+            }
         };
         Ok(KeyTrigger {
             keycode,

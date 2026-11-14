@@ -2,6 +2,7 @@
 
 pub mod action_ring;
 pub mod camera;
+pub mod k270;
 pub mod keyboard;
 pub mod lighting;
 pub mod mouse;

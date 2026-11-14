@@ -105,6 +105,15 @@ impl DeviceRecord {
         self.persistent
     }
 
+    /// Whether this device is identified as a Logitech Wireless Keyboard K270.
+    #[must_use]
+    pub fn is_k270(&self) -> bool {
+        openlogi_core::device::k270::is_k270(self.codename.as_deref(), Some(&self.model_name), None)
+            || self.display_name.to_ascii_uppercase().contains("K270")
+            || self.model_key.eq_ignore_ascii_case("wpid4003")
+            || self.model_key.eq_ignore_ascii_case("wpid4023")
+    }
+
     /// Key used to reconcile this live source across inventory snapshots.
     ///
     /// HID++ devices use [`Self::config_key`]. Cameras may share a model-scoped

@@ -170,6 +170,55 @@ fn key_trigger_parses_and_displays_extended_function_keys() {
 }
 
 #[test]
+fn key_trigger_parses_and_displays_media_keys() {
+    let calc: KeyTrigger = "calculator".parse().expect("parse calculator trigger");
+    assert_eq!(calc.keycode, 0x0192);
+    assert_eq!(calc.to_string(), "calculator");
+
+    let calc_alias: KeyTrigger = "media_calculator"
+        .parse()
+        .expect("parse media_calculator trigger");
+    assert_eq!(calc_alias.keycode, 0x0192);
+
+    let hex_calc: KeyTrigger = "0x0192".parse().expect("parse hex trigger");
+    assert_eq!(hex_calc.keycode, 0x0192);
+
+    let shift_calc: KeyTrigger = "shift+calculator".parse().expect("parse shift+calculator");
+    assert_eq!(shift_calc.keycode, 0x0192);
+    assert!(shift_calc.modifiers.shift);
+    assert_eq!(shift_calc.to_string(), "shift+calculator");
+
+    assert_eq!(
+        "email".parse::<KeyTrigger>().expect("email").keycode,
+        0x018A
+    );
+    assert_eq!("home".parse::<KeyTrigger>().expect("home").keycode, 0x0223);
+    assert_eq!(
+        "playpause"
+            .parse::<KeyTrigger>()
+            .expect("playpause")
+            .keycode,
+        0x00CD
+    );
+    assert_eq!("mute".parse::<KeyTrigger>().expect("mute").keycode, 0x00E2);
+    assert_eq!(
+        "volumedown"
+            .parse::<KeyTrigger>()
+            .expect("volumedown")
+            .keycode,
+        0x00EA
+    );
+    assert_eq!(
+        "volumeup".parse::<KeyTrigger>().expect("volumeup").keycode,
+        0x00E9
+    );
+    assert_eq!(
+        "power".parse::<KeyTrigger>().expect("power").keycode,
+        0x0081
+    );
+}
+
+#[test]
 fn key_trigger_rejects_unknown() {
     "f99"
         .parse::<KeyTrigger>()
@@ -2091,4 +2140,92 @@ fn an_unknown_route_gets_the_device_value() {
         device.effective_dpi("direct:046d:ffff"),
         Some(Dpi::new(1600))
     );
+}
+
+#[test]
+fn k270_media_keys_persistence_and_isolation() {
+    use crate::device::k270::K270MediaKey;
+
+    let device_a = "4003";
+    let device_b = "other_keyboard";
+
+    let mut config = Config::default();
+
+    // Default when no custom assignment is set
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::PlayPause),
+        Action::PlayPause
+    );
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::Power),
+        Action::Sleep
+    );
+    assert!(config.media_keys(device_a).is_empty());
+
+    // Customize key on device A
+    config.set_media_key_binding(device_a, K270MediaKey::PlayPause, Some(Action::MuteVolume));
+    config.set_media_key_binding(device_a, K270MediaKey::Calculator, Some(Action::Screenshot));
+
+    // Device A has customized assignments
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::PlayPause),
+        Action::MuteVolume
+    );
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::Calculator),
+        Action::Screenshot
+    );
+    // Uncustomized keys on device A remain default
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::VolumeUp),
+        Action::VolumeUp
+    );
+
+    // Device B is completely isolated and unaffected
+    assert_eq!(
+        config.effective_media_key_action(device_b, K270MediaKey::PlayPause),
+        Action::PlayPause
+    );
+    assert!(config.media_keys(device_b).is_empty());
+
+    // Save and reload roundtrip
+    let reloaded = write_and_read(&config);
+    assert_eq!(
+        reloaded.effective_media_key_action(device_a, K270MediaKey::PlayPause),
+        Action::MuteVolume
+    );
+    assert_eq!(
+        reloaded.effective_media_key_action(device_a, K270MediaKey::Calculator),
+        Action::Screenshot
+    );
+    assert_eq!(
+        reloaded.effective_media_key_action(device_b, K270MediaKey::PlayPause),
+        Action::PlayPause
+    );
+
+    // Reset individual key on device A
+    let mut config = reloaded;
+    config.set_media_key_binding(device_a, K270MediaKey::PlayPause, None);
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::PlayPause),
+        Action::PlayPause
+    );
+    // Calculator is still customized
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::Calculator),
+        Action::Screenshot
+    );
+
+    // Reset all keys on device A
+    config.reset_media_keys(device_a);
+    assert!(config.media_keys(device_a).is_empty());
+    assert_eq!(
+        config.effective_media_key_action(device_a, K270MediaKey::Calculator),
+        K270MediaKey::Calculator.default_action()
+    );
+
+    // Roundtrip an empty config verifies empty media_keys is omitted from TOML
+    let reloaded_empty = write_and_read(&config);
+    let toml_str = toml::to_string(&reloaded_empty).expect("toml string");
+    assert!(!toml_str.contains("media_keys"));
 }

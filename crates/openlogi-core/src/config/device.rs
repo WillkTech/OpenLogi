@@ -11,6 +11,7 @@ use super::settings::{
     ThumbwheelSensitivity, deserialize_gesture_owner,
 };
 use crate::binding::{Action, ActionRingConfig, Binding, ButtonId, GestureDirection};
+use crate::device::k270::K270MediaKey;
 use crate::device::{Capabilities, DeviceKind, DeviceModelInfo, LightCapabilities};
 use crate::hid::Dpi;
 
@@ -270,6 +271,9 @@ pub struct DeviceConfig {
     /// [`Self::dpi`]. `None` means "never set — leave the keyboard alone".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fn_lock: Option<bool>,
+    /// Dedicated media-key assignments for Wireless Keyboard K270.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub media_keys: BTreeMap<K270MediaKey, Action>,
 }
 
 impl DeviceConfig {
@@ -370,6 +374,7 @@ impl Default for DeviceConfig {
             scroll_resolution: None,
             host_switch_targets: Vec::new(),
             fn_lock: None,
+            media_keys: BTreeMap::new(),
         }
     }
 }
@@ -490,6 +495,8 @@ struct RawDeviceConfig {
     host_switch_targets: Vec<String>,
     #[serde(default)]
     fn_lock: Option<bool>,
+    #[serde(default)]
+    media_keys: BTreeMap<K270MediaKey, Action>,
     #[serde(default = "default_true")]
     enabled: bool,
     #[serde(default)]
@@ -550,6 +557,7 @@ impl From<RawDeviceConfig> for DeviceConfig {
             scroll_resolution: raw.scroll_resolution,
             host_switch_targets: raw.host_switch_targets,
             fn_lock: raw.fn_lock,
+            media_keys: raw.media_keys,
         }
     }
 }
