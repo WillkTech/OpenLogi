@@ -166,10 +166,11 @@ pub struct AppSettings {
     /// where verification fails closed.
     #[serde(default)]
     pub auto_install_updates: bool,
-    /// True once the first-run "check for updates?" prompt has been answered
-    /// (either way), so it is never shown again. The prompt is how a
-    /// privacy-conscious default of `check_for_updates = false` still lets a
-    /// user opt in on first launch.
+    /// Legacy field: formerly true once the first-run "check for updates?"
+    /// prompt had been answered. The prompt no longer appears — update checks
+    /// simply stay opt-in via Settings → Updates — but the field is retained so
+    /// configs written by older versions still parse under
+    /// `deny_unknown_fields`.
     #[serde(default)]
     pub update_prompt_seen: bool,
     /// Whether OpenLogi shows a macOS menu-bar (status item) icon — and, on

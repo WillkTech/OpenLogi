@@ -12,7 +12,6 @@
 pub mod add_device;
 pub mod main_window;
 pub mod settings;
-pub mod update_consent;
 
 use crate::ui::theme::Typography as _;
 use gpui::{
@@ -34,7 +33,6 @@ pub struct WindowRegistry {
     pub main: Option<WindowHandle<Root>>,
     pub settings: Option<WindowHandle<Root>>,
     pub add_device: Option<WindowHandle<Root>>,
-    pub update_consent: Option<WindowHandle<Root>>,
 }
 
 impl Global for WindowRegistry {}

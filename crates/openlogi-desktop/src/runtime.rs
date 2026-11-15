@@ -104,16 +104,6 @@ pub(crate) fn spawn(startup: Startup, cx: &mut gpui::App) {
             swr
         });
 
-        // First launch only: offer to opt in to the update check, since it
-        // defaults to off. Marked seen either way so it shows just once.
-        cx.update(|cx| {
-            let show = AppState::try_global(cx)
-                .is_some_and(|state| !state.read(cx).app_settings().update_prompt_seen);
-            if show {
-                windows::update_consent::open(cx);
-            }
-        });
-
         // One-time sweep of the legacy pre-rendered glow PNGs the old overlay
         // baked into the user cache; the glow is painted live now, so they're
         // dead bytes. Off-thread so it never delays the first paint.
