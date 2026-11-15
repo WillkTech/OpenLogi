@@ -75,7 +75,9 @@ fn expand_tilde(path: &str) -> std::borrow::Cow<'_, str> {
 /// AppImages on Linux. `.app` is handled separately (validated as a bundle
 /// only on macOS, where it is a directory).
 #[cfg(target_os = "windows")]
-const APP_EXTS: &[&str] = &["exe", "lnk", "msi", "msix", "appx", "bat", "cmd"];
+const APP_EXTS: &[&str] = &[
+    "exe", "lnk", "msi", "msix", "appx", "bat", "cmd", "com", "ps1",
+];
 #[cfg(target_os = "linux")]
 const APP_EXTS: &[&str] = &["desktop", "appimage", "run"];
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
@@ -486,6 +488,41 @@ impl ActionComposer {
             }
         }
     }
+
+    fn prompt_path(window: &mut Window, cx: &mut Context<Self>, files: bool, directories: bool) {
+        let window_handle = window.window_handle();
+        let rx = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files,
+            directories,
+            multiple: false,
+            prompt: None,
+        });
+        cx.spawn(async move |composer, cx| {
+            if let Ok(Ok(Some(paths))) = rx.await
+                && let Some(path) = paths.into_iter().next()
+            {
+                let path_str = path.to_string_lossy().to_string();
+                let app_name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                let _ = cx.update_window(window_handle, move |_, window, cx| {
+                    let _ = composer.update(cx, |composer, cx| {
+                        composer.selected_icon = Some(ActionRingIcon::Applications);
+                        composer.path_input.update(cx, |input, cx| {
+                            input.set_value(path_str.clone(), window, cx);
+                        });
+                        if let Some(cb) = &composer.on_app_selected {
+                            cb(&app_name, &path_str, window, cx);
+                        }
+                        cx.notify();
+                    });
+                });
+            }
+        })
+        .detach();
+    }
 }
 
 impl Render for ActionComposer {
@@ -714,66 +751,19 @@ impl Render for ActionComposer {
                                 .gap_2()
                                 .child(div().flex_1().child(Input::new(&self.path_input)))
                                 .child(
-                                    Button::new("browse-btn")
+                                    Button::new("browse-app-btn")
                                         .compact()
-                                        .label(tr!("Browse…"))
+                                        .label(tr!("App…"))
                                         .on_click(cx.listener(|_composer, _, window, cx| {
-                                            let window_handle = window.window_handle();
-                                            let rx = cx.prompt_for_paths(gpui::PathPromptOptions {
-                                                files: true,
-                                                directories: true,
-                                                multiple: false,
-                                                prompt: None,
-                                            });
-                                            cx.spawn(async move |composer, cx| {
-                                                if let Ok(Ok(Some(paths))) = rx.await
-                                                    && let Some(path) = paths.into_iter().next()
-                                                {
-                                                    let path_str =
-                                                        path.to_string_lossy().to_string();
-                                                    let app_name = path
-                                                        .file_stem()
-                                                        .and_then(|s| s.to_str())
-                                                        .unwrap_or("")
-                                                        .to_string();
-                                                    let _ = cx.update_window(
-                                                        window_handle,
-                                                        move |_, window, cx| {
-                                                            let _ = composer.update(
-                                                                cx,
-                                                                |composer, cx| {
-                                                                    composer.selected_icon =
-                                                                        Some(
-                                                                            ActionRingIcon::Applications,
-                                                                        );
-                                                                    composer.path_input.update(
-                                                                        cx,
-                                                                        |input, cx| {
-                                                                            input.set_value(
-                                                                                path_str.clone(),
-                                                                                window,
-                                                                                cx,
-                                                                            );
-                                                                        },
-                                                                    );
-                                                                    if let Some(cb) =
-                                                                        &composer.on_app_selected
-                                                                    {
-                                                                        cb(
-                                                                            &app_name,
-                                                                            &path_str,
-                                                                            window,
-                                                                            cx,
-                                                                        );
-                                                                    }
-                                                                    cx.notify();
-                                                                },
-                                                            );
-                                                        },
-                                                    );
-                                                }
-                                            })
-                                            .detach();
+                                            Self::prompt_path(window, cx, true, false);
+                                        })),
+                                )
+                                .child(
+                                    Button::new("browse-folder-btn")
+                                        .compact()
+                                        .label(tr!("Folder…"))
+                                        .on_click(cx.listener(|_composer, _, window, cx| {
+                                            Self::prompt_path(window, cx, false, true);
                                         })),
                                 ),
                         )
@@ -1038,6 +1028,8 @@ mod tests {
                 "setup.msix",
                 "start.bat",
                 "build.cmd",
+                "legacy.com",
+                "script.ps1",
             ]
         } else if cfg!(target_os = "linux") {
             &["kde.desktop", "Tool.AppImage", "installer.run"]
