@@ -71,23 +71,14 @@ Requires macOS 13 or later.
 
 Download the signed, notarized `.dmg` from the [latest release](https://github.com/WillkTech/OpenLogi/releases/latest) and drag `OpenLogi.app` to `/Applications`.
 
-Or install via [Homebrew](https://brew.sh):
-
-```sh
-brew install --cask openlogi
-```
-
-The official Homebrew cask is the default installation path. To explicitly
-track the latest GitHub release from `willktech/tap` instead:
-
-```sh
-brew tap willktech/tap
-brew install --cask willktech/tap/openlogi@latest
-```
-
-`openlogi@latest` is maintained by OpenLogi's release workflow and may update
-before the official cask autobump lands. Install either `openlogi` or
-`openlogi@latest`, not both.
+> [!NOTE]
+> If macOS refuses to open the app with an **"OpenLogi is damaged"**, **"cannot be verified"**, or invalid code-signature error, clear the quarantine flag left by the download:
+>
+> ```sh
+> sudo xattr -dr com.apple.quarantine /Applications/OpenLogi.app
+> ```
+>
+> Official builds are signed and notarized, so this error usually means a stale quarantine flag (often after an in-place upgrade over an older copy). If it persists, re-download the `.dmg` and install again — a modified or incomplete download can also trip Gatekeeper.
 
 ### Linux
 
