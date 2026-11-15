@@ -256,7 +256,36 @@ fn launch_application(target: &openlogi_core::binding::ApplicationTarget) {
             }
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        // `xdg-open`/`gio` refuse (or "open in text editor") bare executables,
+        // which is exactly what AppImages, ELF binaries, and scripts picked via
+        // Browse are — run those directly. Folders, `.desktop` entries, and
+        // URLs still go through the desktop opener.
+        if is_executable_file(std::path::Path::new(path)) {
+            match std::process::Command::new(path).spawn() {
+                Ok(mut child) => {
+                    let _ = std::thread::spawn(move || {
+                        let _ = child.wait();
+                    });
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        %error,
+                        path,
+                        "could not execute application file directly"
+                    );
+                }
+            }
+        } else if let Err(error) = opener::open(path) {
+            tracing::warn!(
+                %error,
+                path,
+                "could not open configured application, folder, or URL"
+            );
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         if let Err(error) = opener::open(path) {
             tracing::warn!(
@@ -266,6 +295,16 @@ fn launch_application(target: &openlogi_core::binding::ApplicationTarget) {
             );
         }
     }
+}
+
+/// A regular file carrying an execute bit: an AppImage, ELF binary, or
+/// script that must be spawned directly instead of handed to the desktop
+/// opener.
+#[cfg(target_os = "linux")]
+fn is_executable_file(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt as _;
+    path.metadata()
+        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
 }
 
 pub fn execute(action: &Action) {

@@ -37,22 +37,70 @@ pub struct DiscoveredApp {
 enum PathValidationStatus {
     Empty,
     Url,
+    /// macOS `.app` bundle.
     AppBundle,
+    /// Native application on this platform: executables and installers on
+    /// Windows, `.desktop` entries, AppImages, and executable files on Linux.
+    Application,
     Folder,
+    /// An existing file that is not a recognized application on this platform.
+    File,
     NotFound,
 }
 
+/// Home directory for `~` expansion. Windows GUI processes rarely carry
+/// `HOME`, so `USERPROFILE` is the fallback (mirrors what `dirs::home_dir`
+/// does on the agent's launch side).
+fn home_dir() -> Option<String> {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .ok()
+}
+
 fn expand_tilde(path: &str) -> std::borrow::Cow<'_, str> {
-    if let Some(rest) = path.strip_prefix("~/") {
-        if let Ok(home) = std::env::var("HOME") {
-            return std::borrow::Cow::Owned(format!("{home}/{rest}"));
-        }
+    if let Some(rest) = path.strip_prefix("~/")
+        && let Some(home) = home_dir()
+    {
+        return std::borrow::Cow::Owned(format!("{home}/{rest}"));
     } else if path == "~"
-        && let Ok(home) = std::env::var("HOME")
+        && let Some(home) = home_dir()
     {
         return std::borrow::Cow::Owned(home);
     }
     std::borrow::Cow::Borrowed(path)
+}
+
+/// Extensions that mark a file as a launchable application on this platform:
+/// native executables and installers on Windows, desktop entries and
+/// AppImages on Linux. `.app` is handled separately (validated as a bundle
+/// only on macOS, where it is a directory).
+#[cfg(target_os = "windows")]
+const APP_EXTS: &[&str] = &["exe", "lnk", "msi", "msix", "appx", "bat", "cmd"];
+#[cfg(target_os = "linux")]
+const APP_EXTS: &[&str] = &["desktop", "appimage", "run"];
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+const APP_EXTS: &[&str] = &[];
+
+/// Whether `path`'s extension names a launchable application here.
+fn is_app_extension(path: &std::path::Path) -> bool {
+    let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+        return false;
+    };
+    APP_EXTS.contains(&ext.to_ascii_lowercase().as_str())
+}
+
+/// A regular file carrying an execute bit: an AppImage, ELF binary, or
+/// script that launches without a recognized extension.
+#[cfg(unix)]
+fn is_executable_file(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt as _;
+    path.metadata()
+        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(not(unix))]
+fn is_executable_file(_path: &std::path::Path) -> bool {
+    false
 }
 
 fn validate_path(raw: &str) -> PathValidationStatus {
@@ -72,15 +120,18 @@ fn validate_path(raw: &str) -> PathValidationStatus {
         return PathValidationStatus::NotFound;
     }
     let path_no_slash = trimmed.trim_end_matches('/');
-    let is_bundle = std::path::Path::new(path_no_slash)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("app"));
+    let is_bundle = cfg!(target_os = "macos")
+        && std::path::Path::new(path_no_slash)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("app"));
     if is_bundle {
         PathValidationStatus::AppBundle
     } else if path.is_dir() {
         PathValidationStatus::Folder
+    } else if is_app_extension(path) || is_executable_file(path) {
+        PathValidationStatus::Application
     } else {
-        PathValidationStatus::AppBundle
+        PathValidationStatus::File
     }
 }
 
@@ -734,8 +785,16 @@ impl Render for ActionComposer {
                                     theme::accent_tint(),
                                     gpui::Hsla::from(rgb(ACCENT_BLUE)),
                                 )),
+                                PathValidationStatus::Application => Some((
+                                    tr!("Application"),
+                                    theme::accent_tint(),
+                                    gpui::Hsla::from(rgb(ACCENT_BLUE)),
+                                )),
                                 PathValidationStatus::Folder => {
                                     Some((tr!("Folder"), pal.control, pal.text_primary))
+                                }
+                                PathValidationStatus::File => {
+                                    Some((tr!("File"), pal.control, pal.text_primary))
                                 }
                                 PathValidationStatus::Url => Some((
                                     tr!("URL"),
@@ -965,6 +1024,60 @@ mod tests {
                     PathValidationStatus::AppBundle
                 );
             }
+        }
+    }
+
+    #[test]
+    fn validate_path_classifies_platform_app_formats() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let app_names: &[&str] = if cfg!(target_os = "windows") {
+            &[
+                "editor.exe",
+                "Tool.lnk",
+                "installer.msi",
+                "setup.msix",
+                "start.bat",
+                "build.cmd",
+            ]
+        } else if cfg!(target_os = "linux") {
+            &["kde.desktop", "Tool.AppImage", "installer.run"]
+        } else {
+            &[]
+        };
+        for name in app_names {
+            let file = dir.path().join(name);
+            std::fs::write(&file, b"launch me").expect("write app fixture");
+            assert_eq!(
+                validate_path(&file.to_string_lossy()),
+                PathValidationStatus::Application,
+                "{name} must be recognized as an application"
+            );
+        }
+
+        let plain = dir.path().join("notes.txt");
+        std::fs::write(&plain, b"notes").expect("write plain fixture");
+        assert_eq!(
+            validate_path(&plain.to_string_lossy()),
+            PathValidationStatus::File
+        );
+
+        assert_eq!(
+            validate_path(&dir.path().to_string_lossy()),
+            PathValidationStatus::Folder
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let bin = dir.path().join("mytool");
+            std::fs::write(&bin, b"#!/bin/sh\n").expect("write exec fixture");
+            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod exec fixture");
+            assert_eq!(
+                validate_path(&bin.to_string_lossy()),
+                PathValidationStatus::Application,
+                "an extension-less executable must be recognized as an application"
+            );
         }
     }
 }

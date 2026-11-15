@@ -10,27 +10,7 @@
 <h1 align="center">OpenLogi</h1>
 <p align="center"><strong>⚡️ A native, local-first alternative to Logitech Options+, written in Rust 🦀<br/>Unlock the full capabilities of Logitech mice, keyboards, and webcams over HID++ and UVC</strong></p>
 
-<div align="center">
-    <a href="https://twitter.com/WillkTech" target="_blank">
-    <img alt="twitter" src="https://img.shields.io/badge/follow-WillkTech-green?style=social&logo=Twitter"></a>
-    <a href="https://t.me/+VDtkR5OSAT04NzVh" target="_blank">
-    <img alt="telegram" src="https://img.shields.io/badge/chat-telegram-blueviolet?style=flat&logo=Telegram"></a>
-    <a href="https://github.com/WillkTech/OpenLogi/releases" target="_blank">
-    <img alt="GitHub downloads" src="https://img.shields.io/github/downloads/WillkTech/OpenLogi/total.svg?style=flat"></a>
-    <a href="https://github.com/WillkTech/OpenLogi/commits" target="_blank">
-    <img alt="GitHub commit" src="https://img.shields.io/github/commit-activity/m/WillkTech/OpenLogi?style=flat"></a>
-</div>
-
-<p align="center">
-    <a href="https://www.producthunt.com/products/openlogi?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-openlogi" target="_blank" rel="noopener noreferrer">
-        <picture>
-            <source media="(prefers-color-scheme: dark)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=openlogi&amp;theme=dark&amp;period=daily">
-            <source media="(prefers-color-scheme: light)" srcset="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=openlogi&amp;theme=light&amp;period=daily">
-            <img alt="OpenLogi - A local-first alternative to Logitech Options+ | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=openlogi&amp;theme=light&amp;period=daily">
-        </picture></a>
-</p>
-
-> **Fed up with Options+? Try OpenLogi.**
+ **Fed up with Options+? Try OpenLogi.**
 
 Runs on macOS, Linux, and Windows.
 
@@ -228,7 +208,3 @@ forks, or distributions without prior written permission.
 ---
 
 **Not affiliated with Logitech.** "Logitech", "MX Master", and "Options+" are trademarks of Logitech International S.A.
-
-## Repo activity
-
-![Repobeats analytics image](https://repobeats.axiom.co/api/embed/4a0b576a03e9d528ad31ccf4797a1286c045d021.svg "Repobeats analytics image")
